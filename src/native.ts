@@ -7,7 +7,7 @@ import type { ChargeIntent, FrameCartItem } from './types';
 import { ErrorCodes } from './errors';
 
 const LINKING_ERROR =
-  `The package '@framepayments/react-native-frame' doesn't seem to be linked. Make sure you have run 'pod install' (iOS) or rebuilt the app (Android).`;
+  `The package 'framepayments-react-native' doesn't seem to be linked. Make sure you have run 'pod install' (iOS) or rebuilt the app (Android).`;
 
 const FrameSDK = NativeModules.FrameSDK
   ? NativeModules.FrameSDK

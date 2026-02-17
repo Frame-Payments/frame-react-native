@@ -8,7 +8,7 @@
     "start": "react-native start"
   },
   "dependencies": {
-    "@framepayments/react-native-frame": "file:..",
+    "framepayments-react-native": "file:..",
     "framepayments": "^1.0.9",
     "react": "18.2.0",
     "react-native": "0.72.0"

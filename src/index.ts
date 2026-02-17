@@ -1,5 +1,5 @@
 /**
- * @framepayments/react-native-frame
+ * framepayments-react-native
  *
  * React Native SDK for Frame Payments.
  * - Initialize the SDK, then use presentCheckout / presentCart for payment UI.

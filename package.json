@@ -1,5 +1,5 @@
 {
-  "name": "@framepayments/react-native-frame",
+  "name": "framepayments-react-native",
   "version": "1.0.0",
   "description": "React Native SDK for Frame Payments - modal checkout and cart, with API usage via frame-node.",
   "main": "lib/index.js",

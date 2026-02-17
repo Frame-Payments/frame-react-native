@@ -15,7 +15,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import Frame from '@framepayments/react-native-frame';
+import Frame from 'framepayments-react-native';
 import { FrameSDK } from 'framepayments';
 
 // Set your Frame secret key here or use an env variable. Do not commit real keys.

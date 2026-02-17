@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Initial release of `@framepayments/react-native-frame`
+- Initial release of `framepayments-react-native`
 - `Frame.initialize({ apiKey, debugMode? })` to initialize the SDK
 - `Frame.presentCheckout({ customerId?, amount })` – native checkout modal (iOS and Android)
 - `Frame.presentCart({ customerId?, items, shippingAmountInCents })` – cart then checkout flow

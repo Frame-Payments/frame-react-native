@@ -13,9 +13,9 @@ React Native SDK for [Frame Payments](https://framepayments.com). It bridges the
 ## Installation
 
 ```bash
-npm install @framepayments/react-native-frame
+npm install framepayments-react-native
 # or
-yarn add @framepayments/react-native-frame
+yarn add framepayments-react-native
 ```
 
 ### iOS
@@ -42,7 +42,7 @@ No extra steps; autolinking includes the native module.
 Call once at app startup (e.g. in your root component or App.js).
 
 ```ts
-import Frame from '@framepayments/react-native-frame';
+import Frame from 'framepayments-react-native';
 
 Frame.initialize({
   apiKey: 'YOUR_FRAME_SECRET_KEY',
@@ -117,8 +117,8 @@ const customers = await frame.customers.list();
 
 The [example](./example) folder contains a sample app (App.tsx, package.json) that uses the SDK for init, presentCheckout, presentCart, and frame-node for listing customers.
 
-1. **From this repo (local SDK):** Create a new React Native app (e.g. `npx react-native init FrameExample`), then copy `example/App.tsx` into it and add the dependency: `"@framepayments/react-native-frame": "file:/path/to/frame-react-native"`. Run `npm install`. On iOS: add Frame-iOS via SPM in Xcode (see [Installation – iOS](#ios) above), then `cd ios && pod install`. See [example/README.md](./example/README.md) for details.
-2. **Using the published package:** Install `@framepayments/react-native-frame` and `framepayments` in your app and use the same patterns as in `example/App.tsx`.
+1. **From this repo (local SDK):** Create a new React Native app (e.g. `npx react-native init FrameExample`), then copy `example/App.tsx` into it and add the dependency: `"framepayments-react-native": "file:/path/to/frame-react-native"`. Run `npm install`. On iOS: add Frame-iOS via SPM in Xcode (see [Installation – iOS](#ios) above), then `cd ios && pod install`. See [example/README.md](./example/README.md) for details.
+2. **Using the published package:** Install `framepayments-react-native` and `framepayments` in your app and use the same patterns as in `example/App.tsx`.
 
 ## Release checklist
 

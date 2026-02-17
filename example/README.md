@@ -40,4 +40,4 @@ This example demonstrates:
 
 ## Note
 
-The example app depends on the parent package via `"@framepayments/react-native-frame": "file:.."`. The parent repo must contain the full React Native SDK (including `ios/` and `android/`). If you cloned only the example, link the published package instead: `npm install @framepayments/react-native-frame`.
+The example app depends on the parent package via `"framepayments-react-native": "file:.."`. The parent repo must contain the full React Native SDK (including `ios/` and `android/`). If you cloned only the example, link the published package instead: `npm install framepayments-react-native`.
