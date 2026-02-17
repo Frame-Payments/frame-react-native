@@ -1,0 +1,12 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <activity
+      android:name="com.framepayments.reactnativeframe.FrameCheckoutActivity"
+      android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+      android:exported="false" />
+    <activity
+      android:name="com.framepayments.reactnativeframe.FrameFlowActivity"
+      android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+      android:exported="false" />
+  </application>
+</manifest>
