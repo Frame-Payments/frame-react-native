@@ -12,3 +12,4 @@ lib/
 .cxx
 local.properties
 *.orig
+/example/ios/Pods
