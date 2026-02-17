@@ -45,10 +45,12 @@ class FrameSDKBridge: NSObject {
     }
     var top = rootVC
     while let presented = top.presentedViewController { top = presented }
+    let delegate = CheckoutDismissDelegate(resolve: resolve, reject: reject)
     let checkoutView = FrameCheckoutView(
       customerId: customerId,
       paymentAmount: amount,
-      checkoutCallback: { [weak top] chargeIntent in
+      checkoutCallback: { [weak top, weak delegate] chargeIntent in
+        delegate?.didComplete = true
         top?.dismiss(animated: true)
         if let dict = Self.encodeChargeIntent(chargeIntent) {
           resolve(dict)
@@ -62,6 +64,8 @@ class FrameSDKBridge: NSObject {
     if let sheet = hosting.sheetPresentationController {
       sheet.detents = [.large()]
     }
+    objc_setAssociatedObject(hosting, &checkoutDismissKey, delegate, .OBJC_ASSOCIATION_RETAIN)
+    hosting.presentationController?.delegate = delegate
     top.present(hosting, animated: true)
   }
 
@@ -131,6 +135,20 @@ class FrameSDKBridge: NSObject {
   }
 }
 
+private final class CheckoutDismissDelegate: NSObject, UIAdaptivePresentationControllerDelegate {
+  let resolve: RCTPromiseResolveBlock
+  let reject: RCTPromiseRejectBlock
+  var didComplete = false
+  init(resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+    self.resolve = resolve
+    self.reject = reject
+  }
+  func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+    guard !didComplete else { return }
+    reject("USER_CANCELED", "User dismissed checkout without completing payment", nil)
+  }
+}
+
 private final class CartDismissDelegate: NSObject, UIAdaptivePresentationControllerDelegate {
   let resolve: RCTPromiseResolveBlock
   init(resolve: @escaping RCTPromiseResolveBlock) { self.resolve = resolve }
@@ -140,3 +158,4 @@ private final class CartDismissDelegate: NSObject, UIAdaptivePresentationControl
 }
 
 private var cartDismissKey: UInt8 = 0
+private var checkoutDismissKey: UInt8 = 0

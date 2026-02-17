@@ -8,6 +8,8 @@ React Native SDK for [Frame Payments](https://framepayments.com). It bridges the
 - iOS 17+ / Android 8.0+ (API 26+)
 - A [Frame](https://framepayments.com) account and API key
 
+**Tested with:** Frame iOS SDK (SPM) and Frame Android SDK 1.2.x. Other compatible versions may work but are not officially tested.
+
 ## Installation
 
 ```bash
@@ -18,9 +20,16 @@ yarn add @framepayments/react-native-frame
 
 ### iOS
 
-```bash
-cd ios && pod install && cd ..
-```
+1. **Add the Frame iOS SDK via Swift Package Manager** (required): In Xcode, open your project, then go to **File → Add Package Dependencies**. Enter:
+   ```
+   https://github.com/Frame-Payments/frame-ios
+   ```
+   Add the **Frame-iOS** package and choose the version or branch you need. The React Native SDK’s native code depends on it; CocoaPods cannot pull it in automatically.
+
+2. **Install pods**:
+   ```bash
+   cd ios && pod install && cd ..
+   ```
 
 ### Android
 
@@ -108,7 +117,7 @@ const customers = await frame.customers.list();
 
 The [example](./example) folder contains a sample app (App.tsx, package.json) that uses the SDK for init, presentCheckout, presentCart, and frame-node for listing customers.
 
-1. **From this repo (local SDK):** Create a new React Native app (e.g. `npx react-native init FrameExample`), then copy `example/App.tsx` into it and add the dependency: `"@framepayments/react-native-frame": "file:/path/to/frame-react-native"`. Run `npm install`, then `cd ios && pod install` (iOS). See [example/README.md](./example/README.md) for details.
+1. **From this repo (local SDK):** Create a new React Native app (e.g. `npx react-native init FrameExample`), then copy `example/App.tsx` into it and add the dependency: `"@framepayments/react-native-frame": "file:/path/to/frame-react-native"`. Run `npm install`. On iOS: add Frame-iOS via SPM in Xcode (see [Installation – iOS](#ios) above), then `cd ios && pod install`. See [example/README.md](./example/README.md) for details.
 2. **Using the published package:** Install `@framepayments/react-native-frame` and `framepayments` in your app and use the same patterns as in `example/App.tsx`.
 
 ## Release checklist
