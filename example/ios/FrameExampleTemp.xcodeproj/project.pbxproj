@@ -18,7 +18,7 @@
 		E060395B2F451DDF00990E77 /* Frame-iOS in Frameworks */ = {isa = PBXBuildFile; productRef = E060395A2F451DDF00990E77 /* Frame-iOS */; };
 		E060395E2F451E2F00990E77 /* Frame-Onboarding in Frameworks */ = {isa = PBXBuildFile; productRef = E060395D2F451E2F00990E77 /* Frame-Onboarding */; };
 		E06039602F451E2F00990E77 /* Frame-iOS in Frameworks */ = {isa = PBXBuildFile; productRef = E060395F2F451E2F00990E77 /* Frame-iOS */; };
-		E0A458A82F452F3F00B73914 /* FramePreloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A458A72F452F3F00B73914 /* FramePreloader.swift */; };
+		E0A458D12F46500000B73914 /* FramePreloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A458D02F46500000B73914 /* FramePreloader.swift */; };
 		E0A458B92F45300000B73914 /* FrameSDKBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = E0A458BB2F45300000B73914 /* FrameSDKBridge.m */; };
 		E0A458BA2F45300000B73914 /* FrameSDKBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A458BC2F45300000B73914 /* FrameSDKBridge.swift */; };
 		E0A458C12F46400000B73914 /* FrameVCHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = E0A458C22F46400000B73914 /* FrameVCHelper.m */; };
@@ -57,7 +57,7 @@
 		5DCACB8F33CDC322A6C60F78 /* libPods-FrameExampleTemp.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-FrameExampleTemp.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = FrameExampleTemp/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		89C6BE57DB24E9ADA2F236DE /* Pods-FrameExampleTemp-FrameExampleTempTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-FrameExampleTemp-FrameExampleTempTests.release.xcconfig"; path = "Target Support Files/Pods-FrameExampleTemp-FrameExampleTempTests/Pods-FrameExampleTemp-FrameExampleTempTests.release.xcconfig"; sourceTree = "<group>"; };
-		E0A458A72F452F3F00B73914 /* FramePreloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FramePreloader.swift; sourceTree = "<group>"; };
+		E0A458D02F46500000B73914 /* FramePreloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FramePreloader.swift; sourceTree = "<group>"; };
 		E0A458BB2F45300000B73914 /* FrameSDKBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FrameSDKBridge.m; sourceTree = "<group>"; };
 		E0A458BC2F45300000B73914 /* FrameSDKBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameSDKBridge.swift; sourceTree = "<group>"; };
 		E0A458C02F46400000B73914 /* FrameVCHelper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FrameVCHelper.h; sourceTree = "<group>"; };
@@ -118,7 +118,6 @@
 				13B07FAF1A68108700A75B9A /* AppDelegate.h */,
 				13B07FB01A68108700A75B9A /* AppDelegate.mm */,
 				E0A458BD2F45300000B73914 /* ../node_modules/framepayments-react-native/ios */,
-				E0A458A72F452F3F00B73914 /* FramePreloader.swift */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
@@ -187,6 +186,7 @@
 				E0A458BC2F45300000B73914 /* FrameSDKBridge.swift */,
 				E0A458C02F46400000B73914 /* FrameVCHelper.h */,
 				E0A458C22F46400000B73914 /* FrameVCHelper.m */,
+				E0A458D02F46500000B73914 /* FramePreloader.swift */,
 			);
 			path = "../node_modules/framepayments-react-native/ios";
 			sourceTree = SOURCE_ROOT;
@@ -475,7 +475,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E0A458A82F452F3F00B73914 /* FramePreloader.swift in Sources */,
+				E0A458D12F46500000B73914 /* FramePreloader.swift in Sources */,
 				13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */,
 				E0A458B92F45300000B73914 /* FrameSDKBridge.m in Sources */,
 				E0A458BA2F45300000B73914 /* FrameSDKBridge.swift in Sources */,

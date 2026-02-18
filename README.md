@@ -26,10 +26,24 @@ yarn add framepayments-react-native
    ```
    Add the **Frame-iOS** package and choose the version or branch you need. The React Native SDK’s native code depends on it; CocoaPods cannot pull it in automatically.
 
-2. **Install pods**:
+2. **Preload Frame on the main thread** (required): Add this to your `AppDelegate.m` or `AppDelegate.mm` **before** calling `[super application:didFinishLaunchingWithOptions:]`:
+   ```objc
+   #import "YourAppName-Swift.h"  // Use your app's module name
+   // ...
+   - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
+   {
+     [FramePreloader preloadOnMainThread];  // Prevents "Helpers are not supported by the default hub" crash
+     return [super application:application didFinishLaunchingWithOptions:launchOptions];
+   }
+   ```
+   `FramePreloader` is part of the SDK and loads Frame/Evervault/Sift on the main thread before the React Native bridge initializes.
+
+3. **Install pods**:
    ```bash
    cd ios && pod install && cd ..
    ```
+
+4. Run the app (e.g. `npx react-native run-ios`). The example app already includes this setup.
 
 ### Android
 
