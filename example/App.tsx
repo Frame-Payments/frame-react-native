@@ -39,9 +39,17 @@ const sampleCartItems = [
 export default function App() {
   const [loading, setLoading] = useState<string | null>(null);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [initError, setInitError] = useState<string | null>(null);
 
   React.useEffect(() => {
-    Frame.initialize({ apiKey: FRAME_API_KEY, debugMode: __DEV__ });
+    Frame.initialize({ apiKey: FRAME_API_KEY, debugMode: __DEV__ })
+      .catch((e: any) => {
+        const msg = e?.message ?? String(e);
+        setInitError(msg);
+        if (__DEV__) {
+          console.warn('Frame.initialize failed:', msg);
+        }
+      });
   }, []);
 
   const handleCheckout = async () => {
@@ -92,10 +100,20 @@ export default function App() {
       <Text style={styles.title}>Frame RN SDK Example</Text>
       <Text style={styles.subtitle}>Set FRAME_API_KEY in App.tsx or env, then tap below.</Text>
 
+      {initError && (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorTitle}>SDK init failed</Text>
+          <Text style={styles.errorText}>{initError}</Text>
+          <Text style={styles.errorHint}>
+            If you see &quot;Helpers are not supported by the default hub&quot;, this comes from the native Frame/Evervault SDK. Ensure the iOS app has the Frame-iOS Swift package added (Xcode → File → Add Package Dependencies → https://github.com/Frame-Payments/frame-ios) and that dependencies are up to date.
+          </Text>
+        </View>
+      )}
+
       <TouchableOpacity
-        style={[styles.button, loading === 'checkout' && styles.buttonDisabled]}
+        style={[styles.button, (loading === 'checkout' || !!initError) && styles.buttonDisabled]}
         onPress={handleCheckout}
-        disabled={!!loading}
+        disabled={!!loading || !!initError}
       >
         {loading === 'checkout' ? (
           <ActivityIndicator color="#fff" />
@@ -105,9 +123,9 @@ export default function App() {
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={[styles.button, loading === 'cart' && styles.buttonDisabled]}
+        style={[styles.button, (loading === 'cart' || !!initError) && styles.buttonDisabled]}
         onPress={handleCart}
-        disabled={!!loading}
+        disabled={!!loading || !!initError}
       >
         {loading === 'cart' ? (
           <ActivityIndicator color="#fff" />
@@ -117,9 +135,9 @@ export default function App() {
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={[styles.button, styles.buttonSecondary, loading === 'customers' && styles.buttonDisabled]}
+        style={[styles.button, styles.buttonSecondary, (loading === 'customers' || !!initError) && styles.buttonDisabled]}
         onPress={handleListCustomers}
-        disabled={!!loading}
+        disabled={!!loading || !!initError}
       >
         {loading === 'customers' ? (
           <ActivityIndicator color="#333" />
@@ -194,5 +212,29 @@ const styles = StyleSheet.create({
   listItem: {
     fontSize: 14,
     paddingVertical: 4,
+  },
+  errorBox: {
+    marginBottom: 24,
+    padding: 16,
+    backgroundColor: '#ffebee',
+    borderRadius: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#c62828',
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#c62828',
+    marginBottom: 8,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 12,
+  },
+  errorHint: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
   },
 });

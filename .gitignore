@@ -13,3 +13,7 @@ lib/
 local.properties
 *.orig
 /example/ios/Pods
+example/package-lock.json
+example/ios/FrameExampleTemp.xcworkspace/xcshareddata/swiftpm/Package.resolved
+example/ios/FrameExampleTemp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+example/ios/FrameExampleTemp.xcworkspace/xcuserdata/erictownsend.xcuserdatad/UserInterfaceState.xcuserstate

@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 54;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -15,6 +15,19 @@
 		7699B88040F8A987B510C191 /* libPods-FrameExampleTemp-FrameExampleTempTests.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 19F6CBCC0A4E27FBF8BF4A61 /* libPods-FrameExampleTemp-FrameExampleTempTests.a */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		BC11A1E0C8E1DF44BCB93CE5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = F084F1780041309C5F17F878 /* PrivacyInfo.xcprivacy */; };
+		E060395B2F451DDF00990E77 /* Frame-iOS in Frameworks */ = {isa = PBXBuildFile; productRef = E060395A2F451DDF00990E77 /* Frame-iOS */; };
+		E060395E2F451E2F00990E77 /* Frame-Onboarding in Frameworks */ = {isa = PBXBuildFile; productRef = E060395D2F451E2F00990E77 /* Frame-Onboarding */; };
+		E06039602F451E2F00990E77 /* Frame-iOS in Frameworks */ = {isa = PBXBuildFile; productRef = E060395F2F451E2F00990E77 /* Frame-iOS */; };
+		E0A458A82F452F3F00B73914 /* FramePreloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A458A72F452F3F00B73914 /* FramePreloader.swift */; };
+		E0A458B92F45300000B73914 /* FrameSDKBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = E0A458BB2F45300000B73914 /* FrameSDKBridge.m */; };
+		E0A458BA2F45300000B73914 /* FrameSDKBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A458BC2F45300000B73914 /* FrameSDKBridge.swift */; };
+		E0A458C12F46400000B73914 /* FrameVCHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = E0A458C22F46400000B73914 /* FrameVCHelper.m */; };
+		E0CE05AA2F463617002C7B9F /* Frame-Onboarding in Frameworks */ = {isa = PBXBuildFile; productRef = E0CE05A92F463617002C7B9F /* Frame-Onboarding */; };
+		E0CE05AC2F463617002C7B9F /* Frame-iOS in Frameworks */ = {isa = PBXBuildFile; productRef = E0CE05AB2F463617002C7B9F /* Frame-iOS */; };
+		E0CE05AF2F4645C7002C7B9F /* Frame-Onboarding in Frameworks */ = {isa = PBXBuildFile; productRef = E0CE05AE2F4645C7002C7B9F /* Frame-Onboarding */; };
+		E0CE05B12F4645C7002C7B9F /* Frame-iOS in Frameworks */ = {isa = PBXBuildFile; productRef = E0CE05B02F4645C7002C7B9F /* Frame-iOS */; };
+		E0CE05B42F4647F4002C7B9F /* Frame-Onboarding in Frameworks */ = {isa = PBXBuildFile; productRef = E0CE05B32F4647F4002C7B9F /* Frame-Onboarding */; };
+		E0CE05B62F4647F4002C7B9F /* Frame-iOS in Frameworks */ = {isa = PBXBuildFile; productRef = E0CE05B52F4647F4002C7B9F /* Frame-iOS */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -44,6 +57,11 @@
 		5DCACB8F33CDC322A6C60F78 /* libPods-FrameExampleTemp.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-FrameExampleTemp.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = FrameExampleTemp/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		89C6BE57DB24E9ADA2F236DE /* Pods-FrameExampleTemp-FrameExampleTempTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-FrameExampleTemp-FrameExampleTempTests.release.xcconfig"; path = "Target Support Files/Pods-FrameExampleTemp-FrameExampleTempTests/Pods-FrameExampleTemp-FrameExampleTempTests.release.xcconfig"; sourceTree = "<group>"; };
+		E0A458A72F452F3F00B73914 /* FramePreloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FramePreloader.swift; sourceTree = "<group>"; };
+		E0A458BB2F45300000B73914 /* FrameSDKBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FrameSDKBridge.m; sourceTree = "<group>"; };
+		E0A458BC2F45300000B73914 /* FrameSDKBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameSDKBridge.swift; sourceTree = "<group>"; };
+		E0A458C02F46400000B73914 /* FrameVCHelper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FrameVCHelper.h; sourceTree = "<group>"; };
+		E0A458C22F46400000B73914 /* FrameVCHelper.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FrameVCHelper.m; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F084F1780041309C5F17F878 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = FrameExampleTemp/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -61,7 +79,16 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E0CE05AC2F463617002C7B9F /* Frame-iOS in Frameworks */,
+				E06039602F451E2F00990E77 /* Frame-iOS in Frameworks */,
+				E0CE05AA2F463617002C7B9F /* Frame-Onboarding in Frameworks */,
+				E060395B2F451DDF00990E77 /* Frame-iOS in Frameworks */,
+				E0CE05B12F4645C7002C7B9F /* Frame-iOS in Frameworks */,
 				0C80B921A6F3F58F76C31292 /* libPods-FrameExampleTemp.a in Frameworks */,
+				E0CE05B62F4647F4002C7B9F /* Frame-iOS in Frameworks */,
+				E060395E2F451E2F00990E77 /* Frame-Onboarding in Frameworks */,
+				E0CE05AF2F4645C7002C7B9F /* Frame-Onboarding in Frameworks */,
+				E0CE05B42F4647F4002C7B9F /* Frame-Onboarding in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -90,6 +117,8 @@
 			children = (
 				13B07FAF1A68108700A75B9A /* AppDelegate.h */,
 				13B07FB01A68108700A75B9A /* AppDelegate.mm */,
+				E0A458BD2F45300000B73914 /* ../node_modules/framepayments-react-native/ios */,
+				E0A458A72F452F3F00B73914 /* FramePreloader.swift */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
@@ -150,6 +179,17 @@
 			);
 			path = Pods;
 			sourceTree = "<group>";
+		};
+		E0A458BD2F45300000B73914 /* ../node_modules/framepayments-react-native/ios */ = {
+			isa = PBXGroup;
+			children = (
+				E0A458BB2F45300000B73914 /* FrameSDKBridge.m */,
+				E0A458BC2F45300000B73914 /* FrameSDKBridge.swift */,
+				E0A458C02F46400000B73914 /* FrameVCHelper.h */,
+				E0A458C22F46400000B73914 /* FrameVCHelper.m */,
+			);
+			path = "../node_modules/framepayments-react-native/ios";
+			sourceTree = SOURCE_ROOT;
 		};
 /* End PBXGroup section */
 
@@ -215,7 +255,7 @@
 				};
 			};
 			buildConfigurationList = 83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "FrameExampleTemp" */;
-			compatibilityVersion = "Xcode 12.0";
+			compatibilityVersion = "Xcode 15.3";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -224,7 +264,7 @@
 			);
 			mainGroup = 83CBB9F61A601CBA00E9B192;
 			packageReferences = (
-				E0E3F6F62F45129700007C31 /* XCRemoteSwiftPackageReference "frame-ios" */,
+				E0CE05B22F4647F4002C7B9F /* XCLocalSwiftPackageReference "../../../frame-ios" */,
 			);
 			productRefGroup = 83CBBA001A601CBA00E9B192 /* Products */;
 			projectDirPath = "";
@@ -435,7 +475,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E0A458A82F452F3F00B73914 /* FramePreloader.swift in Sources */,
 				13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */,
+				E0A458B92F45300000B73914 /* FrameSDKBridge.m in Sources */,
+				E0A458BA2F45300000B73914 /* FrameSDKBridge.swift in Sources */,
+				E0A458C12F46400000B73914 /* FrameVCHelper.m in Sources */,
 				13B07FC11A68108700A75B9A /* main.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -512,6 +556,7 @@
 				DEVELOPMENT_TEAM = 66W3876HW5;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = FrameExampleTemp/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -524,8 +569,13 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = FrameExampleTemp;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Debug;
@@ -539,6 +589,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 66W3876HW5;
 				INFOPLIST_FILE = FrameExampleTemp/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -551,7 +602,12 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = FrameExampleTemp;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;
@@ -734,16 +790,64 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		E0CE05B22F4647F4002C7B9F /* XCLocalSwiftPackageReference "../../../frame-ios" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "../../../frame-ios";
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
-		E0E3F6F62F45129700007C31 /* XCRemoteSwiftPackageReference "frame-ios" */ = {
+		E0CE05AD2F4645C7002C7B9F /* XCRemoteSwiftPackageReference "frame-ios" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/Frame-Payments/frame-ios";
 			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.1.4;
+				branch = main;
+				kind = branch;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E060395A2F451DDF00990E77 /* Frame-iOS */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = "Frame-iOS";
+		};
+		E060395D2F451E2F00990E77 /* Frame-Onboarding */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = "Frame-Onboarding";
+		};
+		E060395F2F451E2F00990E77 /* Frame-iOS */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = "Frame-iOS";
+		};
+		E0CE05A92F463617002C7B9F /* Frame-Onboarding */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = "Frame-Onboarding";
+		};
+		E0CE05AB2F463617002C7B9F /* Frame-iOS */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = "Frame-iOS";
+		};
+		E0CE05AE2F4645C7002C7B9F /* Frame-Onboarding */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E0CE05AD2F4645C7002C7B9F /* XCRemoteSwiftPackageReference "frame-ios" */;
+			productName = "Frame-Onboarding";
+		};
+		E0CE05B02F4645C7002C7B9F /* Frame-iOS */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E0CE05AD2F4645C7002C7B9F /* XCRemoteSwiftPackageReference "frame-ios" */;
+			productName = "Frame-iOS";
+		};
+		E0CE05B32F4647F4002C7B9F /* Frame-Onboarding */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = "Frame-Onboarding";
+		};
+		E0CE05B52F4647F4002C7B9F /* Frame-iOS */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = "Frame-iOS";
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 83CBB9F71A601CBA00E9B192 /* Project object */;
 }
