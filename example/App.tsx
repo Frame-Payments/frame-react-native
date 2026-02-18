@@ -105,7 +105,7 @@ export default function App() {
           <Text style={styles.errorTitle}>SDK init failed</Text>
           <Text style={styles.errorText}>{initError}</Text>
           <Text style={styles.errorHint}>
-            If you see &quot;Helpers are not supported by the default hub&quot;, this comes from the native Frame/Evervault SDK. Ensure the iOS app has the Frame-iOS Swift package added (Xcode → File → Add Package Dependencies → https://github.com/Frame-Payments/frame-ios) and that dependencies are up to date.
+            If you see &quot;Helpers are not supported by the default hub&quot;, call [FramePreloader preloadOnMainThread] in AppDelegate before [super application:didFinishLaunchingWithOptions:], and ensure Frame-iOS is added via Xcode (File → Add Package Dependencies → https://github.com/Frame-Payments/frame-ios).
           </Text>
         </View>
       )}

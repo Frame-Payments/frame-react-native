@@ -8,12 +8,16 @@
 #import <React/RCTBridgeModule.h>
 #import "FrameVCHelper.h"
 
-#if __has_include("FrameExampleTemp-Swift.h")
+// Import app's Swift header (ObjCFrameSDKBridge, FramePreloader). The example uses FrameExampleTemp.
+// If your app has a different module name, add Preprocessor Macro: FRAME_SWIFT_HEADER="YourApp-Swift.h"
+#if defined(FRAME_SWIFT_HEADER)
+#import FRAME_SWIFT_HEADER
+#elif __has_include("FrameExampleTemp-Swift.h")
 #import "FrameExampleTemp-Swift.h"
 #elif __has_include(<FrameExampleTemp/FrameExampleTemp-Swift.h>)
 #import <FrameExampleTemp/FrameExampleTemp-Swift.h>
 #else
-#error "FrameExampleTemp-Swift.h not found - ensure Swift files compile before this file"
+#error "Swift header not found. Add FRAME_SWIFT_HEADER=\"YourApp-Swift.h\" to your app target's Preprocessor Macros, or ensure Swift files compile before this file."
 #endif
 
 @interface FrameSDKModule : NSObject <RCTBridgeModule>

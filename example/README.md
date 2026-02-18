@@ -26,7 +26,7 @@ This example demonstrates:
 
    Edit `App.tsx` and set `FRAME_API_KEY` to your Frame secret key, or set the `FRAME_API_KEY` environment variable. Do not commit real keys.
 
-3. **iOS only**: Add the Frame iOS SDK via Swift Package Manager in Xcode (**File → Add Package Dependencies** → `https://github.com/Frame-Payments/frame-ios`), then:
+3. **iOS only**: Add the Frame iOS SDK via Swift Package Manager in Xcode (**File → Add Package Dependencies** → `https://github.com/Frame-Payments/frame-ios`). Add `[FramePreloader preloadOnMainThread]` to `AppDelegate.m`/`.mm` **before** `[super application:didFinishLaunchingWithOptions:]` (see main README). Then:
 
    ```bash
    cd ios && pod install && cd ..

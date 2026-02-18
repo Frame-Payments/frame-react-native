@@ -38,6 +38,8 @@ yarn add framepayments-react-native
    ```
    `FramePreloader` is part of the SDK and loads Frame/Evervault/Sift on the main thread before the React Native bridge initializes.
 
+   **If your app has a different module name than the example** (e.g. not `FrameExampleTemp`), add `FRAME_SWIFT_HEADER="YourApp-Swift.h"` to your app target's **Preprocessor Macros** in Xcode build settings. The native bridge uses this to import the Swift header.
+
 3. **Install pods**:
    ```bash
    cd ios && pod install && cd ..
@@ -129,7 +131,7 @@ const customers = await frame.customers.list();
 
 ## Troubleshooting (iOS)
 
-- **"Helpers are not supported by the default hub"** – This comes from the native Frame iOS SDK or its dependency (Evervault). Ensure the app target has the **Frame-iOS** Swift package added in Xcode (**File → Add Package Dependencies** → `https://github.com/Frame-Payments/frame-ios`) and that the package and its dependencies are up to date. The example app now catches this error and shows it in the UI instead of crashing.
+- **"Helpers are not supported by the default hub"** – This occurs when Frame/Evervault loads on a background thread during React Native bridge init. **Fix:** Call `[FramePreloader preloadOnMainThread]` in your `AppDelegate` before `[super application:didFinishLaunchingWithOptions:]` (see [Installation – iOS](#ios) step 2). Also ensure the **Frame-iOS** Swift package is added in Xcode (**File → Add Package Dependencies** → `https://github.com/Frame-Payments/frame-ios`).
 
 ## Running the example
 

@@ -27,15 +27,6 @@ public class FrameSDKBridge: NSObject {
   }
 
   @objc public
-  func presentCheckout(_ customerId: NSObject, amount: NSNumber, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-    let cId = customerId as? String
-    let amountInt = amount.intValue
-    DispatchQueue.main.async { [weak self] in
-      self?.presentCheckoutOnMain(customerId: cId, amount: amountInt, resolve: resolve, reject: reject)
-    }
-  }
-
-  @objc public
   func presentCheckout(from viewController: UIViewController, customerId: String?, amount: Int, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     presentCheckoutOnMain(from: viewController, customerId: customerId, amount: amount, resolve: resolve, reject: reject)
   }
@@ -47,46 +38,6 @@ public class FrameSDKBridge: NSObject {
       return
     }
     presentCartOnMain(from: viewController, customerId: customerId as? String, cartItems: cartItems, shippingAmountInCents: shippingAmountInCents, resolve: resolve, reject: reject)
-  }
-
-  private func findTopViewController() -> UIViewController? {
-    // Try React Native / iOS 13+ scene-based window, then delegate window
-    let keyWindow: UIWindow? = {
-      if #available(iOS 13.0, *) {
-        // Prefer the key window from connected scenes
-        if let w = UIApplication.shared.connectedScenes
-          .compactMap({ $0 as? UIWindowScene })
-          .flatMap({ $0.windows })
-          .first(where: { $0.isKeyWindow }) {
-          return w
-        }
-        // Fallback to the first window in the first scene
-        if let w = UIApplication.shared.connectedScenes
-          .compactMap({ $0 as? UIWindowScene })
-          .flatMap({ $0.windows })
-          .first {
-          return w
-        }
-      }
-      // On older iOS versions, fall back to the app delegate's window.
-      // `UIApplication.shared.delegate?.window` has the type `UIWindow??`, so coalesce to `nil` to obtain `UIWindow?`.
-      return UIApplication.shared.delegate?.window ?? nil
-    }()
-    guard var vc = keyWindow?.rootViewController else {
-      return nil
-    }
-    while let presented = vc.presentedViewController, !presented.isBeingDismissed {
-      vc = presented
-    }
-    return vc
-  }
-
-  private func presentCheckoutOnMain(customerId: String?, amount: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    guard let top = findTopViewController() else {
-      reject("NO_ROOT_VC", "Could not find root view controller to present checkout", nil)
-      return
-    }
-    presentCheckoutOnMain(from: top, customerId: customerId, amount: amount, resolve: resolve, reject: reject)
   }
 
   private func presentCheckoutOnMain(from top: UIViewController, customerId: String?, amount: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
@@ -119,23 +70,6 @@ public class FrameSDKBridge: NSObject {
   private static func encodeChargeIntent(_ intent: FrameObjects.ChargeIntent) -> [String: Any]? {
     guard let data = try? JSONEncoder().encode(intent) else { return nil }
     return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-  }
-
-  @objc public
-  func presentCart(_ customerId: NSObject, items: NSArray, shippingAmountInCents: NSNumber, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-    let cId = customerId as? String
-    let shipping = shippingAmountInCents.intValue
-    guard let cartItems = parseCartItems(items) else {
-      reject("INVALID_ITEMS", "Invalid cart items array", nil)
-      return
-    }
-    DispatchQueue.main.async { [weak self] in
-      guard let top = self?.findTopViewController() else {
-        reject("NO_ROOT_VC", "Could not find root view controller to present cart", nil)
-        return
-      }
-      self?.presentCartOnMain(from: top, customerId: cId, cartItems: cartItems, shippingAmountInCents: shipping, resolve: resolve, reject: reject)
-    }
   }
 
   private struct RNFrameCartItem: FrameCartItem {
