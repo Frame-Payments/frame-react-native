@@ -43,11 +43,13 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       return
     }
     checkoutPromise = promise
-    val intent = Intent(activity, FrameCheckoutActivity::class.java).apply {
-      putExtra(FrameCheckoutActivity.EXTRA_CUSTOMER_ID, customerId)
-      putExtra(FrameCheckoutActivity.EXTRA_AMOUNT, amount.toInt())
+    activity.runOnUiThread {
+      val intent = Intent(activity, FrameCheckoutActivity::class.java).apply {
+        putExtra(FrameCheckoutActivity.EXTRA_CUSTOMER_ID, customerId)
+        putExtra(FrameCheckoutActivity.EXTRA_AMOUNT, amount.toInt())
+      }
+      activity.startActivityForResult(intent, FrameCheckoutActivity.REQUEST_CODE)
     }
-    activity.startActivityForResult(intent, FrameCheckoutActivity.REQUEST_CODE)
   }
 
   @ReactMethod
@@ -66,12 +68,14 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       return
     }
     cartPromise = promise
-    val intent = Intent(activity, FrameFlowActivity::class.java).apply {
-      putExtra(FrameFlowActivity.EXTRA_CUSTOMER_ID, customerId)
-      putExtra(FrameFlowActivity.EXTRA_ITEMS_JSON, itemsJson)
-      putExtra(FrameFlowActivity.EXTRA_SHIPPING_CENTS, shippingAmountInCents.toInt())
+    activity.runOnUiThread {
+      val intent = Intent(activity, FrameFlowActivity::class.java).apply {
+        putExtra(FrameFlowActivity.EXTRA_CUSTOMER_ID, customerId)
+        putExtra(FrameFlowActivity.EXTRA_ITEMS_JSON, itemsJson)
+        putExtra(FrameFlowActivity.EXTRA_SHIPPING_CENTS, shippingAmountInCents.toInt())
+      }
+      activity.startActivityForResult(intent, FrameFlowActivity.REQUEST_CODE)
     }
-    activity.startActivityForResult(intent, FrameFlowActivity.REQUEST_CODE)
   }
 
   private fun readableArrayToJson(items: com.facebook.react.bridge.ReadableArray): String? {
@@ -82,7 +86,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       obj.put("id", item.getString("id"))
       obj.put("title", item.getString("title"))
       obj.put("amountInCents", item.getDouble("amountInCents").toInt())
-      obj.put("imageUrl", item.getString("imageUrl"))
+      obj.put("imageUrl", item.getString("imageUrl") ?: "")
       arr.put(obj)
     }
     return arr.toString()
