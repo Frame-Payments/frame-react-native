@@ -39,7 +39,7 @@ No extra steps; autolinking includes the native module.
 
 ### 1. Initialize
 
-Call once at app startup (e.g. in your root component or App.js).
+Call once at app startup (e.g. in your root component or App.js). Returns a Promise; await or catch to handle native init errors.
 
 ```ts
 import Frame from 'framepayments-react-native';
@@ -47,7 +47,7 @@ import Frame from 'framepayments-react-native';
 Frame.initialize({
   apiKey: 'YOUR_FRAME_SECRET_KEY',
   debugMode: false, // set true for development
-});
+}).catch((e) => console.warn('Frame init failed:', e.message));
 ```
 
 ### 2. Present Checkout
@@ -112,6 +112,10 @@ const customers = await frame.customers.list();
 - **API key**: Use your Frame **secret** key only in a secure context. Do not commit it to source control; use environment variables or a secure config.
 - **Production**: Disable `debugMode` in production to avoid logging sensitive data.
 - Payment card data is handled by the native Frame SDKs (Evervault, etc.) and never touches your JS bundle.
+
+## Troubleshooting (iOS)
+
+- **"Helpers are not supported by the default hub"** – This comes from the native Frame iOS SDK or its dependency (Evervault). Ensure the app target has the **Frame-iOS** Swift package added in Xcode (**File → Add Package Dependencies** → `https://github.com/Frame-Payments/frame-ios`) and that the package and its dependencies are up to date. The example app now catches this error and shows it in the UI instead of crashing.
 
 ## Running the example
 

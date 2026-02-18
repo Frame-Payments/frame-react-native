@@ -6,7 +6,12 @@
  * - For API calls (customers, charge intents, refunds), use the framepayments (frame-node) package from JS.
  */
 
+import { initialize, presentCheckout, presentCart } from './native';
+
 export { initialize, presentCheckout, presentCart } from './native';
 export type { FrameCartItem, ChargeIntent, FrameError } from './types';
 export { ErrorCodes } from './errors';
 export type { FrameErrorShape, FrameErrorCode } from './errors';
+
+/** Default export for Frame.initialize(), Frame.presentCheckout(), etc. */
+export default { initialize, presentCheckout, presentCart };
