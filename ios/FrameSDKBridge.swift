@@ -10,6 +10,7 @@ import React
 import UIKit
 import SwiftUI
 import Frame
+import FrameOnboarding
 
 @objc(ObjCFrameSDKBridge)
 public class FrameSDKBridge: NSObject {
@@ -39,6 +40,15 @@ public class FrameSDKBridge: NSObject {
     }
     presentCartOnMain(from: viewController, customerId: customerId as? String, cartItems: cartItems, shippingAmountInCents: shippingAmountInCents, resolve: resolve, reject: reject)
   }
+
+  @objc public
+  func presentOnboarding(from viewController: UIViewController, accountId: NSObject?, capabilities: NSArray, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    let parsedCapabilities = parseCapabilities(capabilities)
+    let accountIdString = accountId as? String
+    presentOnboardingOnMain(from: viewController, accountId: accountIdString, capabilities: parsedCapabilities, resolve: resolve, reject: reject)
+  }
+
+  // MARK: - Private helpers
 
   private func presentCheckoutOnMain(from top: UIViewController, customerId: String?, amount: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     let delegate = CheckoutDismissDelegate(resolve: resolve, reject: reject)
@@ -92,6 +102,16 @@ public class FrameSDKBridge: NSObject {
     return result
   }
 
+  private func parseCapabilities(_ capabilities: NSArray) -> [FrameObjects.Capabilities] {
+    var result: [FrameObjects.Capabilities] = []
+    for item in capabilities {
+      guard let raw = item as? String,
+            let cap = FrameObjects.Capabilities(rawValue: raw) else { continue }
+      result.append(cap)
+    }
+    return result
+  }
+
   private func presentCartOnMain(from top: UIViewController, customerId: String?, cartItems: [RNFrameCartItem], shippingAmountInCents: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     let cartView = FrameCartView(
       customer: nil,
@@ -109,7 +129,40 @@ public class FrameSDKBridge: NSObject {
     hosting.presentationController?.delegate = delegate
     top.present(hosting, animated: true)
   }
+
+  private func presentOnboardingOnMain(from top: UIViewController, accountId: String?, capabilities: [FrameObjects.Capabilities], resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+    let hosting = OnboardingHostingController(
+      rootView: OnboardingContainerView(
+        accountId: accountId,
+        requiredCapabilities: capabilities
+      )
+    )
+    hosting.modalPresentationStyle = UIModalPresentationStyle.pageSheet
+    if let sheet = hosting.sheetPresentationController {
+      sheet.detents = [UISheetPresentationController.Detent.large()]
+    }
+    let delegate = OnboardingDismissDelegate(hosting: hosting, resolve: resolve)
+    objc_setAssociatedObject(hosting, &onboardingDismissKey, delegate, .OBJC_ASSOCIATION_RETAIN)
+    hosting.presentationController?.delegate = delegate
+    top.present(hosting, animated: true)
+  }
 }
+
+// MARK: - OnboardingHostingController
+// Subclass UIHostingController to intercept programmatic dismiss() calls from OnboardingContainerView.
+// When SwiftUI calls @Environment(\.dismiss), it routes through UIHostingController.dismiss(animated:).
+// We override this to set programmaticDismiss = true before forwarding.
+
+private final class OnboardingHostingController<V: View>: UIHostingController<V> {
+  var programmaticDismiss = false
+
+  override func dismiss(animated flag: Bool, completion: (() -> Void)? = nil) {
+    programmaticDismiss = true
+    super.dismiss(animated: flag, completion: completion)
+  }
+}
+
+// MARK: - Delegates
 
 private final class CheckoutDismissDelegate: NSObject, UIAdaptivePresentationControllerDelegate {
   let resolve: RCTPromiseResolveBlock
@@ -137,6 +190,27 @@ private final class CartDismissDelegate: NSObject, UIAdaptivePresentationControl
   }
 }
 
+private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationControllerDelegate {
+  // Hold a weak reference to the hosting controller to read the programmaticDismiss flag.
+  weak var hosting: OnboardingHostingController<OnboardingContainerView>?
+  let resolve: RCTPromiseResolveBlock
+  var didFinish = false
+
+  init(hosting: OnboardingHostingController<OnboardingContainerView>, resolve: @escaping RCTPromiseResolveBlock) {
+    self.hosting = hosting
+    self.resolve = resolve
+  }
+
+  func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+    guard !didFinish else { return }
+    didFinish = true
+    let completed = hosting?.programmaticDismiss ?? false
+    DispatchQueue.main.async { [resolve, completed] in
+      resolve(["status": completed ? "completed" : "cancelled"])
+    }
+  }
+}
+
 private var cartDismissKey: UInt8 = 0
 private var checkoutDismissKey: UInt8 = 0
-
+private var onboardingDismissKey: UInt8 = 0

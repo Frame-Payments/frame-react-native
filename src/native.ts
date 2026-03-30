@@ -3,7 +3,7 @@
  */
 
 import { NativeModules } from 'react-native';
-import type { ChargeIntent, FrameCartItem } from './types';
+import type { ChargeIntent, FrameCartItem, OnboardingCapability, OnboardingResult } from './types';
 import { ErrorCodes } from './errors';
 
 const LINKING_ERROR =
@@ -36,7 +36,7 @@ export function initialize(options: { apiKey: string; debugMode?: boolean }): Pr
 function guardInitialized(): void {
   if (!isInitialized) {
     const message =
-      'Frame SDK must be initialized before calling presentCheckout or presentCart. Call Frame.initialize({ apiKey }) first.';
+      'Frame SDK must be initialized before calling presentCheckout, presentCart, or presentOnboarding. Call Frame.initialize({ apiKey }) first.';
     const err = new Error(message) as Error & { code: string };
     err.code = ErrorCodes.NOT_INITIALIZED;
     throw err;
@@ -76,6 +76,19 @@ export function presentCart(options: {
       options.customerId ?? null,
       options.items,
       options.shippingAmountInCents
+    )
+  );
+}
+
+export function presentOnboarding(options: {
+  accountId?: string | null;
+  capabilities?: OnboardingCapability[];
+}): Promise<OnboardingResult> {
+  guardInitialized();
+  return wrapPromise(
+    FrameSDK.presentOnboarding(
+      options.accountId ?? null,
+      options.capabilities ?? []
     )
   );
 }

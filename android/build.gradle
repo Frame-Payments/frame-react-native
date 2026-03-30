@@ -43,8 +43,11 @@ dependencies {
   implementation "org.jetbrains.kotlin:kotlin-stdlib:2.1.0"
   implementation 'com.framepayments:framesdk:1.2.0'
   implementation 'com.framepayments:framesdk_ui:1.2.0'
+  implementation 'com.framepayments:frameonboarding:1.2.0'
   implementation 'com.google.code.gson:gson:2.10.1'
   implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
   // Frame SDK UI uses Compose; LocalLifecycleOwner requires lifecycle-runtime-compose 2.8+
   implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.2'
+  // Compose support for FrameOnboardingActivity
+  implementation 'androidx.activity:activity-compose:1.9.0'
 }

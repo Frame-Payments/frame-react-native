@@ -22,6 +22,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
 
   private var checkoutPromise: Promise? = null
   private var cartPromise: Promise? = null
+  private var onboardingPromise: Promise? = null
 
   override fun getName(): String = "FrameSDK"
 
@@ -78,6 +79,27 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  @ReactMethod
+  fun presentOnboarding(
+    accountId: String?,
+    capabilities: com.facebook.react.bridge.ReadableArray,
+    promise: Promise
+  ) {
+    val activity = currentActivity ?: run {
+      promise.reject("NO_ACTIVITY", "No current activity", null)
+      return
+    }
+    val capabilitiesJson = readableArrayToJsonArray(capabilities)
+    onboardingPromise = promise
+    activity.runOnUiThread {
+      val intent = Intent(activity, FrameOnboardingActivity::class.java).apply {
+        putExtra(FrameOnboardingActivity.EXTRA_ACCOUNT_ID, accountId)
+        putExtra(FrameOnboardingActivity.EXTRA_CAPABILITIES_JSON, capabilitiesJson)
+      }
+      activity.startActivityForResult(intent, FrameOnboardingActivity.REQUEST_CODE)
+    }
+  }
+
   private fun readableArrayToJson(items: com.facebook.react.bridge.ReadableArray): String? {
     val arr = org.json.JSONArray()
     for (i in 0 until items.size()) {
@@ -92,10 +114,19 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     return arr.toString()
   }
 
+  private fun readableArrayToJsonArray(arr: com.facebook.react.bridge.ReadableArray): String {
+    val jsonArr = org.json.JSONArray()
+    for (i in 0 until arr.size()) {
+      arr.getString(i)?.let { jsonArr.put(it) }
+    }
+    return jsonArr.toString()
+  }
+
   override fun onActivityResult(activity: Activity?, requestCode: Int, resultCode: Int, data: Intent?) {
     when (requestCode) {
       FrameCheckoutActivity.REQUEST_CODE -> handleCheckoutResult(resultCode, data)
       FrameFlowActivity.REQUEST_CODE -> handleCartResult(resultCode, data)
+      FrameOnboardingActivity.REQUEST_CODE -> handleOnboardingResult(resultCode, data)
       else -> return
     }
   }
@@ -139,6 +170,23 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       }
     } else {
       promise.reject("USER_CANCELED", "User cancelled", null)
+    }
+  }
+
+  private fun handleOnboardingResult(resultCode: Int, data: Intent?) {
+    val promise = onboardingPromise ?: return
+    onboardingPromise = null
+    val map = WritableNativeMap()
+    if (resultCode == Activity.RESULT_OK) {
+      map.putString("status", "completed")
+      val paymentMethodId = data?.getStringExtra(FrameOnboardingActivity.EXTRA_PAYMENT_METHOD_ID)
+      if (paymentMethodId != null) {
+        map.putString("paymentMethodId", paymentMethodId)
+      }
+      promise.resolve(map)
+    } else {
+      map.putString("status", "cancelled")
+      promise.resolve(map)
     }
   }
 

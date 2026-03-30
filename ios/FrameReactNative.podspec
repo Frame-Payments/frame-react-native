@@ -16,10 +16,16 @@ Pod::Spec.new do |s|
 
   s.dependency 'React-Core'
 
-  # Frame-iOS SDK – must be available to the app. Add via Swift Package Manager in Xcode:
-  # File → Add Package Dependencies → https://github.com/Frame-Payments/frame-ios
-  # Our native code imports Frame; ensure the app target links Frame-iOS (SPM).
-  # If Frame-iOS is provided as a pod in the future, uncomment:
+  # Frame-iOS SDK (Frame + FrameOnboarding) must be available to the app.
+  #
+  # SPM users (RN >= 0.73): add framepayments-react-native via Swift Package Manager.
+  # Frame and FrameOnboarding are declared as dependencies in Package.swift and resolve
+  # automatically — no manual step required.
+  #
+  # CocoaPods users: add frame-ios manually via Xcode:
+  #   File → Add Package Dependencies → https://github.com/Frame-Payments/frame-ios
+  #   Add both the "Frame-iOS" and "Frame-Onboarding" products to your app target.
+  # If Frame-iOS is published as a pod in the future, replace the above with:
   # s.dependency 'Frame-iOS'
 
   install_modules_dependencies(s) if respond_to?(:install_modules_dependencies)
