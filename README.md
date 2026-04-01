@@ -150,9 +150,20 @@ const frame = new FrameSDK({ apiKey: 'YOUR_SECRET_KEY' });
 const customers = await frame.customers.list();
 ```
 
+> **Important:** Never hardcode your Frame secret key in your app bundle or source control. Your secret key should be fetched at runtime from your own backend after the user has authenticated. This keeps the key out of the binary and allows it to be rotated server-side without an app update.
+>
+> ```ts
+> // Fetch key from your backend after login
+> const { frameApiKey } = await myBackend.getConfig();
+> const frame = new FrameSDK({ apiKey: frameApiKey });
+> ```
+>
+> The example app hardcodes a key for convenience — do not replicate this pattern in production.
+
 ## Security
 
-- **API key**: Use your Frame **secret** key only in a secure context. Do not commit it to source control; use environment variables or a secure config.
+- **Never bundle your secret key**: Fetch your Frame secret key from your backend at runtime rather than embedding it in the app. Anyone with access to your IPA or APK can extract bundled secrets.
+- **API key**: Do not commit your secret key to source control; use environment variables or a secrets manager on your backend.
 - **Production**: Disable `debugMode` in production to avoid logging sensitive data.
 - Payment card data is handled by the native Frame SDKs (Evervault, etc.) and never touches your JS bundle.
 
