@@ -22,6 +22,10 @@
 		E01C819C2F7C586C002C0F34 /* Frame-iOS in Frameworks */ = {isa = PBXBuildFile; productRef = E01C819B2F7C586C002C0F34 /* Frame-iOS */; };
 		E01C81A12F7C598D002C0F34 /* Frame-Onboarding in Frameworks */ = {isa = PBXBuildFile; productRef = E01C81A02F7C598D002C0F34 /* Frame-Onboarding */; };
 		E01C81A32F7C598D002C0F34 /* Frame-iOS in Frameworks */ = {isa = PBXBuildFile; productRef = E01C81A22F7C598D002C0F34 /* Frame-iOS */; };
+		E01C82022F7CE964002C0F34 /* Frame-Onboarding in Frameworks */ = {isa = PBXBuildFile; productRef = E01C82012F7CE964002C0F34 /* Frame-Onboarding */; };
+		E01C82042F7CE964002C0F34 /* Frame-iOS in Frameworks */ = {isa = PBXBuildFile; productRef = E01C82032F7CE964002C0F34 /* Frame-iOS */; };
+		E01C82072F7CEB24002C0F34 /* Frame-Onboarding in Frameworks */ = {isa = PBXBuildFile; productRef = E01C82062F7CEB24002C0F34 /* Frame-Onboarding */; };
+		E01C82092F7CEB24002C0F34 /* Frame-iOS in Frameworks */ = {isa = PBXBuildFile; productRef = E01C82082F7CEB24002C0F34 /* Frame-iOS */; };
 		E060395B2F451DDF00990E77 /* Frame-iOS in Frameworks */ = {isa = PBXBuildFile; productRef = E060395A2F451DDF00990E77 /* Frame-iOS */; };
 		E060395E2F451E2F00990E77 /* Frame-Onboarding in Frameworks */ = {isa = PBXBuildFile; productRef = E060395D2F451E2F00990E77 /* Frame-Onboarding */; };
 		E06039602F451E2F00990E77 /* Frame-iOS in Frameworks */ = {isa = PBXBuildFile; productRef = E060395F2F451E2F00990E77 /* Frame-iOS */; };
@@ -95,14 +99,18 @@
 				E01C819C2F7C586C002C0F34 /* Frame-iOS in Frameworks */,
 				E0CE05B62F4647F4002C7B9F /* Frame-iOS in Frameworks */,
 				E01C81922F7C57E1002C0F34 /* sift-ios in Frameworks */,
+				E01C82092F7CEB24002C0F34 /* Frame-iOS in Frameworks */,
 				E060395E2F451E2F00990E77 /* Frame-Onboarding in Frameworks */,
 				E0CE05AF2F4645C7002C7B9F /* Frame-Onboarding in Frameworks */,
+				E01C82072F7CEB24002C0F34 /* Frame-Onboarding in Frameworks */,
+				E01C82042F7CE964002C0F34 /* Frame-iOS in Frameworks */,
 				E01C81A12F7C598D002C0F34 /* Frame-Onboarding in Frameworks */,
 				E0CE05B42F4647F4002C7B9F /* Frame-Onboarding in Frameworks */,
 				E01C81952F7C5812002C0F34 /* Frame-Onboarding in Frameworks */,
 				E01C81A32F7C598D002C0F34 /* Frame-iOS in Frameworks */,
 				E01C81972F7C5812002C0F34 /* Frame-iOS in Frameworks */,
 				E01C819A2F7C586C002C0F34 /* Frame-Onboarding in Frameworks */,
+				E01C82022F7CE964002C0F34 /* Frame-Onboarding in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -131,7 +139,7 @@
 			children = (
 				13B07FAF1A68108700A75B9A /* AppDelegate.h */,
 				13B07FB01A68108700A75B9A /* AppDelegate.mm */,
-				E0A458BD2F45300000B73914 /* ios */,
+				E0A458BD2F45300000B73914 /* ../node_modules/framepayments-react-native/ios */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
@@ -193,7 +201,7 @@
 			path = Pods;
 			sourceTree = "<group>";
 		};
-		E0A458BD2F45300000B73914 /* ios */ = {
+		E0A458BD2F45300000B73914 /* ../node_modules/framepayments-react-native/ios */ = {
 			isa = PBXGroup;
 			children = (
 				E0A458BB2F45300000B73914 /* FrameSDKBridge.m */,
@@ -278,7 +286,7 @@
 			);
 			mainGroup = 83CBB9F61A601CBA00E9B192;
 			packageReferences = (
-				E01C819F2F7C598D002C0F34 /* XCRemoteSwiftPackageReference "frame-ios" */,
+				E01C82052F7CEB24002C0F34 /* XCRemoteSwiftPackageReference "frame-ios" */,
 			);
 			productRefGroup = 83CBBA001A601CBA00E9B192 /* Products */;
 			projectDirPath = "";
@@ -335,9 +343,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-FrameExampleTemp/Pods-FrameExampleTemp-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-FrameExampleTemp/Pods-FrameExampleTemp-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -396,9 +408,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-FrameExampleTemp-FrameExampleTempTests/Pods-FrameExampleTemp-FrameExampleTempTests-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-FrameExampleTemp-FrameExampleTempTests/Pods-FrameExampleTemp-FrameExampleTempTests-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -413,9 +429,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-FrameExampleTemp/Pods-FrameExampleTemp-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-FrameExampleTemp/Pods-FrameExampleTemp-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -430,9 +450,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-FrameExampleTemp-FrameExampleTempTests/Pods-FrameExampleTemp-FrameExampleTempTests-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-FrameExampleTemp-FrameExampleTempTests/Pods-FrameExampleTemp-FrameExampleTempTests-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -680,10 +704,7 @@
 					"-DFOLLY_USE_LIBCPP=1",
 					"-DFOLLY_CFG_NO_COROUTINES=1",
 				);
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					" ",
-				);
+				OTHER_LDFLAGS = "$(inherited)  ";
 				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
@@ -756,10 +777,7 @@
 					"-DFOLLY_USE_LIBCPP=1",
 					"-DFOLLY_CFG_NO_COROUTINES=1",
 				);
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					" ",
-				);
+				OTHER_LDFLAGS = "$(inherited)  ";
 				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
 				USE_HERMES = true;
@@ -824,6 +842,14 @@
 				minimumVersion = 2.0.2;
 			};
 		};
+		E01C82052F7CEB24002C0F34 /* XCRemoteSwiftPackageReference "frame-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Frame-Payments/frame-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.4;
+			};
+		};
 		E0CE05AD2F4645C7002C7B9F /* XCRemoteSwiftPackageReference "frame-ios" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/Frame-Payments/frame-ios";
@@ -866,6 +892,24 @@
 		E01C81A22F7C598D002C0F34 /* Frame-iOS */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E01C819F2F7C598D002C0F34 /* XCRemoteSwiftPackageReference "frame-ios" */;
+			productName = "Frame-iOS";
+		};
+		E01C82012F7CE964002C0F34 /* Frame-Onboarding */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = "Frame-Onboarding";
+		};
+		E01C82032F7CE964002C0F34 /* Frame-iOS */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = "Frame-iOS";
+		};
+		E01C82062F7CEB24002C0F34 /* Frame-Onboarding */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E01C82052F7CEB24002C0F34 /* XCRemoteSwiftPackageReference "frame-ios" */;
+			productName = "Frame-Onboarding";
+		};
+		E01C82082F7CEB24002C0F34 /* Frame-iOS */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E01C82052F7CEB24002C0F34 /* XCRemoteSwiftPackageReference "frame-ios" */;
 			productName = "Frame-iOS";
 		};
 		E060395A2F451DDF00990E77 /* Frame-iOS */ = {
