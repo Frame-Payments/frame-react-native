@@ -1,14 +1,12 @@
 # Frame React Native SDK
 
-React Native SDK for [Frame Payments](https://framepayments.com). It bridges the native Frame iOS and Android SDKs to provide payment UI (checkout and cart modals) and initialization. For API operations (customers, charge intents, refunds, etc.), use the [framepayments](https://www.npmjs.com/package/framepayments) (frame-node) package from JavaScript.
+React Native SDK for [Frame Payments](https://framepayments.com). Bridges the native Frame iOS and Android SDKs to provide payment UI (checkout, cart, and onboarding modals) directly in your React Native app. For server-side API operations (customers, charge intents, refunds, etc.), use the [framepayments](https://www.npmjs.com/package/framepayments) Node.js package.
 
 ## Requirements
 
 - React Native >= 0.74
 - iOS 17+ / Android 8.0+ (API 26+)
 - A [Frame](https://framepayments.com) account and API key
-
-**Tested with:** Frame iOS SDK 2.x (SPM) and Frame Android SDK 1.2.x. Other compatible versions may work but are not officially tested.
 
 ## Installation
 
@@ -18,126 +16,279 @@ npm install framepayments-react-native
 yarn add framepayments-react-native
 ```
 
-### iOS
+### iOS setup
 
-1. **Add the Frame iOS SDK via Swift Package Manager** (required): In Xcode, open your project, then go to **File → Add Package Dependencies**. Enter:
-   ```
-   https://github.com/Frame-Payments/frame-ios
-   ```
-   Add the **Frame-iOS** package and choose the version or branch you need. The React Native SDK’s native code depends on it; CocoaPods cannot pull it in automatically.
+#### 1. Add the Frame iOS SDK via Swift Package Manager
 
-2. **Preload Frame on the main thread** (required): Add this to your `AppDelegate.m` or `AppDelegate.mm` **before** calling `[super application:didFinishLaunchingWithOptions:]`:
-   ```objc
-   #import "YourAppName-Swift.h"  // Use your app's module name
-   // ...
-   - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
-   {
-     [FramePreloader preloadOnMainThread];  // Prevents "Helpers are not supported by the default hub" crash
-     return [super application:application didFinishLaunchingWithOptions:launchOptions];
-   }
-   ```
-   `FramePreloader` is part of the SDK and loads Frame/Evervault/Sift on the main thread before the React Native bridge initializes.
+The React Native SDK's native layer depends on the Frame iOS SDK, which must be added manually via SPM — CocoaPods cannot pull it in automatically.
 
-   **If your app has a different module name than the example** (e.g. not `FrameExampleTemp`), add `FRAME_SWIFT_HEADER="YourApp-Swift.h"` to your app target's **Preprocessor Macros** in Xcode build settings. The native bridge uses this to import the Swift header.
+In Xcode: **File → Add Package Dependencies**, enter:
 
-3. **Install pods**:
-   ```bash
-   cd ios && pod install && cd ..
-   ```
+```
+https://github.com/Frame-Payments/frame-ios
+```
 
-4. Run the app (e.g. `npx react-native run-ios`). The example app already includes this setup.
+Add the **Frame-iOS** package and select the version you need.
 
-### Android
+#### 2. Preload Frame on the main thread
 
-No extra steps; autolinking includes the native module.
+Add this to your `AppDelegate.m` or `AppDelegate.mm` **before** `[super application:didFinishLaunchingWithOptions:]`:
 
-## Usage
+```objc
+#import "YourAppName-Swift.h"   // use your app's module name
 
-### 1. Initialize
+- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
+{
+  [FramePreloader preloadOnMainThread];  // must be first
+  return [super application:application didFinishLaunchingWithOptions:launchOptions];
+}
+```
 
-Call once at app startup (e.g. in your root component or App.js). Returns a Promise; await or catch to handle native init errors.
+This prevents the **"Helpers are not supported by the default hub"** crash, which occurs when Frame/Evervault initializes on a background thread during React Native bridge startup.
+
+> If your app module name isn't the default (i.e., not matching the generated `-Swift.h` header), set `FRAME_SWIFT_HEADER=YourApp-Swift.h` in your target's **Preprocessor Macros** in Xcode build settings.
+
+#### 3. Install pods
+
+```bash
+cd ios && pod install && cd ..
+```
+
+### Android setup
+
+No extra steps required. Autolinking handles the native module automatically.
+
+---
+
+## Quick start
 
 ```ts
 import Frame from 'framepayments-react-native';
 
-Frame.initialize({
-  apiKey: 'YOUR_FRAME_SECRET_KEY',
-  debugMode: false, // set true for development
-}).catch((e) => console.warn('Frame init failed:', e.message));
+// 1. Initialize once at app startup
+await Frame.initialize({ apiKey: 'sk_sandbox_...', debugMode: __DEV__ });
+
+// 2. Present a checkout modal
+const chargeIntent = await Frame.presentCheckout({ amount: 10000 }); // cents
+
+// 3. Present a cart flow
+const result = await Frame.presentCart({
+  items: [{ id: '1', title: 'Hat', amountInCents: 5000, imageUrl: 'https://...' }],
+  shippingAmountInCents: 500,
+});
+
+// 4. Present an onboarding flow (KYC, bank account, etc.)
+const onboarding = await Frame.presentOnboarding({
+  accountId: 'acct_xxx',
+  capabilities: ['kyc', 'bank_account_verification'],
+});
 ```
 
-### 2. Present Checkout
+---
 
-Opens the native checkout modal. Resolves with the created charge intent on success.
+## API reference
+
+### `Frame.initialize(options)`
+
+Initializes the native SDK. Must be called before any `present*` method. Call once at app startup (e.g., in your root component's `useEffect`).
+
+```ts
+await Frame.initialize({
+  apiKey: 'sk_sandbox_...',  // your Frame secret key
+  debugMode: false,          // set true in development to enable native debug logging
+});
+```
+
+| Option | Type | Required | Description |
+|---|---|---|---|
+| `apiKey` | `string` | Yes | Your Frame secret key |
+| `debugMode` | `boolean` | No | Enables native debug logging. Default: `false` |
+
+---
+
+### `Frame.presentCheckout(options)`
+
+Opens the native checkout modal. Resolves with a `ChargeIntent` when the user completes payment.
 
 ```ts
 const chargeIntent = await Frame.presentCheckout({
-  customerId: 'cus_xxx', // optional
-  amount: 10000, // cents
+  amount: 15000,           // required, in cents
+  customerId: 'cus_xxx',  // optional
 });
 ```
 
-### 3. Present Cart
+| Option | Type | Required | Description |
+|---|---|---|---|
+| `amount` | `number` | Yes | Payment amount in cents |
+| `customerId` | `string` | No | Pre-associate the charge with a Frame customer |
 
-Opens the cart flow (cart screen then checkout). Resolves with the charge intent when the user completes payment.
+**Returns:** [`ChargeIntent`](#chargeintent)
+
+---
+
+### `Frame.presentCart(options)`
+
+Opens a cart review screen followed by the checkout flow. Resolves when the user completes payment or dismisses.
 
 ```ts
 const chargeIntent = await Frame.presentCart({
-  customerId: 'cus_xxx', // optional
   items: [
-    { id: '1', title: 'Product A', amountInCents: 10000, imageUrl: 'https://...' },
+    {
+      id: '1',
+      title: 'Vintage Track Jacket',
+      amountInCents: 10000,
+      imageUrl: 'https://example.com/jacket.jpg',
+    },
   ],
   shippingAmountInCents: 500,
+  customerId: 'cus_xxx',       // optional
 });
 ```
 
-> **Platform note:** On iOS, `presentCart` resolves with an empty object (`{}`) rather than a full `ChargeIntent`. This is a current limitation of the iOS Frame SDK — `FrameCartView` does not expose the charge intent from its nested checkout step. On Android, the full `ChargeIntent` is returned. Check `intent?.id` before using the result.
+| Option | Type | Required | Description |
+|---|---|---|---|
+| `items` | `FrameCartItem[]` | Yes | Array of items to display in the cart |
+| `shippingAmountInCents` | `number` | Yes | Shipping cost in cents |
+| `customerId` | `string` | No | Pre-associate the charge with a Frame customer |
 
-### 4. Present Onboarding
-
-Opens the native onboarding flow (KYC, identity verification, payment method setup, etc.). Resolves when the user completes or dismisses the flow.
-
-```ts
-const result = await Frame.presentOnboarding({
-  accountId: 'acct_xxx', // optional — the Frame account to onboard
-  capabilities: ['kyc', 'bank_account_verification'], // optional — drives which steps are shown
-});
-
-if (result.status === 'completed') {
-  console.log('Onboarding complete, payment method:', result.paymentMethodId);
-}
-```
-
-**`capabilities`** — one or more of:
-`kyc`, `kyc_prefill`, `phone_verification`, `creator_shield`, `card_verification`, `card_send`, `card_receive`, `address_verification`, `bank_account_verification`, `bank_account_send`, `bank_account_receive`, `geo_compliance`, `age_verification`
-
-**Result shape (`OnboardingResult`):**
+**`FrameCartItem` shape:**
 
 | Field | Type | Description |
 |---|---|---|
-| `status` | `'completed' \| 'cancelled'` | Whether the user finished or dismissed |
-| `paymentMethodId` | `string \| undefined` | Present when a payment method was created or verified |
+| `id` | `string` | Unique identifier for the item |
+| `title` | `string` | Display name |
+| `amountInCents` | `number` | Item price in cents |
+| `imageUrl` | `string` | URL of the product image |
 
-### Error handling
+**Returns:** [`ChargeIntent`](#chargeintent)
 
-The SDK rejects with an error object that includes `code` and `message`. Common codes:
+> **iOS limitation:** On iOS, `presentCart` resolves with an empty object (`{}`) rather than a full `ChargeIntent`. The underlying `FrameCartView` does not expose the charge intent from its nested checkout step. On Android, the full `ChargeIntent` is returned. Always guard with `intent?.id` before using the result.
 
-- `NOT_INITIALIZED` – You called `presentCheckout`, `presentCart`, or `presentOnboarding` before `Frame.initialize()`.
-- `USER_CANCELED` – The user dismissed the modal or closed checkout without completing payment.
-- `NO_ACTIVITY` / `NO_ROOT_VC` – No host activity or view controller available (e.g. app not ready).
+---
+
+### `Frame.presentOnboarding(options)`
+
+Opens the native onboarding flow for KYC, identity verification, and payment method setup. Resolves when the user completes or dismisses.
 
 ```ts
-try {
-  const intent = await Frame.presentCheckout({ amount: 10000 });
-} catch (e: any) {
-  if (e.code === 'USER_CANCELED') return;
-  console.error(e.code, e.message);
+const result = await Frame.presentOnboarding({
+  accountId: 'acct_xxx',
+  capabilities: ['kyc', 'bank_account_verification'],
+});
+
+if (result.status === 'completed') {
+  console.log('Payment method created:', result.paymentMethodId);
 }
 ```
 
-### API calls (customers, charge intents, refunds)
+| Option | Type | Required | Description |
+|---|---|---|---|
+| `accountId` | `string` | No | The Frame account to onboard |
+| `capabilities` | `OnboardingCapability[]` | No | Which onboarding steps to include (see below) |
 
-Install the Frame Node SDK (optional peer dependency) and use it from your React Native app:
+**`capabilities` values:**
+
+| Value | Description |
+|---|---|
+| `kyc` | Identity verification |
+| `kyc_prefill` | Pre-populate KYC fields |
+| `phone_verification` | Phone number verification |
+| `age_verification` | Age verification |
+| `address_verification` | Address verification |
+| `geo_compliance` | Geolocation compliance check |
+| `creator_shield` | Creator Shield enrollment |
+| `card_verification` | Card verification |
+| `card_send` | Enable card send capability |
+| `card_receive` | Enable card receive capability |
+| `bank_account_verification` | Bank account verification |
+| `bank_account_send` | Enable bank account send |
+| `bank_account_receive` | Enable bank account receive |
+
+**Returns:** `OnboardingResult`
+
+| Field | Type | Description |
+|---|---|---|
+| `status` | `'completed' \| 'cancelled'` | Whether the user finished or dismissed the flow |
+| `paymentMethodId` | `string \| undefined` | Set when a payment method was created or verified during the flow |
+
+---
+
+### `ChargeIntent`
+
+Returned from `presentCheckout` and `presentCart` (Android only for cart).
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `string` | Unique charge intent ID |
+| `amount` | `number` | Amount in cents |
+| `currency` | `string` | ISO currency code (e.g. `"usd"`) |
+| `status` | `ChargeIntentStatus` | Current status of the intent |
+| `created` | `number` | Unix timestamp |
+| `updated` | `number` | Unix timestamp |
+| `livemode` | `boolean` | `true` in production, `false` in sandbox |
+| `description` | `string \| undefined` | Optional description |
+| `authorizationMode` | `'automatic' \| 'manual' \| undefined` | Capture mode |
+| `failureDescription` | `string \| undefined` | Present when status is `failed` |
+| `customer` | `Customer \| undefined` | Associated customer object |
+| `paymentMethod` | `PaymentMethod \| undefined` | Payment method used |
+| `latestCharge` | `Charge \| undefined` | Most recent charge on this intent |
+
+**`ChargeIntentStatus` values:** `pending`, `succeeded`, `failed`, `canceled`, `incomplete`, `disputed`, `refunded`, `reversed`
+
+---
+
+### Error handling
+
+All `present*` methods return Promises that reject with an error object containing `code` and `message`.
+
+```ts
+import Frame, { ErrorCodes } from 'framepayments-react-native';
+
+try {
+  const intent = await Frame.presentCheckout({ amount: 10000 });
+  // handle success
+} catch (e: any) {
+  if (e.code === ErrorCodes.USER_CANCELED) {
+    return; // user dismissed — not an error
+  }
+  console.error(`[${e.code}] ${e.message}`);
+}
+```
+
+**Error codes (`ErrorCodes`):**
+
+| Code | When it's thrown |
+|---|---|
+| `NOT_INITIALIZED` | `present*` called before `Frame.initialize()` |
+| `USER_CANCELED` | User dismissed the modal without completing |
+| `INIT_FAILED` | Native SDK failed to initialize |
+| `NO_ROOT_VC` | iOS: no root view controller available |
+| `NO_ACTIVITY` | Android: no host activity available |
+| `INVALID_ITEMS` | Cart items could not be parsed |
+| `NO_RESULT` | Native activity returned OK but no payload |
+| `PARSE_ERROR` | Could not decode the native response |
+| `ENCODE_ERROR` | iOS: could not encode the charge intent |
+| `NETWORK_ERROR` | Network failure in the native SDK |
+| `API_ERROR` | Frame API returned an error |
+
+You can also use the `isFrameError` and `normalizeToFrameError` utilities for typed error handling:
+
+```ts
+import { isFrameError, normalizeToFrameError } from 'framepayments-react-native';
+
+try {
+  await Frame.presentCheckout({ amount: 5000 });
+} catch (e) {
+  const err = normalizeToFrameError(e);
+  // err.code, err.message, err.nativeError are all typed strings
+}
+```
+
+---
+
+## Server-side API calls
+
+For operations that don't involve UI (listing customers, creating charge intents, issuing refunds), install the optional `framepayments` Node.js SDK:
 
 ```bash
 npm install framepayments
@@ -146,47 +297,82 @@ npm install framepayments
 ```ts
 import { FrameSDK } from 'framepayments';
 
-const frame = new FrameSDK({ apiKey: 'YOUR_SECRET_KEY' });
+const frame = new FrameSDK({ apiKey: 'sk_sandbox_...' });
+
 const customers = await frame.customers.list();
+const accounts = await frame.accounts.list();
+const paymentMethods = await frame.paymentMethods.list();
 ```
 
-> **Important:** Never hardcode your Frame secret key in your app bundle or source control. Your secret key should be fetched at runtime from your own backend after the user has authenticated. This keeps the key out of the binary and allows it to be rotated server-side without an app update.
+> **Security:** Never hardcode your Frame secret key in your app bundle. Fetch it from your own backend after the user authenticates — this keeps the key out of the binary and allows server-side rotation without an app update.
 >
 > ```ts
-> // Fetch key from your backend after login
-> const { frameApiKey } = await myBackend.getConfig();
+> // Fetch from your backend after login
+> const { frameApiKey } = await myBackend.getSessionConfig();
 > const frame = new FrameSDK({ apiKey: frameApiKey });
 > ```
->
-> The example app hardcodes a key for convenience — do not replicate this pattern in production.
+
+---
 
 ## Security
 
-- **Never bundle your secret key**: Fetch your Frame secret key from your backend at runtime rather than embedding it in the app. Anyone with access to your IPA or APK can extract bundled secrets.
-- **API key**: Do not commit your secret key to source control; use environment variables or a secrets manager on your backend.
-- **Production**: Disable `debugMode` in production to avoid logging sensitive data.
-- Payment card data is handled by the native Frame SDKs (Evervault, etc.) and never touches your JS bundle.
+- **Never bundle your secret key.** Anyone with access to your IPA or APK can extract embedded secrets. Fetch the key from your backend at runtime.
+- **Don't commit keys to source control.** Use environment variables or a secrets manager.
+- **Disable `debugMode` in production** to avoid logging sensitive data to the console.
+- Payment card data is handled entirely by the native Frame SDKs (via Evervault) and never passes through your JavaScript bundle.
 
-## Troubleshooting (iOS)
+---
 
-- **"Helpers are not supported by the default hub"** – This occurs when Frame/Evervault loads on a background thread during React Native bridge init. **Fix:** Call `[FramePreloader preloadOnMainThread]` in your `AppDelegate` before `[super application:didFinishLaunchingWithOptions:]` (see [Installation – iOS](#ios) step 2). Also ensure the **Frame-iOS** Swift package is added in Xcode (**File → Add Package Dependencies** → `https://github.com/Frame-Payments/frame-ios`).
+## Troubleshooting
 
-## Running the example
+### "Helpers are not supported by the default hub" (iOS)
 
-The [example](./example) folder contains a sample app (App.tsx, package.json) that uses the SDK for init, presentCheckout, presentCart, presentOnboarding, and frame-node for listing customers.
+Frame/Evervault loaded on a background thread before the main thread was ready. Fix: add `[FramePreloader preloadOnMainThread]` to your `AppDelegate` before `[super application:didFinishLaunchingWithOptions:]`. See [iOS setup](#ios-setup).
 
-1. **From this repo (local SDK):** Create a new React Native app (e.g. `npx react-native init FrameExample`), then copy `example/App.tsx` into it and add the dependency: `"framepayments-react-native": "file:/path/to/frame-react-native"`. Run `npm install`. On iOS: add Frame-iOS via SPM in Xcode (see [Installation – iOS](#ios) above), then `cd ios && pod install`. See [example/README.md](./example/README.md) for details.
-2. **Using the published package:** Install `framepayments-react-native` and `framepayments` in your app and use the same patterns as in `example/App.tsx`.
+Also ensure the **Frame-iOS** Swift package is added in Xcode (**File → Add Package Dependencies** → `https://github.com/Frame-Payments/frame-ios`).
 
-## Release checklist
+### "The package doesn't seem to be linked"
 
-For maintainers publishing a new version:
+- iOS: run `cd ios && pod install`, then rebuild.
+- Android: rebuild the app (`npm run android`).
+- Both: make sure you're running a debug build (not Expo Go), since this SDK uses native modules.
 
-1. Bump version in `package.json`
-2. Update `CHANGELOG.md` with the new version and date
-3. Commit and tag: `git tag v1.0.0`
-4. Push and create a GitHub release
-5. Publish: `npm publish --access public` (for scoped packages)
+### Spinner stuck after onboarding completes (iOS)
+
+Ensure you are using SDK version 1.1.0+. Earlier versions had a bug where programmatic dismiss from the onboarding flow did not resolve the promise.
+
+### `presentCart` returns `{}` on iOS
+
+This is a known limitation of `FrameCartView` on iOS — it does not expose the `ChargeIntent` from its nested checkout. On Android, the full object is returned. Guard with `intent?.id` before reading the result.
+
+### `settings.gradle` build error on Android (RN 0.74+)
+
+If you see `Could not read script '.../cli-platform-android/native_modules.gradle'`, remove the `apply from:` line referencing it from your `android/settings.gradle`. This file was removed in newer versions of `@react-native-community/cli-platform-android`; the gradle plugin handles it automatically.
+
+---
+
+## Example app
+
+The [example/](./example) directory contains a full working app demonstrating all SDK features.
+
+**Run on iOS:**
+```bash
+cd example
+npm install
+cd ios && pod install && cd ..
+npm run ios
+```
+
+**Run on Android:**
+```bash
+cd example
+npm install
+npm run android
+```
+
+The example app covers `initialize`, `presentCheckout`, `presentCart`, `presentOnboarding`, and server-side API calls via `framepayments`.
+
+---
 
 ## License
 
