@@ -21,6 +21,8 @@ import { FrameSDK } from 'framepayments';
 // Set your Frame secret key here or use an env variable. Do not commit real keys.
 const FRAME_API_KEY = process.env.FRAME_API_KEY ?? 'YOUR_FRAME_SECRET_KEY';
 
+const frameSDK = new FrameSDK({ apiKey: FRAME_API_KEY });
+
 const sampleCartItems = [
   {
     id: '1',
@@ -102,8 +104,7 @@ export default function App() {
   const handleListCustomers = async () => {
     setLoading('customers');
     try {
-      const frame = new FrameSDK({ apiKey: FRAME_API_KEY });
-      const response = await frame.customers.list();
+      const response = await frameSDK.customers.list();
       const list = (response as { data?: unknown[] })?.data ?? [];
       setCustomers(Array.isArray(list) ? list : []);
     } catch (e: any) {
