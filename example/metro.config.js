@@ -8,10 +8,9 @@ const config = {
   watchFolders: [monorepoRoot],
   resolver: {
     nodeModulesPaths: [path.resolve(projectRoot, 'node_modules')],
-    disableHierarchicalLookup: true,
     // Use axios browser build (avoids Node.js crypto/http modules in RN)
     unstable_enablePackageExports: true,
-    unstable_conditionNames: ['require', 'import', 'react-native', 'browser'],
+    unstable_conditionNames: ['require', 'react-native', 'browser', 'default'],
   },
 };
 

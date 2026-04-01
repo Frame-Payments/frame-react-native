@@ -6,6 +6,7 @@
 const mockInitialize = jest.fn((_apiKey: string, _debugMode: boolean) => Promise.resolve());
 const mockPresentCheckout = jest.fn((_customerId: unknown, _amount: number) => Promise.resolve({ id: 'ci_1', amount: 10000 }));
 const mockPresentCart = jest.fn((_customerId: unknown, _items: unknown[], _shipping: number) => Promise.resolve({ id: 'ci_2', amount: 15000 }));
+const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unknown[]) => Promise.resolve({ status: 'completed', paymentMethodId: 'pm_1' }));
 
 jest.mock('react-native', () => ({
   NativeModules: {
@@ -13,28 +14,32 @@ jest.mock('react-native', () => ({
       initialize: mockInitialize,
       presentCheckout: mockPresentCheckout,
       presentCart: mockPresentCart,
+      presentOnboarding: mockPresentOnboarding,
     },
   },
 }));
 
 // Re-import after mock so we get the mocked NativeModules
-let initialize: (opts: { apiKey: string; debugMode?: boolean }) => void;
+let initialize: (opts: { apiKey: string; debugMode?: boolean }) => Promise<void>;
 let presentCheckout: (opts: { customerId?: string | null; amount: number }) => Promise<unknown>;
 let presentCart: (opts: {
   customerId?: string | null;
   items: Array<{ id: string; title: string; amountInCents: number; imageUrl: string }>;
   shippingAmountInCents: number;
 }) => Promise<unknown>;
+let presentOnboarding: (opts: { accountId?: string | null; capabilities?: string[] }) => Promise<unknown>;
 
 beforeEach(() => {
   jest.resetModules();
   mockInitialize.mockClear();
   mockPresentCheckout.mockClear();
   mockPresentCart.mockClear();
+  mockPresentOnboarding.mockClear();
   const native = require('../native');
   initialize = native.initialize;
   presentCheckout = native.presentCheckout;
   presentCart = native.presentCart;
+  presentOnboarding = native.presentOnboarding;
 });
 
 describe('initialize', () => {
@@ -69,14 +74,14 @@ describe('presentCheckout', () => {
   });
 
   it('calls native presentCheckout with customerId and amount after initialize', async () => {
-    initialize({ apiKey: 'sk_xxx' });
+    await initialize({ apiKey: 'sk_xxx' });
     const result = await presentCheckout({ customerId: 'cus_1', amount: 10000 });
     expect(mockPresentCheckout).toHaveBeenCalledWith('cus_1', 10000);
     expect(result).toEqual({ id: 'ci_1', amount: 10000 });
   });
 
   it('passes null for customerId when not provided', async () => {
-    initialize({ apiKey: 'sk_xxx' });
+    await initialize({ apiKey: 'sk_xxx' });
     await presentCheckout({ amount: 5000 });
     expect(mockPresentCheckout).toHaveBeenCalledWith(null, 5000);
   });
@@ -98,7 +103,7 @@ describe('presentCart', () => {
   });
 
   it('calls native presentCart with customerId, items, shipping after initialize', async () => {
-    initialize({ apiKey: 'sk_xxx' });
+    await initialize({ apiKey: 'sk_xxx' });
     const result = await presentCart({
       customerId: 'cus_2',
       items,
@@ -109,8 +114,34 @@ describe('presentCart', () => {
   });
 
   it('passes null for customerId when not provided', async () => {
-    initialize({ apiKey: 'sk_xxx' });
+    await initialize({ apiKey: 'sk_xxx' });
     await presentCart({ items, shippingAmountInCents: 0 });
     expect(mockPresentCart).toHaveBeenCalledWith(null, items, 0);
+  });
+});
+
+describe('presentOnboarding', () => {
+  it('throws NOT_INITIALIZED if initialize was not called', async () => {
+    try {
+      await presentOnboarding({});
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('NOT_INITIALIZED');
+      expect(e.message).toContain('initialized');
+    }
+    expect(mockPresentOnboarding).not.toHaveBeenCalled();
+  });
+
+  it('calls native presentOnboarding with accountId and capabilities after initialize', async () => {
+    await initialize({ apiKey: 'sk_xxx' });
+    const result = await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc', 'bank_account_verification'] });
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc', 'bank_account_verification']);
+    expect(result).toEqual({ status: 'completed', paymentMethodId: 'pm_1' });
+  });
+
+  it('passes null for accountId and empty array for capabilities when not provided', async () => {
+    await initialize({ apiKey: 'sk_xxx' });
+    await presentOnboarding({});
+    expect(mockPresentOnboarding).toHaveBeenCalledWith(null, []);
   });
 });

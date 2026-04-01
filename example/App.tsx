@@ -81,6 +81,24 @@ export default function App() {
     }
   };
 
+  const handleOnboarding = async () => {
+    setLoading('onboarding');
+    try {
+      const result = await Frame.presentOnboarding({
+        capabilities: ['kyc', 'kyc_prefill', 'age_verification', 'phone_verification', 'card_verification', 'bank_account_verification'],
+      });
+      Alert.alert(
+        result.status === 'completed' ? 'Onboarding complete' : 'Onboarding cancelled',
+        result.paymentMethodId ? `Payment method: ${result.paymentMethodId}` : undefined,
+      );
+    } catch (e: any) {
+      if (e.code === 'USER_CANCELED') return;
+      Alert.alert('Error', e.message ?? String(e));
+    } finally {
+      setLoading(null);
+    }
+  };
+
   const handleListCustomers = async () => {
     setLoading('customers');
     try {
@@ -131,6 +149,18 @@ export default function App() {
           <ActivityIndicator color="#fff" />
         ) : (
           <Text style={styles.buttonText}>Cart → Checkout</Text>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, (loading === 'onboarding' || !!initError) && styles.buttonDisabled]}
+        onPress={handleOnboarding}
+        disabled={!!loading || !!initError}
+      >
+        {loading === 'onboarding' ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Onboarding (KYC + bank)</Text>
         )}
       </TouchableOpacity>
 

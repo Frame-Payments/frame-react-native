@@ -4,11 +4,11 @@ React Native SDK for [Frame Payments](https://framepayments.com). It bridges the
 
 ## Requirements
 
-- React Native >= 0.72
+- React Native >= 0.74
 - iOS 17+ / Android 8.0+ (API 26+)
 - A [Frame](https://framepayments.com) account and API key
 
-**Tested with:** Frame iOS SDK (SPM) and Frame Android SDK 1.2.x. Other compatible versions may work but are not officially tested.
+**Tested with:** Frame iOS SDK 2.x (SPM) and Frame Android SDK 1.2.x. Other compatible versions may work but are not officially tested.
 
 ## Installation
 
@@ -91,11 +91,38 @@ const chargeIntent = await Frame.presentCart({
 });
 ```
 
+> **Platform note:** On iOS, `presentCart` resolves with an empty object (`{}`) rather than a full `ChargeIntent`. This is a current limitation of the iOS Frame SDK — `FrameCartView` does not expose the charge intent from its nested checkout step. On Android, the full `ChargeIntent` is returned. Check `intent?.id` before using the result.
+
+### 4. Present Onboarding
+
+Opens the native onboarding flow (KYC, identity verification, payment method setup, etc.). Resolves when the user completes or dismisses the flow.
+
+```ts
+const result = await Frame.presentOnboarding({
+  accountId: 'acct_xxx', // optional — the Frame account to onboard
+  capabilities: ['kyc', 'bank_account_verification'], // optional — drives which steps are shown
+});
+
+if (result.status === 'completed') {
+  console.log('Onboarding complete, payment method:', result.paymentMethodId);
+}
+```
+
+**`capabilities`** — one or more of:
+`kyc`, `kyc_prefill`, `phone_verification`, `creator_shield`, `card_verification`, `card_send`, `card_receive`, `address_verification`, `bank_account_verification`, `bank_account_send`, `bank_account_receive`, `geo_compliance`, `age_verification`
+
+**Result shape (`OnboardingResult`):**
+
+| Field | Type | Description |
+|---|---|---|
+| `status` | `'completed' \| 'cancelled'` | Whether the user finished or dismissed |
+| `paymentMethodId` | `string \| undefined` | Present when a payment method was created or verified |
+
 ### Error handling
 
 The SDK rejects with an error object that includes `code` and `message`. Common codes:
 
-- `NOT_INITIALIZED` – You called `presentCheckout` or `presentCart` before `Frame.initialize()`.
+- `NOT_INITIALIZED` – You called `presentCheckout`, `presentCart`, or `presentOnboarding` before `Frame.initialize()`.
 - `USER_CANCELED` – The user dismissed the modal or closed checkout without completing payment.
 - `NO_ACTIVITY` / `NO_ROOT_VC` – No host activity or view controller available (e.g. app not ready).
 
@@ -135,7 +162,7 @@ const customers = await frame.customers.list();
 
 ## Running the example
 
-The [example](./example) folder contains a sample app (App.tsx, package.json) that uses the SDK for init, presentCheckout, presentCart, and frame-node for listing customers.
+The [example](./example) folder contains a sample app (App.tsx, package.json) that uses the SDK for init, presentCheckout, presentCart, presentOnboarding, and frame-node for listing customers.
 
 1. **From this repo (local SDK):** Create a new React Native app (e.g. `npx react-native init FrameExample`), then copy `example/App.tsx` into it and add the dependency: `"framepayments-react-native": "file:/path/to/frame-react-native"`. Run `npm install`. On iOS: add Frame-iOS via SPM in Xcode (see [Installation – iOS](#ios) above), then `cd ios && pod install`. See [example/README.md](./example/README.md) for details.
 2. **Using the published package:** Install `framepayments-react-native` and `framepayments` in your app and use the same patterns as in `example/App.tsx`.
