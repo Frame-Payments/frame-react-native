@@ -39,7 +39,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun presentCheckout(customerId: String?, amount: Double, promise: Promise) {
-    val activity = currentActivity ?: run {
+    val activity = reactApplicationContext.currentActivity ?: run {
       promise.reject("NO_ACTIVITY", "No current activity", null)
       return
     }
@@ -60,7 +60,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     shippingAmountInCents: Double,
     promise: Promise
   ) {
-    val activity = currentActivity ?: run {
+    val activity = reactApplicationContext.currentActivity ?: run {
       promise.reject("NO_ACTIVITY", "No current activity", null)
       return
     }
@@ -85,7 +85,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     capabilities: com.facebook.react.bridge.ReadableArray,
     promise: Promise
   ) {
-    val activity = currentActivity ?: run {
+    val activity = reactApplicationContext.currentActivity ?: run {
       promise.reject("NO_ACTIVITY", "No current activity", null)
       return
     }
@@ -122,7 +122,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     return jsonArr.toString()
   }
 
-  override fun onActivityResult(activity: Activity?, requestCode: Int, resultCode: Int, data: Intent?) {
+  override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
     when (requestCode) {
       FrameCheckoutActivity.REQUEST_CODE -> handleCheckoutResult(resultCode, data)
       FrameFlowActivity.REQUEST_CODE -> handleCartResult(resultCode, data)
@@ -223,5 +223,5 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     return list
   }
 
-  override fun onNewIntent(intent: Intent?) {}
+  override fun onNewIntent(intent: Intent) {}
 }
