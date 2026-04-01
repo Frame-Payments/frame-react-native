@@ -51,12 +51,12 @@ public class FrameSDKBridge: NSObject {
   // MARK: - Private helpers
 
   private func presentCheckoutOnMain(from top: UIViewController, customerId: String?, amount: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    let delegate = CheckoutDismissDelegate(resolve: resolve, reject: reject)
-    let checkoutView = FrameCheckoutView(
+    var hosting: CheckoutHostingController!
+    hosting = CheckoutHostingController(rootView: FrameCheckoutView(
       customerId: customerId,
       paymentAmount: amount,
-      checkoutCallback: { [weak delegate] chargeIntent in
-        delegate?.didComplete = true
+      checkoutCallback: { [weak hosting] chargeIntent in
+        hosting?.didComplete = true
         top.dismiss(animated: true)
         DispatchQueue.main.async {
           if let dict = Self.encodeChargeIntent(chargeIntent) {
@@ -66,15 +66,19 @@ public class FrameSDKBridge: NSObject {
           }
         }
       }
-    )
-    let hosting = UIHostingController(rootView: checkoutView)
+    ))
+    hosting.onCancel = {
+      DispatchQueue.main.async {
+        reject("USER_CANCELED", "User dismissed checkout without completing payment", nil)
+      }
+    }
     hosting.modalPresentationStyle = UIModalPresentationStyle.pageSheet
     if let sheet = hosting.sheetPresentationController {
       sheet.detents = [UISheetPresentationController.Detent.large()]
     }
-    objc_setAssociatedObject(hosting, &checkoutDismissKey, delegate, .OBJC_ASSOCIATION_RETAIN)
-    hosting.presentationController?.delegate = delegate
-    top.present(hosting, animated: true)
+    top.present(hosting, animated: true) {
+      hosting.presentationController?.delegate = hosting
+    }
   }
 
   private static func encodeChargeIntent(_ intent: FrameObjects.ChargeIntent) -> [String: Any]? {
@@ -126,8 +130,9 @@ public class FrameSDKBridge: NSObject {
     // When the sheet is dismissed (swipe or close), resolve. Note: FrameCartView does not expose ChargeIntent from nested checkout.
     let delegate = CartDismissDelegate(resolve: resolve)
     objc_setAssociatedObject(hosting, &cartDismissKey, delegate, .OBJC_ASSOCIATION_RETAIN)
-    hosting.presentationController?.delegate = delegate
-    top.present(hosting, animated: true)
+    top.present(hosting, animated: true) {
+      hosting.presentationController?.delegate = delegate
+    }
   }
 
   private func presentOnboardingOnMain(from top: UIViewController, accountId: String?, capabilities: [FrameObjects.Capabilities], resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
@@ -143,8 +148,40 @@ public class FrameSDKBridge: NSObject {
     }
     let delegate = OnboardingDismissDelegate(hosting: hosting, resolve: resolve)
     objc_setAssociatedObject(hosting, &onboardingDismissKey, delegate, .OBJC_ASSOCIATION_RETAIN)
-    hosting.presentationController?.delegate = delegate
-    top.present(hosting, animated: true)
+    hosting.onProgrammaticDismiss = { [weak delegate] in
+      delegate?.finish(completed: true)
+    }
+    top.present(hosting, animated: true) {
+      hosting.presentationController?.delegate = delegate
+    }
+  }
+}
+
+// MARK: - CheckoutHostingController
+// Intercepts both dismiss paths for FrameCheckoutView:
+//   1. Programmatic: SwiftUI's @Environment(\.dismiss) routes through override dismiss().
+//   2. Swipe-to-dismiss: UIAdaptivePresentationControllerDelegate.presentationControllerDidDismiss fires.
+// In both cases, if the checkout callback hasn't fired, we reject the promise.
+// onCancel is guarded by `cancelled` so it only fires once regardless of dismiss path.
+
+private final class CheckoutHostingController: UIHostingController<FrameCheckoutView>, UIAdaptivePresentationControllerDelegate {
+  var didComplete = false
+  var onCancel: (() -> Void)?
+  private var cancelled = false
+
+  func cancel() {
+    guard !didComplete, !cancelled else { return }
+    cancelled = true
+    onCancel?()
+  }
+
+  override func dismiss(animated flag: Bool, completion: (() -> Void)? = nil) {
+    cancel()
+    super.dismiss(animated: flag, completion: completion)
+  }
+
+  func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+    cancel()
   }
 }
 
@@ -155,30 +192,18 @@ public class FrameSDKBridge: NSObject {
 
 private final class OnboardingHostingController<V: View>: UIHostingController<V> {
   var programmaticDismiss = false
+  var onProgrammaticDismiss: (() -> Void)?
 
   override func dismiss(animated flag: Bool, completion: (() -> Void)? = nil) {
     programmaticDismiss = true
-    super.dismiss(animated: flag, completion: completion)
+    super.dismiss(animated: flag, completion: { [weak self] in
+      self?.onProgrammaticDismiss?()
+      completion?()
+    })
   }
 }
 
 // MARK: - Delegates
-
-private final class CheckoutDismissDelegate: NSObject, UIAdaptivePresentationControllerDelegate {
-  let resolve: RCTPromiseResolveBlock
-  let reject: RCTPromiseRejectBlock
-  var didComplete = false
-  init(resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    self.resolve = resolve
-    self.reject = reject
-  }
-  func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
-    guard !didComplete else { return }
-    DispatchQueue.main.async { [reject] in
-      reject("USER_CANCELED", "User dismissed checkout without completing payment", nil)
-    }
-  }
-}
 
 private final class CartDismissDelegate: NSObject, UIAdaptivePresentationControllerDelegate {
   let resolve: RCTPromiseResolveBlock
@@ -191,26 +216,25 @@ private final class CartDismissDelegate: NSObject, UIAdaptivePresentationControl
 }
 
 private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationControllerDelegate {
-  // Hold a weak reference to the hosting controller to read the programmaticDismiss flag.
-  weak var hosting: OnboardingHostingController<OnboardingContainerView>?
   let resolve: RCTPromiseResolveBlock
   var didFinish = false
 
   init(hosting: OnboardingHostingController<OnboardingContainerView>, resolve: @escaping RCTPromiseResolveBlock) {
-    self.hosting = hosting
     self.resolve = resolve
   }
 
-  func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+  func finish(completed: Bool) {
     guard !didFinish else { return }
     didFinish = true
-    let completed = hosting?.programmaticDismiss ?? false
     DispatchQueue.main.async { [resolve, completed] in
       resolve(["status": completed ? "completed" : "cancelled"])
     }
   }
+
+  func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+    finish(completed: false)
+  }
 }
 
 private var cartDismissKey: UInt8 = 0
-private var checkoutDismissKey: UInt8 = 0
 private var onboardingDismissKey: UInt8 = 0

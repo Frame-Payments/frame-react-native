@@ -30,7 +30,7 @@
   "peerDependencies": {
     "framepayments": "*",
     "react": "*",
-    "react-native": ">=0.73.0"
+    "react-native": ">=0.74.0"
   },
   "peerDependenciesMeta": {
     "framepayments": {
@@ -39,14 +39,14 @@
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",
-    "@types/react": "^18.2.0",
+    "@types/react": "^19.1.1",
     "@types/react-native": "^0.73.0",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "eslint": "^8.57.0",
     "jest": "^29.7.0",
-    "react": "18.2.0",
-    "react-native": "^0.73.0",
+    "react": "19.1.1",
+    "react-native": "^0.82.1",
     "ts-jest": "^29.1.0",
     "typescript": "^5.0.0"
   },

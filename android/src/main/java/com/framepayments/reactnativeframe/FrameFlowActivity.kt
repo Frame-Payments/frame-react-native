@@ -55,9 +55,9 @@ class FrameFlowActivity : AppCompatActivity() {
   private fun showCart(customerId: String?, items: List<FrameCartItem>, shippingCents: Int) {
     container.removeAllViews()
     cartView = FrameCartView(this).apply {
-      configure(customerId, items, shippingCents) { totalCents ->
+      configure(customerId, items, shippingCents, { totalCents ->
         showCheckout(customerId, totalCents)
-      }
+      }, null)
     }
     container.addView(cartView)
   }

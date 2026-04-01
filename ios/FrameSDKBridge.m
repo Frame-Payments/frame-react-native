@@ -80,7 +80,7 @@ RCT_EXTERN_METHOD(presentOnboarding:(id)accountId
       reject(@"NO_ROOT_VC", @"Could not find root view controller to present cart", nil);
       return;
     }
-    [[[ObjCFrameSDKBridge alloc] init] presentCartFrom:topVC customerId:customerId items:items shippingAmountInCents:shippingAmountInCents resolver:resolve rejecter:reject];
+    [[[ObjCFrameSDKBridge alloc] init] presentCartFrom:topVC customerId:customerId items:items shippingAmountInCents:shippingAmountInCents.integerValue resolver:resolve rejecter:reject];
   });
 }
 

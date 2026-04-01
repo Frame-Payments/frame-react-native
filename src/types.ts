@@ -62,6 +62,27 @@ export interface PaymentMethod {
   billing?: BillingAddress;
 }
 
+export interface Customer {
+  id: string;
+  object: string;
+  created: number;
+  updated: number;
+  livemode: boolean;
+  name?: string;
+  email?: string;
+  phone?: string;
+}
+
+export interface Charge {
+  id: string;
+  object: string;
+  amount: number;
+  currency: string;
+  status: string;
+  created: number;
+  livemode: boolean;
+}
+
 /** Charge intent returned from presentCheckout / presentCart */
 export interface ChargeIntent {
   id: string;
@@ -75,9 +96,9 @@ export interface ChargeIntent {
   description?: string;
   authorizationMode?: AuthorizationMode;
   failureDescription?: string;
-  customer?: Record<string, unknown>;
+  customer?: Customer;
   paymentMethod?: PaymentMethod;
-  latestCharge?: Record<string, unknown>;
+  latestCharge?: Charge;
   shipping?: BillingAddress;
 }
 

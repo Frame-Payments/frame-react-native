@@ -1,16 +1,6 @@
-buildscript {
-  repositories {
-    google()
-    mavenCentral()
-  }
-  dependencies {
-    classpath 'com.android.tools.build:gradle:8.1.0'
-    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.0"
-  }
-}
-
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 
 def safeExtGet(prop, fallback) {
   rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
@@ -18,36 +8,36 @@ def safeExtGet(prop, fallback) {
 
 android {
   namespace "com.framepayments.reactnativeframe"
-  compileSdk safeExtGet('compileSdkVersion', 34)
+  compileSdk safeExtGet('compileSdkVersion', 36)
   defaultConfig {
     minSdk safeExtGet('minSdkVersion', 26)
-    targetSdk safeExtGet('targetSdkVersion', 34)
+    targetSdk safeExtGet('targetSdkVersion', 36)
   }
   compileOptions {
-    sourceCompatibility JavaVersion.VERSION_11
-    targetCompatibility JavaVersion.VERSION_11
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
   }
   kotlinOptions {
-    jvmTarget = '11'
+    jvmTarget = '17'
   }
-}
-
-repositories {
-  google()
-  mavenCentral()
-  maven { url "https://jitpack.io" }
+  buildFeatures {
+    compose true
+  }
+  composeOptions {
+    kotlinCompilerExtensionVersion = "1.5.14"
+  }
 }
 
 dependencies {
   implementation 'com.facebook.react:react-native:+'
   implementation "org.jetbrains.kotlin:kotlin-stdlib:2.1.0"
-  implementation 'com.framepayments:framesdk:1.2.0'
-  implementation 'com.framepayments:framesdk_ui:1.2.0'
-  implementation 'com.framepayments:frameonboarding:1.2.0'
+  implementation 'com.framepayments:framesdk:2.0.0'
+  implementation 'com.framepayments:framesdk_ui:2.0.0'
+  implementation 'com.framepayments:framesdk_onboarding:2.0.0'
   implementation 'com.google.code.gson:gson:2.10.1'
   implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
   // Frame SDK UI uses Compose; LocalLifecycleOwner requires lifecycle-runtime-compose 2.8+
   implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.2'
   // Compose support for FrameOnboardingActivity
-  implementation 'androidx.activity:activity-compose:1.9.0'
+  implementation 'androidx.activity:activity-compose:1.12.2'
 }
