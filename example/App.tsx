@@ -41,6 +41,8 @@ const sampleCartItems = [
 export default function App() {
   const [loading, setLoading] = useState<string | null>(null);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [initError, setInitError] = useState<string | null>(null);
 
   React.useEffect(() => {
@@ -114,6 +116,32 @@ export default function App() {
     }
   };
 
+  const handleListAccounts = async () => {
+    setLoading('accounts');
+    try {
+      const response = await frameSDK.accounts.list();
+      const list = (response as { data?: unknown[] })?.data ?? [];
+      setAccounts(Array.isArray(list) ? list : []);
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? String(e));
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleListPaymentMethods = async () => {
+    setLoading('paymentMethods');
+    try {
+      const response = await frameSDK.paymentMethods.list();
+      const list = (response as { data?: unknown[] })?.data ?? [];
+      setPaymentMethods(Array.isArray(list) ? list : []);
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? String(e));
+    } finally {
+      setLoading(null);
+    }
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Frame RN SDK Example</Text>
@@ -173,7 +201,31 @@ export default function App() {
         {loading === 'customers' ? (
           <ActivityIndicator color="#333" />
         ) : (
-          <Text style={[styles.buttonText, styles.buttonTextSecondary]}>View customers (frame-node)</Text>
+          <Text style={[styles.buttonText, styles.buttonTextSecondary]}>View customers</Text>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, styles.buttonSecondary, (loading === 'accounts' || !!initError) && styles.buttonDisabled]}
+        onPress={handleListAccounts}
+        disabled={!!loading || !!initError}
+      >
+        {loading === 'accounts' ? (
+          <ActivityIndicator color="#333" />
+        ) : (
+          <Text style={[styles.buttonText, styles.buttonTextSecondary]}>View accounts</Text>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, styles.buttonSecondary, (loading === 'paymentMethods' || !!initError) && styles.buttonDisabled]}
+        onPress={handleListPaymentMethods}
+        disabled={!!loading || !!initError}
+      >
+        {loading === 'paymentMethods' ? (
+          <ActivityIndicator color="#333" />
+        ) : (
+          <Text style={[styles.buttonText, styles.buttonTextSecondary]}>View payment methods</Text>
         )}
       </TouchableOpacity>
 
@@ -182,6 +234,24 @@ export default function App() {
           <Text style={styles.listTitle}>Customers</Text>
           {customers.slice(0, 5).map((c: any) => (
             <Text key={c.id} style={styles.listItem}>{c.name ?? c.id}</Text>
+          ))}
+        </View>
+      )}
+
+      {accounts.length > 0 && (
+        <View style={styles.list}>
+          <Text style={styles.listTitle}>Accounts</Text>
+          {accounts.slice(0, 5).map((a: any) => (
+            <Text key={a.id} style={styles.listItem}>{a.name ?? a.id}</Text>
+          ))}
+        </View>
+      )}
+
+      {paymentMethods.length > 0 && (
+        <View style={styles.list}>
+          <Text style={styles.listTitle}>Payment Methods</Text>
+          {paymentMethods.slice(0, 5).map((pm: any) => (
+            <Text key={pm.id} style={styles.listItem}>{pm.type ?? pm.id}{pm.card ? ` •••• ${pm.card.lastFourDigits}` : ''}</Text>
           ))}
         </View>
       )}
