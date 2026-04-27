@@ -213,6 +213,105 @@ if (result.status === 'completed') {
 
 ---
 
+### `<FrameApplePayButton />` (iOS)
+
+Drop-in PassKit button that runs the full native Apple Pay flow — sheet presentation, payment authorization, payment-method creation, and charge-intent creation — and reports the result via `onResult`. The button auto-hides on devices that can't make Apple Pay payments and on simulators.
+
+```tsx
+import { FrameApplePayButton } from 'framepayments-react-native';
+
+<FrameApplePayButton
+  amount={15000}
+  currency="usd"
+  owner={{ type: 'customer', id: 'cus_xxx' }}
+  merchantId="merchant.com.yourapp"
+  buttonType="buy"
+  buttonStyle="black"
+  onResult={(e) => {
+    if (e.nativeEvent.status === 'success') {
+      console.log('Charge intent:', e.nativeEvent.chargeIntent.id);
+    } else {
+      console.warn('Apple Pay failed:', e.nativeEvent.message);
+    }
+  }}
+  style={{ height: 50 }}
+/>
+```
+
+| Prop | Type | Required | Description |
+|---|---|---|---|
+| `amount` | `number` | Yes | Payment amount in cents |
+| `currency` | `string` | No | ISO 4217 currency code. Default `'usd'` |
+| `owner` | `{ type: 'customer' \| 'account', id: string }` | Yes | Frame customer or account that owns the resulting payment method |
+| `merchantId` | `string` | Yes | Apple Pay merchant ID configured in your Apple Developer account |
+| `addCheckoutDivider` | `boolean` | No | When `true`, renders an "Or" divider beneath the button |
+| `buttonType` | `ApplePayButtonType` | No | One of `buy`, `plain`, `donate`, `checkout`, `book`, `subscribe`, `reload`, `addMoney`, `topUp`, `order`, `rent`, `support`, `contribute`, `tip`, `inStore`. Default `'buy'` |
+| `buttonStyle` | `ApplePayButtonStyle` | No | `'black' \| 'white' \| 'whiteOutline' \| 'automatic'`. Default `'black'` |
+| `onResult` | `(e) => void` | Yes | Fires with `{ status: 'success', chargeIntent }` or `{ status: 'failure', message }` |
+
+**Required iOS setup:**
+
+1. **Apple Pay capability + merchant ID.** Add Apple Pay in your target's *Signing & Capabilities*, and register a merchant ID in your Apple Developer account.
+2. **App Attest entitlement.** The Frame iOS SDK uses Apple's App Attest for device attestation on every Apple Pay payment — without it, the button stays hidden. Add to your `.entitlements`:
+   ```xml
+   <key>com.apple.developer.devicecheck.appattest-environment</key>
+   <string>development</string>
+   ```
+   Use `production` for App Store builds.
+3. **Real device required.** App Attest does not work in the simulator.
+
+On non-iOS platforms `<FrameApplePayButton />` renders nothing, so it's safe to use unconditionally.
+
+---
+
+### `<FrameGooglePayButton />` (Android)
+
+Drop-in Google Pay button that handles the full native flow: readiness check, sheet presentation, payment-method creation, and charge-intent creation. The button auto-hides until Google Pay reports it's ready.
+
+```tsx
+import { FrameGooglePayButton } from 'framepayments-react-native';
+
+<FrameGooglePayButton
+  amountCents={15000}
+  currencyCode="USD"
+  customerId="cus_xxx"
+  onResult={(e) => {
+    if (e.nativeEvent.status === 'success') {
+      console.log('Charge intent:', e.nativeEvent.chargeIntent.id);
+    } else if (e.nativeEvent.status === 'failure') {
+      console.warn('Google Pay failed:', e.nativeEvent.message);
+    }
+    // 'cancelled' — user dismissed the sheet
+  }}
+  onReadinessChanged={(e) => console.log('Ready:', e.nativeEvent.isReady)}
+  style={{ height: 48 }}
+/>
+```
+
+| Prop | Type | Required | Description |
+|---|---|---|---|
+| `amountCents` | `number` | Yes | Payment amount in cents |
+| `customerId` | `string` | No | Frame customer to associate the payment method with |
+| `currencyCode` | `string` | No | ISO 4217 currency code. Default `'USD'` |
+| `googlePayMerchantId` | `string` | No | Google Pay merchant ID override |
+| `onResult` | `(e) => void` | Yes | Fires with `{ status: 'success', chargeIntent }`, `{ status: 'failure', message }`, or `{ status: 'cancelled' }` |
+| `onReadinessChanged` | `(e) => void` | No | Fires with `{ isReady: boolean }` when readiness changes |
+
+**Required Android setup:**
+
+1. **Google Pay metadata.** Add to your app's `AndroidManifest.xml` inside `<application>`:
+   ```xml
+   <meta-data
+       android:name="com.google.android.gms.wallet.api.enabled"
+       android:value="true" />
+   ```
+2. **AppCompatActivity host.** The button casts its host context to `AppCompatActivity` to register payment-result callbacks. The default React Native `MainActivity` already extends `AppCompatActivity`, so no change is needed in standard apps.
+3. **Test environment.** When the SDK is initialized with `debugMode: true`, the button uses Google Pay's `ENVIRONMENT_TEST`; otherwise it uses `ENVIRONMENT_PRODUCTION`.
+
+On non-Android platforms `<FrameGooglePayButton />` renders nothing, so it's safe to use unconditionally.
+
+---
+
 ### `ChargeIntent`
 
 Returned from `presentCheckout` and `presentCart` (Android only for cart).

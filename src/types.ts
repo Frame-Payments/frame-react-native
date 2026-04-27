@@ -133,3 +133,40 @@ export interface OnboardingResult {
   /** Present when status === 'completed' and a payment method was created/verified */
   paymentMethodId?: string;
 }
+
+/** Identifies who the Apple Pay payment method belongs to. */
+export type ApplePayOwner =
+  | { type: 'customer'; id: string }
+  | { type: 'account'; id: string };
+
+/** PassKit button type. Maps to PKPaymentButtonType on iOS. */
+export type ApplePayButtonType =
+  | 'buy'
+  | 'plain'
+  | 'donate'
+  | 'checkout'
+  | 'book'
+  | 'subscribe'
+  | 'reload'
+  | 'addMoney'
+  | 'topUp'
+  | 'order'
+  | 'rent'
+  | 'support'
+  | 'contribute'
+  | 'tip'
+  | 'inStore';
+
+/** PassKit button style. Maps to PKPaymentButtonStyle on iOS. */
+export type ApplePayButtonStyle = 'black' | 'white' | 'whiteOutline' | 'automatic';
+
+/** Event delivered to onResult on FrameApplePayButton. */
+export type FrameApplePayResultEvent =
+  | { status: 'success'; chargeIntent: ChargeIntent }
+  | { status: 'failure'; message: string };
+
+/** Event delivered to onResult on FrameGooglePayButton. */
+export type FrameGooglePayResultEvent =
+  | { status: 'success'; chargeIntent: ChargeIntent }
+  | { status: 'failure'; message: string }
+  | { status: 'cancelled' };

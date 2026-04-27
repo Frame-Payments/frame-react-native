@@ -14,9 +14,18 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
-import Frame from 'framepayments-react-native';
+import Frame, {
+  FrameApplePayButton,
+  FrameGooglePayButton,
+  type FrameApplePayResultEvent,
+  type FrameGooglePayResultEvent,
+} from 'framepayments-react-native';
 import { FrameSDK } from 'framepayments';
+
+// Replace with your real Apple Pay merchant ID before testing on a device.
+const APPLE_PAY_MERCHANT_ID = 'merchant.com.framepayments.example';
 
 // Set your Frame secret key here or use an env variable. Do not commit real keys.
 const FRAME_API_KEY = process.env.FRAME_API_KEY ?? 'YOUR_FRAME_SECRET_KEY';
@@ -44,6 +53,24 @@ export default function App() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [initError, setInitError] = useState<string | null>(null);
+  const [googlePayReady, setGooglePayReady] = useState(false);
+
+  const handleApplePayResult = (event: FrameApplePayResultEvent) => {
+    if (event.status === 'success') {
+      Alert.alert('Apple Pay', `Charge intent: ${event.chargeIntent?.id ?? 'created'}`);
+    } else {
+      Alert.alert('Apple Pay error', event.message);
+    }
+  };
+
+  const handleGooglePayResult = (event: FrameGooglePayResultEvent) => {
+    if (event.status === 'success') {
+      Alert.alert('Google Pay', `Charge intent: ${event.chargeIntent?.id ?? 'created'}`);
+    } else if (event.status === 'failure') {
+      Alert.alert('Google Pay error', event.message);
+    }
+    // 'cancelled' is a no-op
+  };
 
   React.useEffect(() => {
     Frame.initialize({ apiKey: FRAME_API_KEY, debugMode: __DEV__ })
@@ -154,6 +181,41 @@ export default function App() {
           <Text style={styles.errorHint}>
             If you see &quot;Helpers are not supported by the default hub&quot;, call [FramePreloader preloadOnMainThread] in AppDelegate before [super application:didFinishLaunchingWithOptions:], and ensure Frame-iOS is added via Xcode (File → Add Package Dependencies → https://github.com/Frame-Payments/frame-ios).
           </Text>
+        </View>
+      )}
+
+      {!initError && (
+        <View style={styles.walletSection}>
+          <Text style={styles.walletTitle}>Quick Pay</Text>
+          {Platform.OS === 'ios' && (
+            <FrameApplePayButton
+              amount={15000}
+              currency="usd"
+              owner={{ type: 'customer', id: 'cus_demo' }}
+              merchantId={APPLE_PAY_MERCHANT_ID}
+              buttonType="buy"
+              buttonStyle="black"
+              onResult={(e) => handleApplePayResult(e.nativeEvent)}
+              style={styles.walletButton}
+            />
+          )}
+          {Platform.OS === 'android' && (
+            <>
+              <FrameGooglePayButton
+                amountCents={15000}
+                currencyCode="USD"
+                customerId="cus_demo"
+                onResult={(e) => handleGooglePayResult(e.nativeEvent)}
+                onReadinessChanged={(e) => setGooglePayReady(e.nativeEvent.isReady)}
+                style={styles.walletButton}
+              />
+              {!googlePayReady && (
+                <Text style={styles.walletHint}>
+                  Google Pay isn&apos;t ready on this device yet — sign in to a Google account with a test card.
+                </Text>
+              )}
+            </>
+          )}
         </View>
       )}
 
@@ -336,6 +398,23 @@ const styles = StyleSheet.create({
   errorHint: {
     fontSize: 12,
     color: '#666',
+    fontStyle: 'italic',
+  },
+  walletSection: {
+    marginBottom: 16,
+  },
+  walletTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 8,
+  },
+  walletButton: {
+    marginBottom: 8,
+  },
+  walletHint: {
+    fontSize: 12,
+    color: '#888',
     fontStyle: 'italic',
   },
 });
