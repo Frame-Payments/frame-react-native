@@ -25,7 +25,8 @@
 
 @interface RCT_EXTERN_MODULE(FrameSDK, FrameSDKModule)
 
-RCT_EXTERN_METHOD(initialize:(NSString *)apiKey
+RCT_EXTERN_METHOD(initialize:(NSString *)secretKey
+                  publishableKey:(NSString *)publishableKey
                   debugMode:(BOOL)debugMode
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
@@ -57,8 +58,8 @@ RCT_EXTERN_METHOD(presentOnboarding:(id)accountId
   return YES;
 }
 
-- (void)initialize:(NSString *)apiKey debugMode:(BOOL)debugMode resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
-  [[[ObjCFrameSDKBridge alloc] init] initialize:apiKey debugMode:debugMode resolver:resolve rejecter:reject];
+- (void)initialize:(NSString *)secretKey publishableKey:(NSString *)publishableKey debugMode:(BOOL)debugMode resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+  [[[ObjCFrameSDKBridge alloc] init] initialize:secretKey publishableKey:publishableKey debugMode:debugMode resolver:resolve rejecter:reject];
 }
 
 - (void)presentCheckout:(id)customerId amount:(NSNumber *)amount resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {

@@ -16,7 +16,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "47"
             endingLineNumber = "47"
-            landmarkName = "initializeWithAPIKey(_:debugMode:)"
+            landmarkName = "currentSonarSessionId()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -64,84 +64,6 @@
                   endingLineNumber = "251">
                </Location>
             </Locations>
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "F12ED993-7708-406F-B639-46960A56417C"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "../../../../../Library/Developer/Xcode/DerivedData/FrameExampleTemp-aujztssovmnolodtrrymtsmsbbfc/SourcePackages/checkouts/frame-ios/Sources/Frame/Networking/FrameNetworking.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "255"
-            endingLineNumber = "255"
-            landmarkName = "configureEvervault()"
-            landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "F12ED993-7708-406F-B639-46960A56417C - 56108c3d326144b7"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(2) suspend resume partial function for closure #1 () async -&gt; () in Frame.FrameNetworking.configureEvervault() -&gt; ()"
-                  moduleName = "FrameExampleTemp.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/erictownsend/Library/Developer/Xcode/DerivedData/FrameExampleTemp-aujztssovmnolodtrrymtsmsbbfc/SourcePackages/checkouts/frame-ios/Sources/Frame/Networking/FrameNetworking.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "255"
-                  endingLineNumber = "255">
-               </Location>
-               <Location
-                  uuid = "F12ED993-7708-406F-B639-46960A56417C - 6cbf6db8a1bdbab4"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(3) suspend resume partial function for closure #1 () async -&gt; () in Frame.FrameNetworking.configureEvervault() -&gt; ()"
-                  moduleName = "FrameExampleTemp.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/erictownsend/Library/Developer/Xcode/DerivedData/FrameExampleTemp-aujztssovmnolodtrrymtsmsbbfc/SourcePackages/checkouts/frame-ios/Sources/Frame/Networking/FrameNetworking.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "255"
-                  endingLineNumber = "255">
-               </Location>
-            </Locations>
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "03C1AC8E-FFB3-4B1F-908D-8F1C5AD1A0BE"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "../../../../../Library/Developer/Xcode/DerivedData/FrameExampleTemp-aujztssovmnolodtrrymtsmsbbfc/SourcePackages/checkouts/frame-ios/Sources/Frame/Networking/Configuration/ConfigurationAPI.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "32"
-            endingLineNumber = "32"
-            landmarkName = "getEvervaultConfiguration()"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "BEE3B01F-032E-4653-BCFC-DCF98E1A1AD9"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "../../../../../Library/Developer/Xcode/DerivedData/FrameExampleTemp-aujztssovmnolodtrrymtsmsbbfc/SourcePackages/checkouts/frame-ios/Sources/Frame/Networking/Configuration/ConfigurationAPI.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "34"
-            endingLineNumber = "34"
-            landmarkName = "getEvervaultConfiguration()"
-            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

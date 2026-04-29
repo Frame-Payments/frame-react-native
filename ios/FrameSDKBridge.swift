@@ -20,9 +20,9 @@ public class FrameSDKBridge: NSObject {
   }
 
   @objc public
-  func initialize(_ apiKey: String, debugMode: Bool, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+  func initialize(_ secretKey: String, publishableKey: String, debugMode: Bool, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     DispatchQueue.main.async {
-      FrameNetworking.shared.initializeWithAPIKey(apiKey, debugMode: debugMode)
+      FrameNetworking.shared.initializeWithAPIKey(secretKey, publishableKey: publishableKey, debugMode: debugMode)
       resolve(nil)
     }
   }
@@ -81,7 +81,7 @@ public class FrameSDKBridge: NSObject {
     }
   }
 
-  private static func encodeChargeIntent(_ intent: FrameObjects.ChargeIntent) -> [String: Any]? {
+  internal static func encodeChargeIntent(_ intent: FrameObjects.ChargeIntent) -> [String: Any]? {
     guard let data = try? JSONEncoder().encode(intent) else { return nil }
     return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
   }
@@ -158,11 +158,6 @@ public class FrameSDKBridge: NSObject {
 }
 
 // MARK: - CheckoutHostingController
-// Intercepts both dismiss paths for FrameCheckoutView:
-//   1. Programmatic: SwiftUI's @Environment(\.dismiss) routes through override dismiss().
-//   2. Swipe-to-dismiss: UIAdaptivePresentationControllerDelegate.presentationControllerDidDismiss fires.
-// In both cases, if the checkout callback hasn't fired, we reject the promise.
-// onCancel is guarded by `cancelled` so it only fires once regardless of dismiss path.
 
 private final class CheckoutHostingController: UIHostingController<FrameCheckoutView>, UIAdaptivePresentationControllerDelegate {
   var didComplete = false
@@ -175,9 +170,9 @@ private final class CheckoutHostingController: UIHostingController<FrameCheckout
     onCancel?()
   }
 
-  override func dismiss(animated flag: Bool, completion: (() -> Void)? = nil) {
+  override func viewDidDisappear(_ animated: Bool) {
+    super.viewDidDisappear(animated)
     cancel()
-    super.dismiss(animated: flag, completion: completion)
   }
 
   func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
@@ -186,9 +181,6 @@ private final class CheckoutHostingController: UIHostingController<FrameCheckout
 }
 
 // MARK: - OnboardingHostingController
-// Subclass UIHostingController to intercept programmatic dismiss() calls from OnboardingContainerView.
-// When SwiftUI calls @Environment(\.dismiss), it routes through UIHostingController.dismiss(animated:).
-// We override this to set programmaticDismiss = true before forwarding.
 
 private final class OnboardingHostingController<V: View>: UIHostingController<V> {
   var programmaticDismiss = false
