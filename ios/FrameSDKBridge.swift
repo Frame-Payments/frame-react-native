@@ -20,9 +20,9 @@ public class FrameSDKBridge: NSObject {
   }
 
   @objc public
-  func initialize(_ apiKey: String, debugMode: Bool, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+  func initialize(_ secretKey: String, publishableKey: String, debugMode: Bool, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     DispatchQueue.main.async {
-      FrameNetworking.shared.initializeWithAPIKey(apiKey, debugMode: debugMode)
+      FrameNetworking.shared.initializeWithAPIKey(secretKey, publishableKey: publishableKey, debugMode: debugMode)
       resolve(nil)
     }
   }

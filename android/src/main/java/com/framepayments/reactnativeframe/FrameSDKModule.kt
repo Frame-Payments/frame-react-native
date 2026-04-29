@@ -25,10 +25,10 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
   override fun getName(): String = "FrameSDK"
 
   @ReactMethod
-  fun initialize(apiKey: String, debugMode: Boolean, promise: Promise) {
+  fun initialize(secretKey: String, publishableKey: String, debugMode: Boolean, promise: Promise) {
     try {
       val ctx = reactApplicationContext.applicationContext
-      FrameNetworking.initializeWithAPIKey(ctx, apiKey, debugMode)
+      FrameNetworking.initializeWithAPIKey(ctx, secretKey, publishableKey, debugMode)
       promise.resolve(null)
     } catch (e: Exception) {
       promise.reject("INIT_FAILED", e.message, e)

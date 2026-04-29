@@ -22,12 +22,23 @@ const FrameSDK = NativeModules.FrameSDK
 
 let isInitialized = false;
 
-export function initialize(options: { apiKey: string; debugMode?: boolean }): Promise<void> {
-  if (!options?.apiKey) {
-    throw new Error('Frame.initialize requires apiKey');
+export function initialize(options: {
+  secretKey: string;
+  publishableKey: string;
+  debugMode?: boolean;
+}): Promise<void> {
+  if (!options?.secretKey) {
+    throw new Error('Frame.initialize requires secretKey');
+  }
+  if (!options?.publishableKey) {
+    throw new Error('Frame.initialize requires publishableKey');
   }
   return wrapPromise(
-    FrameSDK.initialize(options.apiKey, options.debugMode ?? false)
+    FrameSDK.initialize(
+      options.secretKey,
+      options.publishableKey,
+      options.debugMode ?? false
+    )
   ).then(() => {
     isInitialized = true;
   });

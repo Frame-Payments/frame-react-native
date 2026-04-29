@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.2.0] - 2026-04-27
 
+### Breaking changes
+
+- `Frame.initialize()` now requires both `secretKey` and `publishableKey`. The previous `apiKey` field has been removed. The native SDKs require both keys, and routing was always silently dropping the publishable key. Update your init call:
+  ```ts
+  // Before
+  await Frame.initialize({ apiKey: 'sk_...', debugMode: __DEV__ });
+
+  // After
+  await Frame.initialize({
+    secretKey: 'sk_...',
+    publishableKey: 'pk_...',
+    debugMode: __DEV__,
+  });
+  ```
+
 ### Added
 
 - `<FrameApplePayButton />` (iOS) — drop-in PassKit button that runs the full Apple Pay flow (sheet, payment-method creation, charge-intent creation) and reports the result via `onResult`. Auto-hides on devices that can't pay or when device attestation isn't available.

@@ -66,7 +66,11 @@ No extra steps required. Autolinking handles the native module automatically.
 import Frame from 'framepayments-react-native';
 
 // 1. Initialize once at app startup
-await Frame.initialize({ apiKey: 'sk_sandbox_...', debugMode: __DEV__ });
+await Frame.initialize({
+  secretKey: 'sk_sandbox_...',
+  publishableKey: 'pk_sandbox_...',
+  debugMode: __DEV__,
+});
 
 // 2. Present a checkout modal
 const chargeIntent = await Frame.presentCheckout({ amount: 10000 }); // cents
@@ -90,19 +94,21 @@ const onboarding = await Frame.presentOnboarding({
 
 ### `Frame.initialize(options)`
 
-Initializes the native SDK. Must be called before any `present*` method. Call once at app startup (e.g., in your root component's `useEffect`).
+Initializes the native SDK. Must be called before any `present*` method or wallet button. Call once at app startup (e.g., in your root component's `useEffect`).
 
 ```ts
 await Frame.initialize({
-  apiKey: 'sk_sandbox_...',  // your Frame secret key
-  debugMode: false,          // set true in development to enable native debug logging
+  secretKey: 'sk_sandbox_...',      // your Frame secret key
+  publishableKey: 'pk_sandbox_...', // your Frame publishable key
+  debugMode: false,                 // set true in development to enable native debug logging
 });
 ```
 
 | Option | Type | Required | Description |
 |---|---|---|---|
-| `apiKey` | `string` | Yes | Your Frame secret key |
-| `debugMode` | `boolean` | No | Enables native debug logging. Default: `false` |
+| `secretKey` | `string` | Yes | Your Frame secret key (`sk_…`). Used for server-style operations. |
+| `publishableKey` | `string` | Yes | Your Frame publishable key (`pk_…`). Used for client-side operations like wallet payments. |
+| `debugMode` | `boolean` | No | Enables native debug logging and routes wallet flows through sandbox/test environments. Default: `false`. |
 
 ---
 
