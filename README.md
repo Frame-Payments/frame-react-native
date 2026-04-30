@@ -292,10 +292,59 @@ The promise rejects with `code: 'USER_CANCELED'` when the user dismisses the she
        android:name="com.google.android.gms.wallet.api.enabled"
        android:value="true" />
    ```
-2. **AppCompatActivity host.** The Frame Android SDK casts its host context to `AppCompatActivity` to register payment-result callbacks. The default React Native `MainActivity` already extends `AppCompatActivity`, so no change is needed in standard apps.
-3. **Test environment.** When the SDK is initialized with `debugMode: true`, Google Pay runs in `ENVIRONMENT_TEST`; otherwise it uses `ENVIRONMENT_PRODUCTION`.
+2. **Test environment.** When the SDK is initialized with `debugMode: true`, Google Pay runs in `ENVIRONMENT_TEST`; otherwise it uses `ENVIRONMENT_PRODUCTION`.
 
 On non-Android platforms `Frame.presentGooglePay` rejects synchronously with a not-supported error.
+
+---
+
+### Rendering wallet buttons
+
+Apple and Google both require their official button artwork (with light/dark variants) — custom-styled buttons can be rejected. Download the assets from [Apple's marketing page](https://developer.apple.com/apple-pay/marketing/) and [Google's brand guidelines page](https://developers.google.com/pay/api/android/guides/brand-guidelines), bundle them in your app, and pick a variant based on the active color scheme:
+
+```tsx
+import { Image, Platform, TouchableOpacity, useColorScheme } from 'react-native';
+import Frame from 'framepayments-react-native';
+
+export function WalletButton({ amountCents, customerId, merchantId }) {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
+  const onPress = async () => {
+    try {
+      if (Platform.OS === 'ios') {
+        await Frame.presentApplePay({
+          amount: amountCents,
+          currency: 'usd',
+          owner: { type: 'customer', id: customerId },
+          merchantId,
+        });
+      } else {
+        await Frame.presentGooglePay({ amountCents, customerId });
+      }
+    } catch (e: any) {
+      if (e.code === 'USER_CANCELED') return;
+      // surface the error to your UI
+    }
+  };
+
+  const source = Platform.OS === 'ios'
+    ? (isDark
+        ? require('./assets/applepay/button_buy_with_light.png')
+        : require('./assets/applepay/button_buy_with_dark.png'))
+    : (isDark
+        ? require('./assets/googlepay/button_buy_with_light.png')
+        : require('./assets/googlepay/button_buy_with_dark.png'));
+
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ height: 56 }}>
+      <Image source={source} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+    </TouchableOpacity>
+  );
+}
+```
+
+A complete working example (including loading-state handling) lives in [example/App.tsx](./example/App.tsx).
 
 ---
 

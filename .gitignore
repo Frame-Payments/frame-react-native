@@ -17,7 +17,7 @@ local.properties
 example/package-lock.json
 example/ios/FrameExampleTemp.xcworkspace/xcshareddata/swiftpm/Package.resolved
 example/ios/FrameExampleTemp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
-example/ios/FrameExampleTemp.xcworkspace/xcuserdata/erictownsend.xcuserdatad/UserInterfaceState.xcuserstate
+**/xcuserdata/
 /example/android/.gradle
 /example/android/app/build
 /android/build

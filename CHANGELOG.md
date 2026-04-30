@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-04-30
+
+### Fixed
+
+- Android: `presentGooglePay` now reliably resolves the JS promise after the wallet sheet closes. Earlier builds delivered the result through `setResult` / `onActivityResult`, which Android occasionally dropped under the translucent host activity, leaving the spinner hung. The result is now delivered through a direct callback held by `FrameSDKModule`.
+- Android: `presentCheckout`, `presentCart`, and `presentOnboarding` host activities now use a `Theme.MaterialComponents` descendant. Previously they used `Theme.AppCompat.Light.NoActionBar`, which crashed on inflate when any view in the flow embedded the Frame SDK's MaterialButton-based Google Pay button.
+
 ## [1.2.0] - 2026-04-27
 
 ### Breaking changes
@@ -24,9 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `<FrameApplePayButton />` (iOS) — drop-in PassKit button that runs the full Apple Pay flow (sheet, payment-method creation, charge-intent creation) and reports the result via `onResult`. Auto-hides on devices that can't pay or when device attestation isn't available.
-- `<FrameGooglePayButton />` (Android) — drop-in Google Pay button with built-in readiness check. Reports `success`, `failure`, or `cancelled` via `onResult` and exposes an `onReadinessChanged` callback.
-- New TypeScript types: `ApplePayOwner`, `ApplePayButtonType`, `ApplePayButtonStyle`, `FrameApplePayResultEvent`, `FrameGooglePayResultEvent`, `FrameApplePayButtonProps`, `FrameGooglePayButtonProps`.
+- `Frame.presentApplePay({ amount, currency?, owner, merchantId })` (iOS) — launches the native Apple Pay sheet, creates a Frame payment method from the authorized payment, and creates and confirms a charge intent. Render your own button and call this from its `onPress`.
+- `Frame.presentGooglePay({ amountCents, customerId?, currencyCode?, googlePayMerchantId? })` (Android) — launches the native Google Pay sheet, creates a Frame payment method from the wallet token, and creates and confirms a charge intent. Render your own button and call this from its `onPress`.
+- New TypeScript types: `ApplePayOwner`, `PresentApplePayOptions`, `PresentGooglePayOptions`.
 
 ### Changed
 
@@ -37,12 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Requirements
 
-- iOS apps that render `<FrameApplePayButton />` must add the App Attest entitlement (`com.apple.developer.devicecheck.appattest-environment`) and an Apple Pay merchant ID. Apple Pay does not work in the simulator.
-- Android apps that render `<FrameGooglePayButton />` must include the `com.google.android.gms.wallet.api.enabled` metadata flag in their manifest. The host activity must extend `AppCompatActivity` (default for React Native).
-
-### Notes
-
-- View components use the legacy `requireNativeComponent` interop. Fabric/codegen specs are tracked as future work.
+- iOS apps using `presentApplePay` must add the App Attest entitlement (`com.apple.developer.devicecheck.appattest-environment`) and an Apple Pay merchant ID. Apple Pay does not work in the simulator.
+- Android apps using `presentGooglePay` must include the `com.google.android.gms.wallet.api.enabled` metadata flag in their manifest.
 
 ## [1.1.0] - 2026-03-30
 

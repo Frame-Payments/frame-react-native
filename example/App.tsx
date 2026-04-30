@@ -218,38 +218,30 @@ export default function App() {
           <Text style={styles.walletTitle}>Quick Pay</Text>
           {Platform.OS === 'ios' && (
             <TouchableOpacity
-              style={[styles.walletButton, (loading === 'applePay' || !!initError) && styles.buttonDisabled]}
+              style={styles.walletButton}
               onPress={handleApplePay}
               disabled={!!loading || !!initError}
               activeOpacity={0.8}
             >
-              {loading === 'applePay' ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Image
-                  source={applePayButtonSource}
-                  style={styles.walletButtonImage}
-                  resizeMode="contain"
-                />
-              )}
+              <Image
+                source={applePayButtonSource}
+                style={styles.walletButtonImage}
+                resizeMode="contain"
+              />
             </TouchableOpacity>
           )}
           {Platform.OS === 'android' && (
             <TouchableOpacity
-              style={[styles.walletButton, (loading === 'googlePay' || !!initError) && styles.buttonDisabled]}
+              style={styles.walletButton}
               onPress={handleGooglePay}
               disabled={!!loading || !!initError}
               activeOpacity={0.8}
             >
-              {loading === 'googlePay' ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Image
-                  source={googlePayButtonSource}
-                  style={styles.walletButtonImage}
-                  resizeMode="contain"
-                />
-              )}
+              <Image
+                source={googlePayButtonSource}
+                style={styles.walletButtonImage}
+                resizeMode="contain"
+              />
             </TouchableOpacity>
           )}
         </View>
