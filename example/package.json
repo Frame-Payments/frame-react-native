@@ -13,7 +13,6 @@
     "@react-native/assets-registry": "^0.82.1",
     "@react-native/virtualized-lists": "^0.82.1",
     "fast-xml-parser": "^5.3.6",
-    "framepayments": "^1.0.9",
     "framepayments-react-native": "file:..",
     "metro-runtime": "^0.83.5",
     "react": "19.1.1",

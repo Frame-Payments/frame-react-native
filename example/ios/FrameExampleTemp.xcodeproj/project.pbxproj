@@ -33,6 +33,7 @@
 		E0A458BA2F45300000B73914 /* FrameSDKBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A458BC2F45300000B73914 /* FrameSDKBridge.swift */; };
 		E0A458C12F46400000B73914 /* FrameVCHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = E0A458C22F46400000B73914 /* FrameVCHelper.m */; };
 		E0A458D12F46500000B73914 /* FramePreloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A458D02F46500000B73914 /* FramePreloader.swift */; };
+		E0AE5A5E2F46500000B73900 /* ApplePayPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0AE5A5D2F46500000B73900 /* ApplePayPresenter.swift */; };
 		E0CE05AA2F463617002C7B9F /* Frame-Onboarding in Frameworks */ = {isa = PBXBuildFile; productRef = E0CE05A92F463617002C7B9F /* Frame-Onboarding */; };
 		E0CE05AC2F463617002C7B9F /* Frame-iOS in Frameworks */ = {isa = PBXBuildFile; productRef = E0CE05AB2F463617002C7B9F /* Frame-iOS */; };
 		E0CE05AF2F4645C7002C7B9F /* Frame-Onboarding in Frameworks */ = {isa = PBXBuildFile; productRef = E0CE05AE2F4645C7002C7B9F /* Frame-Onboarding */; };
@@ -73,6 +74,7 @@
 		E0A458C02F46400000B73914 /* FrameVCHelper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FrameVCHelper.h; sourceTree = "<group>"; };
 		E0A458C22F46400000B73914 /* FrameVCHelper.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FrameVCHelper.m; sourceTree = "<group>"; };
 		E0A458D02F46500000B73914 /* FramePreloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FramePreloader.swift; sourceTree = "<group>"; };
+		E0AE5A5D2F46500000B73900 /* ApplePayPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePayPresenter.swift; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F084F1780041309C5F17F878 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = FrameExampleTemp/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -139,7 +141,7 @@
 			children = (
 				13B07FAF1A68108700A75B9A /* AppDelegate.h */,
 				13B07FB01A68108700A75B9A /* AppDelegate.mm */,
-				E0A458BD2F45300000B73914 /* ../node_modules/framepayments-react-native/ios */,
+				E0A458BD2F45300000B73914 /* ios */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
@@ -201,7 +203,7 @@
 			path = Pods;
 			sourceTree = "<group>";
 		};
-		E0A458BD2F45300000B73914 /* ../node_modules/framepayments-react-native/ios */ = {
+		E0A458BD2F45300000B73914 /* ios */ = {
 			isa = PBXGroup;
 			children = (
 				E0A458BB2F45300000B73914 /* FrameSDKBridge.m */,
@@ -209,6 +211,7 @@
 				E0A458C02F46400000B73914 /* FrameVCHelper.h */,
 				E0A458C22F46400000B73914 /* FrameVCHelper.m */,
 				E0A458D02F46500000B73914 /* FramePreloader.swift */,
+				E0AE5A5D2F46500000B73900 /* ApplePayPresenter.swift */,
 			);
 			path = "../node_modules/framepayments-react-native/ios";
 			sourceTree = SOURCE_ROOT;
@@ -343,13 +346,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-FrameExampleTemp/Pods-FrameExampleTemp-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-FrameExampleTemp/Pods-FrameExampleTemp-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -408,13 +407,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-FrameExampleTemp-FrameExampleTempTests/Pods-FrameExampleTemp-FrameExampleTempTests-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-FrameExampleTemp-FrameExampleTempTests/Pods-FrameExampleTemp-FrameExampleTempTests-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -429,13 +424,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-FrameExampleTemp/Pods-FrameExampleTemp-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-FrameExampleTemp/Pods-FrameExampleTemp-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -450,13 +441,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-FrameExampleTemp-FrameExampleTempTests/Pods-FrameExampleTemp-FrameExampleTempTests-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-FrameExampleTemp-FrameExampleTempTests/Pods-FrameExampleTemp-FrameExampleTempTests-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -498,6 +485,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E0A458D12F46500000B73914 /* FramePreloader.swift in Sources */,
+				E0AE5A5E2F46500000B73900 /* ApplePayPresenter.swift in Sources */,
 				13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */,
 				E0A458B92F45300000B73914 /* FrameSDKBridge.m in Sources */,
 				E0A458BA2F45300000B73914 /* FrameSDKBridge.swift in Sources */,
@@ -706,7 +694,10 @@
 					"-DFOLLY_USE_LIBCPP=1",
 					"-DFOLLY_CFG_NO_COROUTINES=1",
 				);
-				OTHER_LDFLAGS = "$(inherited)  ";
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					" ",
+				);
 				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
@@ -779,7 +770,10 @@
 					"-DFOLLY_USE_LIBCPP=1",
 					"-DFOLLY_CFG_NO_COROUTINES=1",
 				);
-				OTHER_LDFLAGS = "$(inherited)  ";
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					" ",
+				);
 				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
 				USE_HERMES = true;

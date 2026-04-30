@@ -48,6 +48,50 @@ public class FrameSDKBridge: NSObject {
     presentOnboardingOnMain(from: viewController, accountId: accountIdString, capabilities: parsedCapabilities, resolve: resolve, reject: reject)
   }
 
+  @objc public
+  func presentApplePay(_ ownerType: String, ownerId: String, amount: Int, currency: String, merchantId: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    DispatchQueue.main.async {
+      Task { @MainActor in
+        let owner: FrameApplePayViewModel.PaymentMethodOwner
+        switch ownerType {
+        case "customer": owner = .customer(ownerId)
+        case "account": owner = .account(ownerId)
+        default:
+          reject("INVALID_OWNER", "owner.type must be 'customer' or 'account'", nil)
+          return
+        }
+        guard !ownerId.isEmpty else {
+          reject("INVALID_OWNER", "owner.id must be non-empty", nil)
+          return
+        }
+        guard !merchantId.isEmpty else {
+          reject("INVALID_MERCHANT_ID", "merchantId must be non-empty", nil)
+          return
+        }
+        guard ApplePayPresenter.canMakePayments() else {
+          reject("APPLE_PAY_UNAVAILABLE", "This device cannot make Apple Pay payments", nil)
+          return
+        }
+        guard DeviceAttestationManager.shared.isDeviceAttested else {
+          // Kick off attestation asynchronously so the next attempt has a chance to succeed.
+          Task { try? await DeviceAttestationManager.shared.attestDevice() }
+          reject("NOT_ATTESTED", "Device attestation has not completed yet. Please try again.", nil)
+          return
+        }
+
+        let presenter = ApplePayPresenter(
+          amount: amount,
+          currency: currency,
+          owner: owner,
+          merchantId: merchantId,
+          resolve: { resolve($0) },
+          reject: { code, message, error in reject(code, message, error) }
+        )
+        presenter.present()
+      }
+    }
+  }
+
   // MARK: - Private helpers
 
   private func presentCheckoutOnMain(from top: UIViewController, customerId: String?, amount: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {

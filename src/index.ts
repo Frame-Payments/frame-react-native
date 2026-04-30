@@ -4,18 +4,27 @@
  * React Native SDK for Frame Payments.
  * - Initialize the SDK, then use presentCheckout / presentCart for payment UI.
  * - Use presentOnboarding for KYC, identity verification, and payment method onboarding flows.
- * - Drop in <FrameApplePayButton /> or <FrameGooglePayButton /> for one-tap wallet payments.
+ * - Use presentApplePay / presentGooglePay to launch the platform wallet sheet from your own button UI.
  * - For API calls (customers, charge intents, refunds), use the framepayments (frame-node) package from JS.
  */
 
-import { initialize, presentCheckout, presentCart, presentOnboarding } from './native';
+import {
+  initialize,
+  presentCheckout,
+  presentCart,
+  presentOnboarding,
+  presentApplePay,
+  presentGooglePay,
+} from './native';
 
-export { initialize, presentCheckout, presentCart, presentOnboarding } from './native';
-export { FrameApplePayButton, FrameGooglePayButton } from './components';
-export type {
-  FrameApplePayButtonProps,
-  FrameGooglePayButtonProps,
-} from './components';
+export {
+  initialize,
+  presentCheckout,
+  presentCart,
+  presentOnboarding,
+  presentApplePay,
+  presentGooglePay,
+} from './native';
 export type {
   FrameCartItem,
   ChargeIntent,
@@ -30,13 +39,18 @@ export type {
   OnboardingResult,
   OnboardingResultStatus,
   ApplePayOwner,
-  ApplePayButtonType,
-  ApplePayButtonStyle,
-  FrameApplePayResultEvent,
-  FrameGooglePayResultEvent,
+  PresentApplePayOptions,
+  PresentGooglePayOptions,
 } from './types';
 export { ErrorCodes } from './errors';
 export type { FrameErrorShape, FrameErrorCode } from './errors';
 
-/** Default export for Frame.initialize(), Frame.presentCheckout(), Frame.presentCart(), Frame.presentOnboarding() */
-export default { initialize, presentCheckout, presentCart, presentOnboarding };
+/** Default export for Frame.initialize(), Frame.presentCheckout(), Frame.presentCart(), Frame.presentOnboarding(), Frame.presentApplePay(), Frame.presentGooglePay() */
+export default {
+  initialize,
+  presentCheckout,
+  presentCart,
+  presentOnboarding,
+  presentApplePay,
+  presentGooglePay,
+};

@@ -21,6 +21,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
   private var checkoutPromise: Promise? = null
   private var cartPromise: Promise? = null
   private var onboardingPromise: Promise? = null
+  private var googlePayPromise: Promise? = null
 
   override fun getName(): String = "FrameSDK"
 
@@ -78,6 +79,35 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun presentGooglePay(
+    amountCents: Double,
+    customerId: String?,
+    currencyCode: String?,
+    googlePayMerchantId: String?,
+    promise: Promise
+  ) {
+    val activity = reactApplicationContext.currentActivity ?: run {
+      promise.reject("NO_ACTIVITY", "No current activity", null)
+      return
+    }
+    val amountInt = amountCents.toInt()
+    if (amountInt <= 0) {
+      promise.reject("INVALID_AMOUNT", "amountCents must be positive", null)
+      return
+    }
+    googlePayPromise = promise
+    activity.runOnUiThread {
+      val intent = Intent(activity, FrameGooglePayActivity::class.java).apply {
+        putExtra(FrameGooglePayActivity.EXTRA_AMOUNT_CENTS, amountInt)
+        putExtra(FrameGooglePayActivity.EXTRA_CUSTOMER_ID, customerId)
+        putExtra(FrameGooglePayActivity.EXTRA_CURRENCY, currencyCode ?: "USD")
+        putExtra(FrameGooglePayActivity.EXTRA_MERCHANT_ID, googlePayMerchantId)
+      }
+      activity.startActivityForResult(intent, FrameGooglePayActivity.REQUEST_CODE)
+    }
+  }
+
+  @ReactMethod
   fun presentOnboarding(
     accountId: String?,
     capabilities: com.facebook.react.bridge.ReadableArray,
@@ -125,6 +155,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       FrameCheckoutActivity.REQUEST_CODE -> handleCheckoutResult(resultCode, data)
       FrameFlowActivity.REQUEST_CODE -> handleCartResult(resultCode, data)
       FrameOnboardingActivity.REQUEST_CODE -> handleOnboardingResult(resultCode, data)
+      FrameGooglePayActivity.REQUEST_CODE -> handleGooglePayResult(resultCode, data)
       else -> return
     }
   }
@@ -168,6 +199,36 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       }
     } else {
       promise.reject("USER_CANCELED", "User cancelled", null)
+    }
+  }
+
+  private fun handleGooglePayResult(resultCode: Int, data: Intent?) {
+    val promise = googlePayPromise ?: return
+    googlePayPromise = null
+    when (resultCode) {
+      Activity.RESULT_OK -> {
+        val json = data?.getStringExtra(FrameGooglePayActivity.EXTRA_CHARGE_INTENT_JSON)
+        if (json != null) {
+          try {
+            val map = jsonObjectToWritableMap(JSONObject(json))
+            promise.resolve(map)
+          } catch (e: Exception) {
+            promise.reject("PARSE_ERROR", e.message, e)
+          }
+        } else {
+          promise.reject("NO_RESULT", "No charge intent in result", null)
+        }
+      }
+      FrameGooglePayActivity.RESULT_FAILURE -> {
+        val message = data?.getStringExtra(FrameGooglePayActivity.EXTRA_FAILURE_MESSAGE) ?: "Google Pay failed"
+        promise.reject("PAYMENT_FAILED", message, null)
+      }
+      FrameGooglePayActivity.RESULT_UNAVAILABLE -> {
+        promise.reject("GOOGLE_PAY_UNAVAILABLE", "Google Pay is not available on this device", null)
+      }
+      else -> {
+        promise.reject("USER_CANCELED", "User cancelled Google Pay", null)
+      }
     }
   }
 

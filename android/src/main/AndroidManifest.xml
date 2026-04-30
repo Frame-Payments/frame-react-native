@@ -13,5 +13,9 @@
       android:name="com.framepayments.reactnativeframe.FrameOnboardingActivity"
       android:theme="@style/Theme.AppCompat.Light.NoActionBar"
       android:exported="false" />
+    <activity
+      android:name="com.framepayments.reactnativeframe.FrameGooglePayActivity"
+      android:theme="@android:style/Theme.Translucent.NoTitleBar"
+      android:exported="false" />
   </application>
 </manifest>

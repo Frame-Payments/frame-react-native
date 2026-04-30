@@ -50,6 +50,13 @@ target 'FrameExampleTemp' do
         unless config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'].include?('FOLLY_CFG_NO_COROUTINES=1')
           config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FOLLY_CFG_NO_COROUTINES=1'
         end
+        # fmt 11+ uses `consteval` for basic_format_string, which Apple Clang on
+        # Xcode 15/16 rejects when consumers (RCT-Folly, ReactCommon) compile under
+        # C++20. Force fmt to fall back to `constexpr` so the existing call sites
+        # type-check.
+        unless config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'].include?('FMT_USE_CONSTEVAL=0')
+          config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FMT_USE_CONSTEVAL=0'
+        end
       end
     end
   end

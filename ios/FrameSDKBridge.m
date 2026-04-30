@@ -47,6 +47,14 @@ RCT_EXTERN_METHOD(presentOnboarding:(id)accountId
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(presentApplePay:(NSString *)ownerType
+                  ownerId:(NSString *)ownerId
+                  amount:(nonnull NSNumber *)amount
+                  currency:(NSString *)currency
+                  merchantId:(NSString *)merchantId
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end
 
 @implementation FrameSDK
@@ -94,6 +102,10 @@ RCT_EXTERN_METHOD(presentOnboarding:(id)accountId
     }
     [[[ObjCFrameSDKBridge alloc] init] presentOnboardingFrom:topVC accountId:accountId capabilities:capabilities resolver:resolve rejecter:reject];
   });
+}
+
+- (void)presentApplePay:(NSString *)ownerType ownerId:(NSString *)ownerId amount:(NSNumber *)amount currency:(NSString *)currency merchantId:(NSString *)merchantId resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+  [[[ObjCFrameSDKBridge alloc] init] presentApplePay:ownerType ownerId:ownerId amount:amount.intValue currency:currency merchantId:merchantId resolver:resolve rejecter:reject];
 }
 
 @end

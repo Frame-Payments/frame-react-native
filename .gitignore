@@ -24,3 +24,4 @@ example/ios/FrameExampleTemp.xcworkspace/xcuserdata/erictownsend.xcuserdatad/Use
 /.build
 /android/.gradle
 /example/android/build
+/android/.settings
