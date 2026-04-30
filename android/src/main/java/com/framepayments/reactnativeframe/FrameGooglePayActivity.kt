@@ -95,16 +95,13 @@ class FrameGooglePayActivity : AppCompatActivity() {
     when (result) {
       is FrameGooglePayButton.Result.Success -> {
         val json = Gson().toJson(result.chargeIntent)
-        setResult(RESULT_OK, Intent().putExtra(EXTRA_CHARGE_INTENT_JSON, json))
-        finish()
+        deliverViaCallback(android.app.Activity.RESULT_OK, Intent().putExtra(EXTRA_CHARGE_INTENT_JSON, json))
       }
       is FrameGooglePayButton.Result.Failure -> {
-        setResult(RESULT_FAILURE, Intent().putExtra(EXTRA_FAILURE_MESSAGE, result.message))
-        finish()
+        deliverViaCallback(RESULT_FAILURE, Intent().putExtra(EXTRA_FAILURE_MESSAGE, result.message))
       }
       is FrameGooglePayButton.Result.Cancelled -> {
-        setResult(RESULT_CANCELED)
-        finish()
+        deliverViaCallback(android.app.Activity.RESULT_CANCELED, null)
       }
     }
   }
@@ -112,14 +109,19 @@ class FrameGooglePayActivity : AppCompatActivity() {
   private fun deliverUnavailable() {
     if (didDeliverResult) return
     didDeliverResult = true
-    setResult(RESULT_UNAVAILABLE)
-    finish()
+    deliverViaCallback(RESULT_UNAVAILABLE, null)
   }
 
   private fun deliverFailure(message: String) {
     if (didDeliverResult) return
     didDeliverResult = true
-    setResult(RESULT_FAILURE, Intent().putExtra(EXTRA_FAILURE_MESSAGE, message))
+    deliverViaCallback(RESULT_FAILURE, Intent().putExtra(EXTRA_FAILURE_MESSAGE, message))
+  }
+
+  private fun deliverViaCallback(resultCode: Int, data: Intent?) {
+    val callback = FrameSDKModule.pendingGooglePayCallback
+    FrameSDKModule.pendingGooglePayCallback = null
+    callback?.invoke(resultCode, data)
     finish()
   }
 

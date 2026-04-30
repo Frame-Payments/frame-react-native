@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Material theme used by all Frame host activities. Required because the Frame SDK's
+         GooglePayButton extends MaterialButton, which inflates only under a Theme.MaterialComponents
+         descendant. -->
+    <style name="Theme.Frame.NoActionBar" parent="Theme.MaterialComponents.Light.NoActionBar" />
+
+    <!-- Translucent variant for the hidden FrameGooglePayActivity host. -->
+    <style name="Theme.Frame.GooglePay.Translucent" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
+</resources>

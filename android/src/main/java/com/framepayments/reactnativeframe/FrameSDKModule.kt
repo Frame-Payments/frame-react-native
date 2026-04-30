@@ -25,6 +25,11 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
 
   override fun getName(): String = "FrameSDK"
 
+  companion object {
+    @JvmStatic
+    var pendingGooglePayCallback: ((Int, Intent?) -> Unit)? = null
+  }
+
   @ReactMethod
   fun initialize(secretKey: String, publishableKey: String, debugMode: Boolean, promise: Promise) {
     try {
@@ -96,6 +101,9 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       return
     }
     googlePayPromise = promise
+    pendingGooglePayCallback = { resultCode, data ->
+      handleGooglePayResult(resultCode, data)
+    }
     activity.runOnUiThread {
       val intent = Intent(activity, FrameGooglePayActivity::class.java).apply {
         putExtra(FrameGooglePayActivity.EXTRA_AMOUNT_CENTS, amountInt)
@@ -103,7 +111,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
         putExtra(FrameGooglePayActivity.EXTRA_CURRENCY, currencyCode ?: "USD")
         putExtra(FrameGooglePayActivity.EXTRA_MERCHANT_ID, googlePayMerchantId)
       }
-      activity.startActivityForResult(intent, FrameGooglePayActivity.REQUEST_CODE)
+      activity.startActivity(intent)
     }
   }
 
