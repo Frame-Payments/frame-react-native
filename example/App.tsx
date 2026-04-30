@@ -15,22 +15,23 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Image,
+  useColorScheme,
 } from 'react-native';
-import Frame, {
-  FrameApplePayButton,
-  FrameGooglePayButton,
-  type FrameApplePayResultEvent,
-  type FrameGooglePayResultEvent,
-} from 'framepayments-react-native';
+import Frame from 'framepayments-react-native';
 import { FrameSDK } from 'framepayments';
 
-// Replace with your real Apple Pay merchant ID before testing on a device.
+// Sandbox keys — same set used by the native iOS and Android example apps so all three demos hit the same Frame test data.
+const FRAME_SECRET_KEY = process.env.FRAME_SECRET_KEY;
+const FRAME_PUBLISHABLE_KEY = process.env.FRAME_PUBLISHABLE_KEY;
+
+// Apple Pay merchant ID registered in the example app's entitlements. Mirrors the native iOS example.
 const APPLE_PAY_MERCHANT_ID = 'merchant.com.framepayments.example';
 
-// Set your Frame secret key here or use an env variable. Do not commit real keys.
-const FRAME_API_KEY = process.env.FRAME_API_KEY ?? 'YOUR_FRAME_SECRET_KEY';
+// Sandbox customer ID used by the native iOS example for Apple Pay testing.
+const DEMO_CUSTOMER_ID = 'SANDBOX_CUSTOMER_ID';
 
-const frameSDK = new FrameSDK({ apiKey: FRAME_API_KEY });
+const frameSDK = new FrameSDK({ apiKey: FRAME_SECRET_KEY });
 
 const sampleCartItems = [
   {
@@ -49,31 +50,24 @@ const sampleCartItems = [
 
 export default function App() {
   const [loading, setLoading] = useState<string | null>(null);
+  const colorScheme = useColorScheme();
+  const applePayButtonSource = colorScheme === 'dark'
+    ? require('./assets/applepay/button_buy_with_light.png')
+    : require('./assets/applepay/button_buy_with_dark.png');
+  const googlePayButtonSource = colorScheme === 'dark'
+    ? require('./assets/googlepay/button_buy_with_light.png')
+    : require('./assets/googlepay/button_buy_with_dark.png');
   const [customers, setCustomers] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [initError, setInitError] = useState<string | null>(null);
-  const [googlePayReady, setGooglePayReady] = useState(false);
-
-  const handleApplePayResult = (event: FrameApplePayResultEvent) => {
-    if (event.status === 'success') {
-      Alert.alert('Apple Pay', `Charge intent: ${event.chargeIntent?.id ?? 'created'}`);
-    } else {
-      Alert.alert('Apple Pay error', event.message);
-    }
-  };
-
-  const handleGooglePayResult = (event: FrameGooglePayResultEvent) => {
-    if (event.status === 'success') {
-      Alert.alert('Google Pay', `Charge intent: ${event.chargeIntent?.id ?? 'created'}`);
-    } else if (event.status === 'failure') {
-      Alert.alert('Google Pay error', event.message);
-    }
-    // 'cancelled' is a no-op
-  };
 
   React.useEffect(() => {
-    Frame.initialize({ apiKey: FRAME_API_KEY, debugMode: __DEV__ })
+    Frame.initialize({
+      secretKey: FRAME_SECRET_KEY,
+      publishableKey: FRAME_PUBLISHABLE_KEY,
+      debugMode: __DEV__,
+    })
       .catch((e: any) => {
         const msg = e?.message ?? String(e);
         setInitError(msg);
@@ -107,6 +101,41 @@ export default function App() {
     } catch (e: any) {
       if (e.code === 'USER_CANCELED') return;
       Alert.alert('Error', e.message ?? String(e));
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleApplePay = async () => {
+    setLoading('applePay');
+    try {
+      const intent = await Frame.presentApplePay({
+        amount: 100,
+        currency: 'usd',
+        owner: { type: 'customer', id: DEMO_CUSTOMER_ID },
+        merchantId: APPLE_PAY_MERCHANT_ID,
+      });
+      Alert.alert('Apple Pay', `Charge intent: ${intent?.id ?? 'created'}`);
+    } catch (e: any) {
+      if (e.code === 'USER_CANCELED') return;
+      Alert.alert('Apple Pay error', e.message ?? String(e));
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleGooglePay = async () => {
+    setLoading('googlePay');
+    try {
+      const intent = await Frame.presentGooglePay({
+        amountCents: 100,
+        currencyCode: 'USD',
+        customerId: DEMO_CUSTOMER_ID,
+      });
+      Alert.alert('Google Pay', `Charge intent: ${intent?.id ?? 'created'}`);
+    } catch (e: any) {
+      if (e.code === 'USER_CANCELED') return;
+      Alert.alert('Google Pay error', e.message ?? String(e));
     } finally {
       setLoading(null);
     }
@@ -188,33 +217,40 @@ export default function App() {
         <View style={styles.walletSection}>
           <Text style={styles.walletTitle}>Quick Pay</Text>
           {Platform.OS === 'ios' && (
-            <FrameApplePayButton
-              amount={15000}
-              currency="usd"
-              owner={{ type: 'customer', id: 'cus_demo' }}
-              merchantId={APPLE_PAY_MERCHANT_ID}
-              buttonType="buy"
-              buttonStyle="black"
-              onResult={(e) => handleApplePayResult(e.nativeEvent)}
-              style={styles.walletButton}
-            />
+            <TouchableOpacity
+              style={[styles.walletButton, (loading === 'applePay' || !!initError) && styles.buttonDisabled]}
+              onPress={handleApplePay}
+              disabled={!!loading || !!initError}
+              activeOpacity={0.8}
+            >
+              {loading === 'applePay' ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Image
+                  source={applePayButtonSource}
+                  style={styles.walletButtonImage}
+                  resizeMode="contain"
+                />
+              )}
+            </TouchableOpacity>
           )}
           {Platform.OS === 'android' && (
-            <>
-              <FrameGooglePayButton
-                amountCents={15000}
-                currencyCode="USD"
-                customerId="cus_demo"
-                onResult={(e) => handleGooglePayResult(e.nativeEvent)}
-                onReadinessChanged={(e) => setGooglePayReady(e.nativeEvent.isReady)}
-                style={styles.walletButton}
-              />
-              {!googlePayReady && (
-                <Text style={styles.walletHint}>
-                  Google Pay isn&apos;t ready on this device yet — sign in to a Google account with a test card.
-                </Text>
+            <TouchableOpacity
+              style={[styles.walletButton, (loading === 'googlePay' || !!initError) && styles.buttonDisabled]}
+              onPress={handleGooglePay}
+              disabled={!!loading || !!initError}
+              activeOpacity={0.8}
+            >
+              {loading === 'googlePay' ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Image
+                  source={googlePayButtonSource}
+                  style={styles.walletButtonImage}
+                  resizeMode="contain"
+                />
               )}
-            </>
+            </TouchableOpacity>
           )}
         </View>
       )}
@@ -410,11 +446,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   walletButton: {
-    marginBottom: 8,
+    width: '100%',
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
   },
-  walletHint: {
-    fontSize: 12,
-    color: '#888',
-    fontStyle: 'italic',
+  walletButtonImage: {
+    width: '100%',
+    height: '100%',
   },
 });
