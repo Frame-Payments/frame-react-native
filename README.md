@@ -66,7 +66,11 @@ No extra steps required. Autolinking handles the native module automatically.
 import Frame from 'framepayments-react-native';
 
 // 1. Initialize once at app startup
-await Frame.initialize({ apiKey: 'sk_sandbox_...', debugMode: __DEV__ });
+await Frame.initialize({
+  secretKey: 'sk_sandbox_...',
+  publishableKey: 'pk_sandbox_...',
+  debugMode: __DEV__,
+});
 
 // 2. Present a checkout modal
 const chargeIntent = await Frame.presentCheckout({ amount: 10000 }); // cents
@@ -94,15 +98,17 @@ Initializes the native SDK. Must be called before any `present*` method. Call on
 
 ```ts
 await Frame.initialize({
-  apiKey: 'sk_sandbox_...',  // your Frame secret key
-  debugMode: false,          // set true in development to enable native debug logging
+  secretKey: 'sk_sandbox_...',      // your Frame secret key
+  publishableKey: 'pk_sandbox_...', // your Frame publishable key
+  debugMode: false,                 // set true in development to enable native debug logging
 });
 ```
 
 | Option | Type | Required | Description |
 |---|---|---|---|
-| `apiKey` | `string` | Yes | Your Frame secret key |
-| `debugMode` | `boolean` | No | Enables native debug logging. Default: `false` |
+| `secretKey` | `string` | Yes | Your Frame secret key (`sk_…`). Used for server-style operations. |
+| `publishableKey` | `string` | Yes | Your Frame publishable key (`pk_…`). Used for client-side operations like wallet payments. |
+| `debugMode` | `boolean` | No | Enables native debug logging and routes wallet flows through sandbox/test environments. Default: `false`. |
 
 ---
 
@@ -210,6 +216,135 @@ if (result.status === 'completed') {
 |---|---|---|
 | `status` | `'completed' \| 'cancelled'` | Whether the user finished or dismissed the flow |
 | `paymentMethodId` | `string \| undefined` | Set when a payment method was created or verified during the flow |
+
+---
+
+### `Frame.presentApplePay(options)` (iOS)
+
+Launches the native Apple Pay sheet, creates a Frame payment method from the authorized payment, and creates and confirms a charge intent. Resolves with the resulting `ChargeIntent`. Render your own button — Apple's `PKPaymentButton`, a community wrapper, or your own design-system component — and call this from its `onPress`.
+
+```tsx
+import Frame from 'framepayments-react-native';
+
+const intent = await Frame.presentApplePay({
+  amount: 15000,
+  currency: 'usd',
+  owner: { type: 'customer', id: 'cus_xxx' },
+  merchantId: 'merchant.com.yourapp',
+});
+console.log('Charge intent:', intent.id);
+```
+
+| Option | Type | Required | Description |
+|---|---|---|---|
+| `amount` | `number` | Yes | Payment amount in cents |
+| `currency` | `string` | No | ISO 4217 currency code. Default `'usd'` |
+| `owner` | `{ type: 'customer' \| 'account', id: string }` | Yes | Frame customer or account that owns the resulting payment method |
+| `merchantId` | `string` | Yes | Apple Pay merchant ID configured in your Apple Developer account |
+
+The promise rejects with `code: 'USER_CANCELED'` when the user dismisses the sheet, `'APPLE_PAY_UNAVAILABLE'` if the device cannot make Apple Pay payments, `'NOT_ATTESTED'` if device attestation has not completed yet (try again in a moment), and `'PAYMENT_METHOD_FAILED'` / `'CHARGE_INTENT_FAILED'` for backend failures.
+
+**Required iOS setup:**
+
+1. **Apple Pay capability + merchant ID.** Add Apple Pay in your target's *Signing & Capabilities*, and register a merchant ID in your Apple Developer account.
+2. **App Attest entitlement.** The Frame iOS SDK uses Apple's App Attest for device attestation on every Apple Pay payment. Add to your `.entitlements`:
+   ```xml
+   <key>com.apple.developer.devicecheck.appattest-environment</key>
+   <string>development</string>
+   ```
+   Use `production` for App Store builds.
+3. **Real device required.** App Attest does not work in the simulator.
+4. **Frame dashboard configuration.** In your Frame dashboard, go to **Settings → Device Attestation** and set your Apple Team ID and the Bundle ID of your iOS app. These must exactly match the app you're running — the backend computes `SHA256("<TeamID>.<BundleID>")` and compares it to the hash signed by the device. If they don't match, payment-method creation fails with `App ID verification failed`.
+
+On non-iOS platforms `Frame.presentApplePay` rejects synchronously with a not-supported error.
+
+---
+
+### `Frame.presentGooglePay(options)` (Android)
+
+Launches the native Google Pay sheet, creates a Frame payment method from the wallet token, and creates and confirms a charge intent. Resolves with the resulting `ChargeIntent`. Render your own button (Google's `PayButton` from `play-services-pay`, a community wrapper, or your own component) and call this from its `onPress`.
+
+```tsx
+import Frame from 'framepayments-react-native';
+
+const intent = await Frame.presentGooglePay({
+  amountCents: 15000,
+  currencyCode: 'USD',
+  customerId: 'cus_xxx',
+});
+console.log('Charge intent:', intent.id);
+```
+
+| Option | Type | Required | Description |
+|---|---|---|---|
+| `amountCents` | `number` | Yes | Payment amount in cents |
+| `customerId` | `string` | No | Frame customer to associate the payment method with |
+| `currencyCode` | `string` | No | ISO 4217 currency code. Default `'USD'` |
+| `googlePayMerchantId` | `string` | No | Google Pay merchant ID override |
+
+The promise rejects with `code: 'USER_CANCELED'` when the user dismisses the sheet, `'GOOGLE_PAY_UNAVAILABLE'` if Google Pay is not ready on the device (no signed-in account, no test card, or Wallet API disabled), and `'PAYMENT_FAILED'` for backend failures.
+
+**Required Android setup:**
+
+1. **Google Pay metadata.** Add to your app's `AndroidManifest.xml` inside `<application>`:
+   ```xml
+   <meta-data
+       android:name="com.google.android.gms.wallet.api.enabled"
+       android:value="true" />
+   ```
+2. **Test environment.** When the SDK is initialized with `debugMode: true`, Google Pay runs in `ENVIRONMENT_TEST`; otherwise it uses `ENVIRONMENT_PRODUCTION`.
+
+On non-Android platforms `Frame.presentGooglePay` rejects synchronously with a not-supported error.
+
+---
+
+### Rendering wallet buttons
+
+Apple and Google both require their official button artwork (with light/dark variants) — custom-styled buttons can be rejected. Download the assets from [Apple's marketing page](https://developer.apple.com/apple-pay/marketing/) and [Google's brand guidelines page](https://developers.google.com/pay/api/android/guides/brand-guidelines), bundle them in your app, and pick a variant based on the active color scheme:
+
+```tsx
+import { Image, Platform, TouchableOpacity, useColorScheme } from 'react-native';
+import Frame from 'framepayments-react-native';
+
+export function WalletButton({ amountCents, customerId, merchantId }) {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
+  const onPress = async () => {
+    try {
+      if (Platform.OS === 'ios') {
+        await Frame.presentApplePay({
+          amount: amountCents,
+          currency: 'usd',
+          owner: { type: 'customer', id: customerId },
+          merchantId,
+        });
+      } else {
+        await Frame.presentGooglePay({ amountCents, customerId });
+      }
+    } catch (e: any) {
+      if (e.code === 'USER_CANCELED') return;
+      // surface the error to your UI
+    }
+  };
+
+  const source = Platform.OS === 'ios'
+    ? (isDark
+        ? require('./assets/applepay/button_buy_with_light.png')
+        : require('./assets/applepay/button_buy_with_dark.png'))
+    : (isDark
+        ? require('./assets/googlepay/button_buy_with_light.png')
+        : require('./assets/googlepay/button_buy_with_dark.png'));
+
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ height: 56 }}>
+      <Image source={source} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+    </TouchableOpacity>
+  );
+}
+```
+
+A complete working example (including loading-state handling) lives in [example/App.tsx](./example/App.tsx).
 
 ---
 
@@ -344,6 +479,10 @@ Ensure you are using SDK version 1.1.0+. Earlier versions had a bug where progra
 ### `presentCart` returns `{}` on iOS
 
 This is a known limitation of `FrameCartView` on iOS — it does not expose the `ChargeIntent` from its nested checkout. On Android, the full object is returned. Guard with `intent?.id` before reading the result.
+
+### `App ID verification failed` from `presentApplePay`
+
+The Frame backend computes `SHA256("<TeamID>.<BundleID>")` from the merchant's dashboard configuration and compares it to the hash signed by the device during attestation. A mismatch returns `App ID verification failed`. Fix: open your Frame dashboard → **Settings → Device Attestation** and confirm both the Apple Team ID and the Bundle ID match the iOS app you're running.
 
 ### `settings.gradle` build error on Android (RN 0.74+)
 

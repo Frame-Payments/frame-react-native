@@ -1,4 +1,19 @@
 pluginManagement {
+    // Bootstrap: build react-native-gradle-plugin.jar if missing. The root build.gradle's
+    // buildscript classpath references this jar by file path, so it must exist before any
+    // project evaluation. Has to run inside pluginManagement {} since that block must come first.
+    def rnPluginJar = new File(rootDir, "../node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/build/libs/react-native-gradle-plugin.jar")
+    if (!rnPluginJar.exists()) {
+        def pluginDir = new File(rootDir, "../node_modules/@react-native/gradle-plugin")
+        def gradlewName = org.gradle.internal.os.OperatingSystem.current().isWindows() ? "gradlew.bat" : "./gradlew"
+        def proc = new ProcessBuilder(gradlewName, ":react-native-gradle-plugin:jar", ":settings-plugin:jar")
+            .directory(pluginDir)
+            .inheritIO()
+            .start()
+        if (proc.waitFor() != 0) {
+            throw new RuntimeException("Failed to build react-native-gradle-plugin.jar in ${pluginDir}")
+        }
+    }
     includeBuild('../node_modules/@react-native/gradle-plugin')
     repositories {
         google()

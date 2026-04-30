@@ -3,15 +3,19 @@
   <application>
     <activity
       android:name="com.framepayments.reactnativeframe.FrameCheckoutActivity"
-      android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+      android:theme="@style/Theme.Frame.NoActionBar"
       android:exported="false" />
     <activity
       android:name="com.framepayments.reactnativeframe.FrameFlowActivity"
-      android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+      android:theme="@style/Theme.Frame.NoActionBar"
       android:exported="false" />
     <activity
       android:name="com.framepayments.reactnativeframe.FrameOnboardingActivity"
-      android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+      android:theme="@style/Theme.Frame.NoActionBar"
+      android:exported="false" />
+    <activity
+      android:name="com.framepayments.reactnativeframe.FrameGooglePayActivity"
+      android:theme="@style/Theme.Frame.GooglePay.Translucent"
       android:exported="false" />
   </application>
 </manifest>

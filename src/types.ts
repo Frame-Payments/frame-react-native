@@ -133,3 +133,32 @@ export interface OnboardingResult {
   /** Present when status === 'completed' and a payment method was created/verified */
   paymentMethodId?: string;
 }
+
+/** Identifies who the Apple Pay payment method belongs to. */
+export type ApplePayOwner =
+  | { type: 'customer'; id: string }
+  | { type: 'account'; id: string };
+
+/** Options for Frame.presentApplePay. */
+export interface PresentApplePayOptions {
+  /** Payment amount in cents. */
+  amount: number;
+  /** ISO 4217 currency code. Defaults to 'usd'. */
+  currency?: string;
+  /** Customer or account that owns the resulting payment method. */
+  owner: ApplePayOwner;
+  /** Apple Pay merchant ID configured in your Apple Developer account. */
+  merchantId: string;
+}
+
+/** Options for Frame.presentGooglePay. */
+export interface PresentGooglePayOptions {
+  /** Payment amount in cents. */
+  amountCents: number;
+  /** Optional Frame customer ID to associate the resulting payment method with. */
+  customerId?: string | null;
+  /** ISO 4217 currency code. Defaults to 'USD'. */
+  currencyCode?: string;
+  /** Optional override for the Google Pay merchant ID. */
+  googlePayMerchantId?: string;
+}

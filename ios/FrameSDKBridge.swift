@@ -20,9 +20,9 @@ public class FrameSDKBridge: NSObject {
   }
 
   @objc public
-  func initialize(_ apiKey: String, debugMode: Bool, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+  func initialize(_ secretKey: String, publishableKey: String, debugMode: Bool, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     DispatchQueue.main.async {
-      FrameNetworking.shared.initializeWithAPIKey(apiKey, debugMode: debugMode)
+      FrameNetworking.shared.initializeWithAPIKey(secretKey, publishableKey: publishableKey, debugMode: debugMode)
       resolve(nil)
     }
   }
@@ -46,6 +46,50 @@ public class FrameSDKBridge: NSObject {
     let parsedCapabilities = parseCapabilities(capabilities)
     let accountIdString = accountId as? String
     presentOnboardingOnMain(from: viewController, accountId: accountIdString, capabilities: parsedCapabilities, resolve: resolve, reject: reject)
+  }
+
+  @objc public
+  func presentApplePay(_ ownerType: String, ownerId: String, amount: Int, currency: String, merchantId: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    DispatchQueue.main.async {
+      Task { @MainActor in
+        let owner: FrameApplePayViewModel.PaymentMethodOwner
+        switch ownerType {
+        case "customer": owner = .customer(ownerId)
+        case "account": owner = .account(ownerId)
+        default:
+          reject("INVALID_OWNER", "owner.type must be 'customer' or 'account'", nil)
+          return
+        }
+        guard !ownerId.isEmpty else {
+          reject("INVALID_OWNER", "owner.id must be non-empty", nil)
+          return
+        }
+        guard !merchantId.isEmpty else {
+          reject("INVALID_MERCHANT_ID", "merchantId must be non-empty", nil)
+          return
+        }
+        guard ApplePayPresenter.canMakePayments() else {
+          reject("APPLE_PAY_UNAVAILABLE", "This device cannot make Apple Pay payments", nil)
+          return
+        }
+        guard DeviceAttestationManager.shared.isDeviceAttested else {
+          // Kick off attestation asynchronously so the next attempt has a chance to succeed.
+          Task { try? await DeviceAttestationManager.shared.attestDevice() }
+          reject("NOT_ATTESTED", "Device attestation has not completed yet. Please try again.", nil)
+          return
+        }
+
+        let presenter = ApplePayPresenter(
+          amount: amount,
+          currency: currency,
+          owner: owner,
+          merchantId: merchantId,
+          resolve: { resolve($0) },
+          reject: { code, message, error in reject(code, message, error) }
+        )
+        presenter.present()
+      }
+    }
   }
 
   // MARK: - Private helpers
@@ -81,7 +125,7 @@ public class FrameSDKBridge: NSObject {
     }
   }
 
-  private static func encodeChargeIntent(_ intent: FrameObjects.ChargeIntent) -> [String: Any]? {
+  internal static func encodeChargeIntent(_ intent: FrameObjects.ChargeIntent) -> [String: Any]? {
     guard let data = try? JSONEncoder().encode(intent) else { return nil }
     return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
   }
@@ -158,11 +202,6 @@ public class FrameSDKBridge: NSObject {
 }
 
 // MARK: - CheckoutHostingController
-// Intercepts both dismiss paths for FrameCheckoutView:
-//   1. Programmatic: SwiftUI's @Environment(\.dismiss) routes through override dismiss().
-//   2. Swipe-to-dismiss: UIAdaptivePresentationControllerDelegate.presentationControllerDidDismiss fires.
-// In both cases, if the checkout callback hasn't fired, we reject the promise.
-// onCancel is guarded by `cancelled` so it only fires once regardless of dismiss path.
 
 private final class CheckoutHostingController: UIHostingController<FrameCheckoutView>, UIAdaptivePresentationControllerDelegate {
   var didComplete = false
@@ -175,9 +214,9 @@ private final class CheckoutHostingController: UIHostingController<FrameCheckout
     onCancel?()
   }
 
-  override func dismiss(animated flag: Bool, completion: (() -> Void)? = nil) {
+  override func viewDidDisappear(_ animated: Bool) {
+    super.viewDidDisappear(animated)
     cancel()
-    super.dismiss(animated: flag, completion: completion)
   }
 
   func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
@@ -186,9 +225,6 @@ private final class CheckoutHostingController: UIHostingController<FrameCheckout
 }
 
 // MARK: - OnboardingHostingController
-// Subclass UIHostingController to intercept programmatic dismiss() calls from OnboardingContainerView.
-// When SwiftUI calls @Environment(\.dismiss), it routes through UIHostingController.dismiss(animated:).
-// We override this to set programmaticDismiss = true before forwarding.
 
 private final class OnboardingHostingController<V: View>: UIHostingController<V> {
   var programmaticDismiss = false

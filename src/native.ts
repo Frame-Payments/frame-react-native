@@ -3,7 +3,14 @@
  */
 
 import { NativeModules } from 'react-native';
-import type { ChargeIntent, FrameCartItem, OnboardingCapability, OnboardingResult } from './types';
+import type {
+  ChargeIntent,
+  FrameCartItem,
+  OnboardingCapability,
+  OnboardingResult,
+  PresentApplePayOptions,
+  PresentGooglePayOptions,
+} from './types';
 import { ErrorCodes } from './errors';
 
 const LINKING_ERROR =
@@ -22,12 +29,23 @@ const FrameSDK = NativeModules.FrameSDK
 
 let isInitialized = false;
 
-export function initialize(options: { apiKey: string; debugMode?: boolean }): Promise<void> {
-  if (!options?.apiKey) {
-    throw new Error('Frame.initialize requires apiKey');
+export function initialize(options: {
+  secretKey: string;
+  publishableKey: string;
+  debugMode?: boolean;
+}): Promise<void> {
+  if (!options?.secretKey) {
+    throw new Error('Frame.initialize requires secretKey');
+  }
+  if (!options?.publishableKey) {
+    throw new Error('Frame.initialize requires publishableKey');
   }
   return wrapPromise(
-    FrameSDK.initialize(options.apiKey, options.debugMode ?? false)
+    FrameSDK.initialize(
+      options.secretKey,
+      options.publishableKey,
+      options.debugMode ?? false
+    )
   ).then(() => {
     isInitialized = true;
   });
@@ -89,6 +107,40 @@ export function presentOnboarding(options: {
     FrameSDK.presentOnboarding(
       options.accountId ?? null,
       options.capabilities ?? []
+    )
+  );
+}
+
+export function presentApplePay(options: PresentApplePayOptions): Promise<ChargeIntent> {
+  guardInitialized();
+  if (!options?.owner || (options.owner.type !== 'customer' && options.owner.type !== 'account')) {
+    throw new Error('Frame.presentApplePay requires owner: { type: "customer" | "account", id: string }');
+  }
+  if (!options.owner.id) {
+    throw new Error('Frame.presentApplePay requires owner.id');
+  }
+  if (!options.merchantId) {
+    throw new Error('Frame.presentApplePay requires merchantId');
+  }
+  return wrapPromise(
+    FrameSDK.presentApplePay(
+      options.owner.type,
+      options.owner.id,
+      options.amount,
+      options.currency ?? 'usd',
+      options.merchantId
+    )
+  );
+}
+
+export function presentGooglePay(options: PresentGooglePayOptions): Promise<ChargeIntent> {
+  guardInitialized();
+  return wrapPromise(
+    FrameSDK.presentGooglePay(
+      options.amountCents,
+      options.customerId ?? null,
+      options.currencyCode ?? 'USD',
+      options.googlePayMerchantId ?? null
     )
   );
 }

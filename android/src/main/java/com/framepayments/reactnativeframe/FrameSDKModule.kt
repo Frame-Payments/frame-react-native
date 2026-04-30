@@ -7,9 +7,7 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
-import com.facebook.react.bridge.WritableNativeArray
 import com.facebook.react.bridge.WritableNativeMap
-import org.json.JSONArray
 import com.framepayments.framesdk.FrameNetworking
 import org.json.JSONObject
 
@@ -23,14 +21,20 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
   private var checkoutPromise: Promise? = null
   private var cartPromise: Promise? = null
   private var onboardingPromise: Promise? = null
+  private var googlePayPromise: Promise? = null
 
   override fun getName(): String = "FrameSDK"
 
+  companion object {
+    @JvmStatic
+    var pendingGooglePayCallback: ((Int, Intent?) -> Unit)? = null
+  }
+
   @ReactMethod
-  fun initialize(apiKey: String, debugMode: Boolean, promise: Promise) {
+  fun initialize(secretKey: String, publishableKey: String, debugMode: Boolean, promise: Promise) {
     try {
       val ctx = reactApplicationContext.applicationContext
-      FrameNetworking.initializeWithAPIKey(ctx, apiKey, debugMode)
+      FrameNetworking.initializeWithAPIKey(ctx, secretKey, publishableKey, debugMode)
       promise.resolve(null)
     } catch (e: Exception) {
       promise.reject("INIT_FAILED", e.message, e)
@@ -76,6 +80,38 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
         putExtra(FrameFlowActivity.EXTRA_SHIPPING_CENTS, shippingAmountInCents.toInt())
       }
       activity.startActivityForResult(intent, FrameFlowActivity.REQUEST_CODE)
+    }
+  }
+
+  @ReactMethod
+  fun presentGooglePay(
+    amountCents: Double,
+    customerId: String?,
+    currencyCode: String?,
+    googlePayMerchantId: String?,
+    promise: Promise
+  ) {
+    val activity = reactApplicationContext.currentActivity ?: run {
+      promise.reject("NO_ACTIVITY", "No current activity", null)
+      return
+    }
+    val amountInt = amountCents.toInt()
+    if (amountInt <= 0) {
+      promise.reject("INVALID_AMOUNT", "amountCents must be positive", null)
+      return
+    }
+    googlePayPromise = promise
+    pendingGooglePayCallback = { resultCode, data ->
+      handleGooglePayResult(resultCode, data)
+    }
+    activity.runOnUiThread {
+      val intent = Intent(activity, FrameGooglePayActivity::class.java).apply {
+        putExtra(FrameGooglePayActivity.EXTRA_AMOUNT_CENTS, amountInt)
+        putExtra(FrameGooglePayActivity.EXTRA_CUSTOMER_ID, customerId)
+        putExtra(FrameGooglePayActivity.EXTRA_CURRENCY, currencyCode ?: "USD")
+        putExtra(FrameGooglePayActivity.EXTRA_MERCHANT_ID, googlePayMerchantId)
+      }
+      activity.startActivity(intent)
     }
   }
 
@@ -127,6 +163,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       FrameCheckoutActivity.REQUEST_CODE -> handleCheckoutResult(resultCode, data)
       FrameFlowActivity.REQUEST_CODE -> handleCartResult(resultCode, data)
       FrameOnboardingActivity.REQUEST_CODE -> handleOnboardingResult(resultCode, data)
+      FrameGooglePayActivity.REQUEST_CODE -> handleGooglePayResult(resultCode, data)
       else -> return
     }
   }
@@ -173,6 +210,36 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  private fun handleGooglePayResult(resultCode: Int, data: Intent?) {
+    val promise = googlePayPromise ?: return
+    googlePayPromise = null
+    when (resultCode) {
+      Activity.RESULT_OK -> {
+        val json = data?.getStringExtra(FrameGooglePayActivity.EXTRA_CHARGE_INTENT_JSON)
+        if (json != null) {
+          try {
+            val map = jsonObjectToWritableMap(JSONObject(json))
+            promise.resolve(map)
+          } catch (e: Exception) {
+            promise.reject("PARSE_ERROR", e.message, e)
+          }
+        } else {
+          promise.reject("NO_RESULT", "No charge intent in result", null)
+        }
+      }
+      FrameGooglePayActivity.RESULT_FAILURE -> {
+        val message = data?.getStringExtra(FrameGooglePayActivity.EXTRA_FAILURE_MESSAGE) ?: "Google Pay failed"
+        promise.reject("PAYMENT_FAILED", message, null)
+      }
+      FrameGooglePayActivity.RESULT_UNAVAILABLE -> {
+        promise.reject("GOOGLE_PAY_UNAVAILABLE", "Google Pay is not available on this device", null)
+      }
+      else -> {
+        promise.reject("USER_CANCELED", "User cancelled Google Pay", null)
+      }
+    }
+  }
+
   private fun handleOnboardingResult(resultCode: Int, data: Intent?) {
     val promise = onboardingPromise ?: return
     onboardingPromise = null
@@ -188,39 +255,6 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       map.putString("status", "cancelled")
       promise.resolve(map)
     }
-  }
-
-  private fun jsonObjectToWritableMap(obj: JSONObject): WritableNativeMap {
-    val map = WritableNativeMap()
-    for (key in obj.keys()) {
-      if (obj.isNull(key)) continue
-      when (val v = obj.get(key)) {
-        is String -> map.putString(key, v)
-        is Int -> map.putInt(key, v)
-        is Long -> map.putDouble(key, v.toDouble())
-        is Double -> map.putDouble(key, v)
-        is Boolean -> map.putBoolean(key, v)
-        is JSONObject -> map.putMap(key, jsonObjectToWritableMap(v))
-        is JSONArray -> map.putArray(key, jsonArrayToWritableArray(v))
-      }
-    }
-    return map
-  }
-
-  private fun jsonArrayToWritableArray(arr: JSONArray): WritableNativeArray {
-    val list = WritableNativeArray()
-    for (i in 0 until arr.length()) {
-      when (val v = arr.get(i)) {
-        is String -> list.pushString(v)
-        is Int -> list.pushInt(v)
-        is Long -> list.pushDouble(v.toDouble())
-        is Double -> list.pushDouble(v)
-        is Boolean -> list.pushBoolean(v)
-        is JSONObject -> list.pushMap(jsonObjectToWritableMap(v))
-        is JSONArray -> list.pushArray(jsonArrayToWritableArray(v))
-      }
-    }
-    return list
   }
 
   override fun onNewIntent(intent: Intent) {}

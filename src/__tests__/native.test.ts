@@ -3,7 +3,7 @@
  * NativeModules.FrameSDK is mocked.
  */
 
-const mockInitialize = jest.fn((_apiKey: string, _debugMode: boolean) => Promise.resolve());
+const mockInitialize = jest.fn((_secretKey: string, _publishableKey: string, _debugMode: boolean) => Promise.resolve());
 const mockPresentCheckout = jest.fn((_customerId: unknown, _amount: number) => Promise.resolve({ id: 'ci_1', amount: 10000 }));
 const mockPresentCart = jest.fn((_customerId: unknown, _items: unknown[], _shipping: number) => Promise.resolve({ id: 'ci_2', amount: 15000 }));
 const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unknown[]) => Promise.resolve({ status: 'completed', paymentMethodId: 'pm_1' }));
@@ -20,7 +20,7 @@ jest.mock('react-native', () => ({
 }));
 
 // Re-import after mock so we get the mocked NativeModules
-let initialize: (opts: { apiKey: string; debugMode?: boolean }) => Promise<void>;
+let initialize: (opts: { secretKey: string; publishableKey: string; debugMode?: boolean }) => Promise<void>;
 let presentCheckout: (opts: { customerId?: string | null; amount: number }) => Promise<unknown>;
 let presentCart: (opts: {
   customerId?: string | null;
@@ -43,20 +43,26 @@ beforeEach(() => {
 });
 
 describe('initialize', () => {
-  it('calls native FrameSDK.initialize with apiKey and debugMode', () => {
-    initialize({ apiKey: 'sk_test_xxx', debugMode: true });
+  it('calls native FrameSDK.initialize with secretKey, publishableKey, and debugMode', () => {
+    initialize({ secretKey: 'sk_test_xxx', publishableKey: 'pk_test_xxx', debugMode: true });
     expect(mockInitialize).toHaveBeenCalledTimes(1);
-    expect(mockInitialize).toHaveBeenCalledWith('sk_test_xxx', true);
+    expect(mockInitialize).toHaveBeenCalledWith('sk_test_xxx', 'pk_test_xxx', true);
   });
 
   it('defaults debugMode to false', () => {
-    initialize({ apiKey: 'sk_test_yyy' });
-    expect(mockInitialize).toHaveBeenCalledWith('sk_test_yyy', false);
+    initialize({ secretKey: 'sk_test_yyy', publishableKey: 'pk_test_yyy' });
+    expect(mockInitialize).toHaveBeenCalledWith('sk_test_yyy', 'pk_test_yyy', false);
   });
 
-  it('throws if apiKey is missing', () => {
-    expect(() => initialize({ apiKey: '' })).toThrow();
-    expect(() => (initialize as any)({})).toThrow();
+  it('throws if secretKey is missing', () => {
+    expect(() => initialize({ secretKey: '', publishableKey: 'pk_test' })).toThrow(/secretKey/);
+    expect(() => (initialize as any)({ publishableKey: 'pk_test' })).toThrow(/secretKey/);
+    expect(mockInitialize).not.toHaveBeenCalled();
+  });
+
+  it('throws if publishableKey is missing', () => {
+    expect(() => initialize({ secretKey: 'sk_test', publishableKey: '' })).toThrow(/publishableKey/);
+    expect(() => (initialize as any)({ secretKey: 'sk_test' })).toThrow(/publishableKey/);
     expect(mockInitialize).not.toHaveBeenCalled();
   });
 });
@@ -74,14 +80,14 @@ describe('presentCheckout', () => {
   });
 
   it('calls native presentCheckout with customerId and amount after initialize', async () => {
-    await initialize({ apiKey: 'sk_xxx' });
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     const result = await presentCheckout({ customerId: 'cus_1', amount: 10000 });
     expect(mockPresentCheckout).toHaveBeenCalledWith('cus_1', 10000);
     expect(result).toEqual({ id: 'ci_1', amount: 10000 });
   });
 
   it('passes null for customerId when not provided', async () => {
-    await initialize({ apiKey: 'sk_xxx' });
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     await presentCheckout({ amount: 5000 });
     expect(mockPresentCheckout).toHaveBeenCalledWith(null, 5000);
   });
@@ -103,7 +109,7 @@ describe('presentCart', () => {
   });
 
   it('calls native presentCart with customerId, items, shipping after initialize', async () => {
-    await initialize({ apiKey: 'sk_xxx' });
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     const result = await presentCart({
       customerId: 'cus_2',
       items,
@@ -114,7 +120,7 @@ describe('presentCart', () => {
   });
 
   it('passes null for customerId when not provided', async () => {
-    await initialize({ apiKey: 'sk_xxx' });
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     await presentCart({ items, shippingAmountInCents: 0 });
     expect(mockPresentCart).toHaveBeenCalledWith(null, items, 0);
   });
@@ -133,14 +139,14 @@ describe('presentOnboarding', () => {
   });
 
   it('calls native presentOnboarding with accountId and capabilities after initialize', async () => {
-    await initialize({ apiKey: 'sk_xxx' });
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     const result = await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc', 'bank_account_verification'] });
     expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc', 'bank_account_verification']);
     expect(result).toEqual({ status: 'completed', paymentMethodId: 'pm_1' });
   });
 
   it('passes null for accountId and empty array for capabilities when not provided', async () => {
-    await initialize({ apiKey: 'sk_xxx' });
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     await presentOnboarding({});
     expect(mockPresentOnboarding).toHaveBeenCalledWith(null, []);
   });

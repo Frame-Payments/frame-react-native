@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-04-30
+
+### Fixed
+
+- Android: `presentGooglePay` now reliably resolves the JS promise after the wallet sheet closes. Earlier builds delivered the result through `setResult` / `onActivityResult`, which Android occasionally dropped under the translucent host activity, leaving the spinner hung. The result is now delivered through a direct callback held by `FrameSDKModule`.
+- Android: `presentCheckout`, `presentCart`, and `presentOnboarding` host activities now use a `Theme.MaterialComponents` descendant. Previously they used `Theme.AppCompat.Light.NoActionBar`, which crashed on inflate when any view in the flow embedded the Frame SDK's MaterialButton-based Google Pay button.
+
+## [1.2.0] - 2026-04-27
+
+### Breaking changes
+
+- `Frame.initialize()` now requires both `secretKey` and `publishableKey`. The previous `apiKey` field has been removed. The native SDKs require both keys, and routing was always silently dropping the publishable key. Update your init call:
+  ```ts
+  // Before
+  await Frame.initialize({ apiKey: 'sk_...', debugMode: __DEV__ });
+
+  // After
+  await Frame.initialize({
+    secretKey: 'sk_...',
+    publishableKey: 'pk_...',
+    debugMode: __DEV__,
+  });
+  ```
+
+### Added
+
+- `Frame.presentApplePay({ amount, currency?, owner, merchantId })` (iOS) — launches the native Apple Pay sheet, creates a Frame payment method from the authorized payment, and creates and confirms a charge intent. Render your own button and call this from its `onPress`.
+- `Frame.presentGooglePay({ amountCents, customerId?, currencyCode?, googlePayMerchantId? })` (Android) — launches the native Google Pay sheet, creates a Frame payment method from the wallet token, and creates and confirms a charge intent. Render your own button and call this from its `onPress`.
+- New TypeScript types: `ApplePayOwner`, `PresentApplePayOptions`, `PresentGooglePayOptions`.
+
+### Changed
+
+- Bumped `Frame-iOS` SPM dependency to `2.0.6` — adds Plaid Link inside the onboarding payout flow, native checkout-input validation (Validators / ValidatedTextField), Apple Pay button, and the device attestation infrastructure required by Apple Pay.
+- Bumped Android `framesdk` / `framesdk_ui` / `framesdk_onboarding` to `2.0.2` — adds Plaid Link inside the onboarding payout flow, Google Pay button, and native checkout validation (Validators / FieldKey / AddressMode).
+- `presentOnboarding({ capabilities: ['bank_account_verification'] })` now opens Plaid Link as the primary bank-account flow on both platforms (manual entry remains as fallback). No JS API change.
+- `presentCheckout` and `presentCart` now surface the new native field-level validation before allowing submission. No JS API change.
+
+### Requirements
+
+- iOS apps using `presentApplePay` must add the App Attest entitlement (`com.apple.developer.devicecheck.appattest-environment`) and an Apple Pay merchant ID. Apple Pay does not work in the simulator.
+- Android apps using `presentGooglePay` must include the `com.google.android.gms.wallet.api.enabled` metadata flag in their manifest.
+
 ## [1.1.0] - 2026-03-30
 
 ### Added
