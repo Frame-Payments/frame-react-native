@@ -6,7 +6,8 @@
     "android": "react-native run-android",
     "ios": "react-native run-ios --simulator=\"iPhone 17 Pro\"",
     "ios:sim": "react-native run-ios --simulator=\"iPhone 17 Pro\"",
-    "start": "react-native start"
+    "start": "react-native start",
+    "postinstall": "patch-package && (cd node_modules/@react-native/gradle-plugin && ./gradlew :react-native-gradle-plugin:jar :settings-plugin:jar)"
   },
   "dependencies": {
     "@babel/runtime": "^7.28.0",
@@ -31,6 +32,8 @@
     "@react-native/metro-config": "^0.82.1",
     "@types/react": "^19.1.1",
     "@types/react-native": "^0.73.0",
+    "patch-package": "^8.0.1",
+    "postinstall-postinstall": "^2.1.0",
     "typescript": "^5.0.0"
   }
 }
