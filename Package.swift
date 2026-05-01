@@ -23,7 +23,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://github.com/Frame-Payments/frame-ios",
-            from: "2.0.6"
+            from: "2.0.7"
         )
     ],
     targets: [

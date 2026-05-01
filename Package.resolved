@@ -23,8 +23,17 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Frame-Payments/frame-ios",
       "state" : {
-        "revision" : "1be9b1f763aca3ca16d9c240240fd88a776f865f",
-        "version" : "2.0.6"
+        "revision" : "2bc229b65940ec85c22ab1c96ee7c44a490daf20",
+        "version" : "2.0.7"
+      }
+    },
+    {
+      "identity" : "phonenumberkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/marmelroy/PhoneNumberKit.git",
+      "state" : {
+        "revision" : "840ca3a89ced1a190e20ac93666ff3cdb376c973",
+        "version" : "4.2.11"
       }
     },
     {

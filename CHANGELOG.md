@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.2] - 2026-05-01
+
+### Fixed
+
+- iOS: `presentOnboarding` now resolves reliably after the user finishes the final step. Previously the SDK's `OnboardingContainerView` ended the flow by calling SwiftUI's `@Environment(\.dismiss)`, which is a no-op when the view is presented from UIKit (as the bridge does), so the sheet stayed up and the JS promise never resolved. The bridge now passes an `onComplete` closure into the container view and dismisses the host controller from there.
+
+### Added
+
+- iOS: `presentOnboarding` now surfaces the SDK's native form-level validation across the onboarding steps (personal information, payment method, bank account). Required fields and address inputs are validated inline before the user can advance, matching the validation behavior already shipping in `presentCheckout` and `presentCart`. No JS API change.
+
+### Changed
+
+- Bumped `Frame-iOS` SPM dependency to `2.0.7` — adds the `onComplete` callback to `OnboardingContainerView` that the fix above depends on, and ships the onboarding form validations.
+
 ## [2.0.1] - 2026-04-30
 
 ### Fixed

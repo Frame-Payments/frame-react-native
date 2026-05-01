@@ -180,21 +180,24 @@ public class FrameSDKBridge: NSObject {
   }
 
   private func presentOnboardingOnMain(from top: UIViewController, accountId: String?, capabilities: [FrameObjects.Capabilities], resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    let hosting = OnboardingHostingController(
+    var hosting: OnboardingHostingController<OnboardingContainerView>!
+    var delegate: OnboardingDismissDelegate!
+    hosting = OnboardingHostingController(
       rootView: OnboardingContainerView(
         accountId: accountId,
-        requiredCapabilities: capabilities
+        requiredCapabilities: capabilities,
+        onComplete: { [weak top] in
+          delegate?.finish(completed: true)
+          top?.dismiss(animated: true)
+        }
       )
     )
     hosting.modalPresentationStyle = UIModalPresentationStyle.pageSheet
     if let sheet = hosting.sheetPresentationController {
       sheet.detents = [UISheetPresentationController.Detent.large()]
     }
-    let delegate = OnboardingDismissDelegate(hosting: hosting, resolve: resolve)
+    delegate = OnboardingDismissDelegate(resolve: resolve)
     objc_setAssociatedObject(hosting, &onboardingDismissKey, delegate, .OBJC_ASSOCIATION_RETAIN)
-    hosting.onProgrammaticDismiss = { [weak delegate] in
-      delegate?.finish(completed: true)
-    }
     top.present(hosting, animated: true) {
       hosting.presentationController?.delegate = delegate
     }
@@ -226,18 +229,7 @@ private final class CheckoutHostingController: UIHostingController<FrameCheckout
 
 // MARK: - OnboardingHostingController
 
-private final class OnboardingHostingController<V: View>: UIHostingController<V> {
-  var programmaticDismiss = false
-  var onProgrammaticDismiss: (() -> Void)?
-
-  override func dismiss(animated flag: Bool, completion: (() -> Void)? = nil) {
-    programmaticDismiss = true
-    super.dismiss(animated: flag, completion: { [weak self] in
-      self?.onProgrammaticDismiss?()
-      completion?()
-    })
-  }
-}
+private final class OnboardingHostingController<V: View>: UIHostingController<V> {}
 
 // MARK: - Delegates
 
@@ -255,7 +247,7 @@ private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationC
   let resolve: RCTPromiseResolveBlock
   var didFinish = false
 
-  init(hosting: OnboardingHostingController<OnboardingContainerView>, resolve: @escaping RCTPromiseResolveBlock) {
+  init(resolve: @escaping RCTPromiseResolveBlock) {
     self.resolve = resolve
   }
 
