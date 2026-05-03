@@ -186,9 +186,9 @@ public class FrameSDKBridge: NSObject {
       rootView: OnboardingContainerView(
         accountId: accountId,
         requiredCapabilities: capabilities,
-        onComplete: { [weak top] in
+        onComplete: { [weak hosting] in
           delegate?.finish(completed: true)
-          top?.dismiss(animated: true)
+          hosting?.dismiss(animated: true)
         }
       )
     )
@@ -197,6 +197,7 @@ public class FrameSDKBridge: NSObject {
       sheet.detents = [UISheetPresentationController.Detent.large()]
     }
     delegate = OnboardingDismissDelegate(resolve: resolve)
+    delegate.hostingController = hosting
     objc_setAssociatedObject(hosting, &onboardingDismissKey, delegate, .OBJC_ASSOCIATION_RETAIN)
     top.present(hosting, animated: true) {
       hosting.presentationController?.delegate = delegate
@@ -245,6 +246,7 @@ private final class CartDismissDelegate: NSObject, UIAdaptivePresentationControl
 
 private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationControllerDelegate {
   let resolve: RCTPromiseResolveBlock
+  weak var hostingController: UIViewController?
   var didFinish = false
 
   init(resolve: @escaping RCTPromiseResolveBlock) {
@@ -260,6 +262,10 @@ private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationC
   }
 
   func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+    // Nested SwiftUI sheets (e.g. the phone country picker) propagate this
+    // callback to the Onboarding host's delegate. Only treat dismissal of the
+    // Onboarding hosting controller itself as a cancellation.
+    guard presentationController.presentedViewController === hostingController else { return }
     finish(completed: false)
   }
 }
