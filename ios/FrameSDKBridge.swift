@@ -192,15 +192,26 @@ public class FrameSDKBridge: NSObject {
         }
       )
     )
-    hosting.modalPresentationStyle = UIModalPresentationStyle.pageSheet
-    if let sheet = hosting.sheetPresentationController {
+    // Embed in a UINavigationController so the outer sheet is a UIKit container,
+    // not a SwiftUI-bridged one. On iOS 18, presenting the UIHostingController
+    // directly causes SwiftUI's SheetBridge to call dismiss on the host whenever
+    // a nested .sheet() inside the onboarding flow toggles its binding (its
+    // preferencesDidChange propagates up to the outer bridge). The nav
+    // controller breaks that propagation. Nav bar is hidden so the sheet looks
+    // identical to before.
+    let nav = UINavigationController(rootViewController: hosting)
+    nav.setNavigationBarHidden(true, animated: false)
+    nav.modalPresentationStyle = UIModalPresentationStyle.pageSheet
+    if let sheet = nav.sheetPresentationController {
       sheet.detents = [UISheetPresentationController.Detent.large()]
     }
     delegate = OnboardingDismissDelegate(resolve: resolve)
-    delegate.hostingController = hosting
-    objc_setAssociatedObject(hosting, &onboardingDismissKey, delegate, .OBJC_ASSOCIATION_RETAIN)
-    top.present(hosting, animated: true) {
-      hosting.presentationController?.delegate = delegate
+    delegate.hostingController = nav
+    objc_setAssociatedObject(nav, &onboardingDismissKey, delegate, .OBJC_ASSOCIATION_RETAIN)
+    NSLog("[FrameRN][onb] presenting OnboardingHostingController (wrapped in UINavigationController) from \(type(of: top))")
+    top.present(nav, animated: true) {
+      nav.presentationController?.delegate = delegate
+      NSLog("[FrameRN][onb] presentation completed; presentationController=\(String(describing: nav.presentationController)) delegate set")
     }
   }
 }
