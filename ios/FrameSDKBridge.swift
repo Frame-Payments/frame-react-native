@@ -45,7 +45,15 @@ public class FrameSDKBridge: NSObject {
   func presentOnboarding(from viewController: UIViewController, accountId: NSObject?, capabilities: NSArray, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     let parsedCapabilities = parseCapabilities(capabilities)
     let accountIdString = accountId as? String
-    presentOnboardingOnMain(from: viewController, accountId: accountIdString, capabilities: parsedCapabilities, resolve: resolve, reject: reject)
+    presentOnboardingOnMain(from: viewController, accountId: accountIdString, capabilities: parsedCapabilities, applePayMerchantId: nil, resolve: resolve, reject: reject)
+  }
+
+  @objc public
+  func presentOnboardingWithApplePay(from viewController: UIViewController, accountId: NSObject?, capabilities: NSArray, applePayMerchantId: NSObject?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    let parsedCapabilities = parseCapabilities(capabilities)
+    let accountIdString = accountId as? String
+    let merchantIdString = applePayMerchantId as? String
+    presentOnboardingOnMain(from: viewController, accountId: accountIdString, capabilities: parsedCapabilities, applePayMerchantId: merchantIdString, resolve: resolve, reject: reject)
   }
 
   @objc public
@@ -179,13 +187,14 @@ public class FrameSDKBridge: NSObject {
     }
   }
 
-  private func presentOnboardingOnMain(from top: UIViewController, accountId: String?, capabilities: [FrameObjects.Capabilities], resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+  private func presentOnboardingOnMain(from top: UIViewController, accountId: String?, capabilities: [FrameObjects.Capabilities], applePayMerchantId: String?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     var hosting: OnboardingHostingController<OnboardingContainerView>!
     var delegate: OnboardingDismissDelegate!
     hosting = OnboardingHostingController(
       rootView: OnboardingContainerView(
         accountId: accountId,
         requiredCapabilities: capabilities,
+        applePayMerchantId: applePayMerchantId,
         onComplete: { [weak hosting] in
           delegate?.finish(completed: true)
           hosting?.dismiss(animated: true)
