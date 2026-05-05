@@ -2,7 +2,7 @@
  * Native module bridge. Uses NativeModules for classic React Native bridge.
  */
 
-import { NativeModules } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 import type {
   ChargeIntent,
   FrameCartItem,
@@ -101,8 +101,18 @@ export function presentCart(options: {
 export function presentOnboarding(options: {
   accountId?: string | null;
   capabilities?: OnboardingCapability[];
+  applePayMerchantId?: string | null;
 }): Promise<OnboardingResult> {
   guardInitialized();
+  if (Platform.OS === 'ios' && options.applePayMerchantId) {
+    return wrapPromise(
+      FrameSDK.presentOnboardingWithApplePay(
+        options.accountId ?? null,
+        options.capabilities ?? [],
+        options.applePayMerchantId
+      )
+    );
+  }
   return wrapPromise(
     FrameSDK.presentOnboarding(
       options.accountId ?? null,

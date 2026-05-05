@@ -191,6 +191,7 @@ if (result.status === 'completed') {
 |---|---|---|---|
 | `accountId` | `string` | No | The Frame account to onboard |
 | `capabilities` | `OnboardingCapability[]` | No | Which onboarding steps to include (see below) |
+| `applePayMerchantId` | `string` | No | Apple Pay merchant ID. When set, the onboarding flow includes an Apple Pay setup step. iOS only — ignored on Android. Same prerequisites as `presentApplePay`. |
 
 **`capabilities` values:**
 

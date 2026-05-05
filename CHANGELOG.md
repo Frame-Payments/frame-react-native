@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-05-05
+
+### Added
+
+- `Frame.presentOnboarding({ applePayMerchantId })` (iOS) — optional. When set, the onboarding flow includes a native Apple Pay setup step. Same prerequisites as `presentApplePay` (App Attest entitlement + Apple Pay merchant ID). No-op on Android.
+- iOS: `presentOnboarding` now surfaces the SDK's native form-level validation across the personal information, payment method, and bank account steps. Required fields and address inputs are validated inline before the user can advance.
+
+### Fixed
+
+- iOS: `presentOnboarding` now resolves reliably after the user finishes the final step. The bridge passes an `onComplete` closure into `OnboardingContainerView` and dismisses the host controller from there, instead of relying on SwiftUI's `@Environment(\.dismiss)` (which is a no-op when presented from UIKit).
+- iOS 18: `presentOnboarding` no longer dismisses prematurely when nested SwiftUI sheets inside the flow (e.g. the phone country picker) toggle their bindings. The host is now wrapped in a `UINavigationController` so SwiftUI's `SheetBridge` doesn't propagate `presentationControllerDidDismiss` up to the outer host, and the dismiss delegate ignores callbacks for nested presentation controllers.
+
+### Changed
+
+- Bumped `Frame-iOS` SPM dependency `2.0.7` → `2.1.1`. Includes international phone verification fix (2.0.8), account API structure update (2.0.9), the Apple Pay onboarding step (2.1.0), and dark mode color asset updates for the SDK's UI elements (2.1.1).
+
 ## [2.0.2] - 2026-05-01
 
 ### Fixed
