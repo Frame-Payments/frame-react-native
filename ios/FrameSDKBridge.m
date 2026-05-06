@@ -31,6 +31,10 @@ RCT_EXTERN_METHOD(initialize:(NSString *)secretKey
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(setTheme:(NSDictionary *)theme
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 RCT_EXTERN_METHOD(presentCheckout:(id)customerId
                   amount:(nonnull NSNumber *)amount
                   resolver:(RCTPromiseResolveBlock)resolve
@@ -74,6 +78,10 @@ RCT_EXTERN_METHOD(presentApplePay:(NSString *)ownerType
 
 - (void)initialize:(NSString *)secretKey publishableKey:(NSString *)publishableKey debugMode:(BOOL)debugMode resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
   [[[ObjCFrameSDKBridge alloc] init] initialize:secretKey publishableKey:publishableKey debugMode:debugMode resolver:resolve rejecter:reject];
+}
+
+- (void)setTheme:(NSDictionary *)theme resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+  [[[ObjCFrameSDKBridge alloc] init] setTheme:theme resolver:resolve rejecter:reject];
 }
 
 - (void)presentCheckout:(id)customerId amount:(NSNumber *)amount resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {

@@ -15,6 +15,7 @@ import {
   presentOnboarding,
   presentApplePay,
   presentGooglePay,
+  setTheme,
 } from './native';
 
 export {
@@ -24,6 +25,7 @@ export {
   presentOnboarding,
   presentApplePay,
   presentGooglePay,
+  setTheme,
 } from './native';
 export type {
   FrameCartItem,
@@ -41,11 +43,17 @@ export type {
   ApplePayOwner,
   PresentApplePayOptions,
   PresentGooglePayOptions,
+  FrameTheme,
+  FrameThemeColor,
+  FrameThemeFont,
+  FrameThemeColors,
+  FrameThemeFonts,
+  FrameThemeRadii,
 } from './types';
 export { ErrorCodes } from './errors';
 export type { FrameErrorShape, FrameErrorCode } from './errors';
 
-/** Default export for Frame.initialize(), Frame.presentCheckout(), Frame.presentCart(), Frame.presentOnboarding(), Frame.presentApplePay(), Frame.presentGooglePay() */
+/** Default export for Frame.initialize(), Frame.presentCheckout(), Frame.presentCart(), Frame.presentOnboarding(), Frame.presentApplePay(), Frame.presentGooglePay(), Frame.setTheme() */
 export default {
   initialize,
   presentCheckout,
@@ -53,4 +61,5 @@ export default {
   presentOnboarding,
   presentApplePay,
   presentGooglePay,
+  setTheme,
 };

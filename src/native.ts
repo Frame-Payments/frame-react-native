@@ -6,6 +6,7 @@ import { NativeModules, Platform } from 'react-native';
 import type {
   ChargeIntent,
   FrameCartItem,
+  FrameTheme,
   OnboardingCapability,
   OnboardingResult,
   PresentApplePayOptions,
@@ -153,4 +154,20 @@ export function presentGooglePay(options: PresentGooglePayOptions): Promise<Char
       options.googlePayMerchantId ?? null
     )
   );
+}
+
+/**
+ * Configure colors, fonts, and corner radii for Frame's reusable iOS
+ * components. Applied to every subsequent `present*` call; an in-flight modal
+ * is not re-themed mid-flow.
+ *
+ * Pass `null` or `{}` to reset to SDK defaults. Android is a no-op until
+ * frame-android ships a matching theme API.
+ */
+export function setTheme(theme: FrameTheme | null): Promise<void> {
+  if (theme !== null && (typeof theme !== 'object' || Array.isArray(theme))) {
+    throw new Error('Frame.setTheme requires a theme object or null');
+  }
+  if (Platform.OS !== 'ios') return Promise.resolve();
+  return wrapPromise(FrameSDK.setTheme(theme ?? {}));
 }

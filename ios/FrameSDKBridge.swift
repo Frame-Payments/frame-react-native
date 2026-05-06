@@ -28,6 +28,15 @@ public class FrameSDKBridge: NSObject {
   }
 
   @objc public
+  func setTheme(_ theme: NSDictionary, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    DispatchQueue.main.async {
+      let dict = theme as? [String: Any] ?? [:]
+      FrameRNTheme.current = dict.isEmpty ? nil : FrameRNTheme.parse(dict)
+      resolve(nil)
+    }
+  }
+
+  @objc public
   func presentCheckout(from viewController: UIViewController, customerId: String?, amount: Int, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     presentCheckoutOnMain(from: viewController, customerId: customerId, amount: amount, resolve: resolve, reject: reject)
   }
@@ -104,20 +113,23 @@ public class FrameSDKBridge: NSObject {
 
   private func presentCheckoutOnMain(from top: UIViewController, customerId: String?, amount: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     var hosting: CheckoutHostingController!
-    hosting = CheckoutHostingController(rootView: FrameCheckoutView(
-      customerId: customerId,
-      paymentAmount: amount,
-      checkoutCallback: { [weak hosting] chargeIntent in
-        hosting?.didComplete = true
-        top.dismiss(animated: true)
-        DispatchQueue.main.async {
-          if let dict = Self.encodeChargeIntent(chargeIntent) {
-            resolve(dict)
-          } else {
-            reject("ENCODE_ERROR", "Failed to encode charge intent", nil)
+    hosting = CheckoutHostingController(rootView: ThemedRoot(
+      FrameCheckoutView(
+        customerId: customerId,
+        paymentAmount: amount,
+        checkoutCallback: { [weak hosting] chargeIntent in
+          hosting?.didComplete = true
+          top.dismiss(animated: true)
+          DispatchQueue.main.async {
+            if let dict = Self.encodeChargeIntent(chargeIntent) {
+              resolve(dict)
+            } else {
+              reject("ENCODE_ERROR", "Failed to encode charge intent", nil)
+            }
           }
         }
-      }
+      ),
+      theme: FrameRNTheme.resolved()
     ))
     hosting.onCancel = {
       DispatchQueue.main.async {
@@ -174,7 +186,7 @@ public class FrameSDKBridge: NSObject {
       cartItems: cartItems,
       shippingAmountInCents: shippingAmountInCents
     )
-    let hosting = UIHostingController(rootView: cartView)
+    let hosting = UIHostingController(rootView: ThemedRoot(cartView, theme: FrameRNTheme.resolved()))
     hosting.modalPresentationStyle = UIModalPresentationStyle.pageSheet
     if let sheet = hosting.sheetPresentationController {
       sheet.detents = [UISheetPresentationController.Detent.large()]
@@ -188,17 +200,20 @@ public class FrameSDKBridge: NSObject {
   }
 
   private func presentOnboardingOnMain(from top: UIViewController, accountId: String?, capabilities: [FrameObjects.Capabilities], applePayMerchantId: String?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    var hosting: OnboardingHostingController<OnboardingContainerView>!
+    var hosting: OnboardingHostingController<ThemedRoot<OnboardingContainerView>>!
     var delegate: OnboardingDismissDelegate!
     hosting = OnboardingHostingController(
-      rootView: OnboardingContainerView(
-        accountId: accountId,
-        requiredCapabilities: capabilities,
-        applePayMerchantId: applePayMerchantId,
-        onComplete: { [weak hosting] in
-          delegate?.finish(completed: true)
-          hosting?.dismiss(animated: true)
-        }
+      rootView: ThemedRoot(
+        OnboardingContainerView(
+          accountId: accountId,
+          requiredCapabilities: capabilities,
+          applePayMerchantId: applePayMerchantId,
+          onComplete: { [weak hosting] in
+            delegate?.finish(completed: true)
+            hosting?.dismiss(animated: true)
+          }
+        ),
+        theme: FrameRNTheme.resolved()
       )
     )
     // Embed in a UINavigationController so the outer sheet is a UIKit container,
@@ -227,7 +242,7 @@ public class FrameSDKBridge: NSObject {
 
 // MARK: - CheckoutHostingController
 
-private final class CheckoutHostingController: UIHostingController<FrameCheckoutView>, UIAdaptivePresentationControllerDelegate {
+private final class CheckoutHostingController: UIHostingController<ThemedRoot<FrameCheckoutView>>, UIAdaptivePresentationControllerDelegate {
   var didComplete = false
   var onCancel: (() -> Void)?
   private var cancelled = false
