@@ -299,6 +299,86 @@ On non-Android platforms `Frame.presentGooglePay` rejects synchronously with a n
 
 ---
 
+### `Frame.setTheme(theme)` (iOS)
+
+Customizes colors, fonts, and corner radii on Frame's reusable components — checkout, cart, and the onboarding flow. Backed by `FrameTheme` introduced in Frame-iOS 2.1.2.
+
+Call once at app startup (after `Frame.initialize`). The theme applies to every subsequent `present*` call. Modals already on screen are not re-themed mid-flow. Pass `null` or `{}` to reset to defaults; pass a partial dict to override only specific tokens.
+
+```ts
+import Frame from 'framepayments-react-native';
+
+await Frame.setTheme({
+  colors: {
+    primaryButton: '#5B2DFF',
+    primaryButtonText: '#FFFFFF',
+    surface: '#0A0A0A',
+    textPrimary: '#FFFFFF',
+    error: '#E53935',
+  },
+  fonts: {
+    title: { name: 'Inter-Bold', size: 24 },
+    button: { name: 'Inter-SemiBold', size: 16 },
+  },
+  radii: { medium: 16 },
+});
+```
+
+**Android**: `setTheme()` resolves immediately and has no effect — `frame-android` does not yet have a matching theme API.
+
+#### Tokens
+
+**Colors** — hex strings (`#RGB`, `#RRGGBB`, or `#RRGGBBAA`, with or without leading `#`):
+
+| Key | Used by |
+|-----|---------|
+| `primaryButton` / `primaryButtonText` | Primary CTAs |
+| `secondaryButton` / `secondaryButtonText` | Secondary CTAs |
+| `disabledButton` / `disabledButtonStroke` / `disabledButtonText` | Disabled CTAs |
+| `surface` / `surfaceStroke` | Cards, sheets, input backgrounds |
+| `textPrimary` / `textSecondary` | Body and supporting text |
+| `error` | Validation messages |
+| `onboardingHeaderBackground` | Onboarding header bar |
+| `onboardingProgressFilledOnBrand` / `onboardingProgressEmptyOnBrand` | Onboarding progress indicator |
+
+**Fonts** — `{ name: string; size: number }` objects. `name` must match a PostScript font name registered in your app's `Info.plist` (`UIAppFonts`) and bundled as a resource. Use `name: 'system'` for the system font.
+
+| Key | Default | Used by |
+|-----|---------|---------|
+| `title` | `.title` | Page titles |
+| `heading` | 18pt semibold | Section headers |
+| `headline` | `.headline` | Card headlines |
+| `body` | `.body` | Body text |
+| `bodySmall` | 14pt | Smaller body |
+| `label` | `.subheadline` | Field labels |
+| `caption` | `.caption` | Captions, footnotes |
+| `button` | `.headline` | Button text |
+
+**Radii** — numbers (in points):
+
+| Key | Default | Used by |
+|-----|---------|---------|
+| `small` | 8 | Small chips |
+| `medium` | 10 | Buttons, inputs |
+| `large` | 16 | Cards, sheets |
+
+#### Custom fonts
+
+Custom fonts are passed through to SwiftUI's `Font.custom(name:size:)`. Two requirements on the host iOS app:
+
+1. Add the font file to your app's bundle (Xcode → Build Phases → Copy Bundle Resources).
+2. Register it in your app's `Info.plist`:
+   ```xml
+   <key>UIAppFonts</key>
+   <array>
+     <string>Inter-Bold.ttf</string>
+   </array>
+   ```
+
+If a font name doesn't resolve, iOS silently falls back to the system font.
+
+---
+
 ### Rendering wallet buttons
 
 Apple and Google both require their official button artwork (with light/dark variants) — custom-styled buttons can be rejected. Download the assets from [Apple's marketing page](https://developer.apple.com/apple-pay/marketing/) and [Google's brand guidelines page](https://developers.google.com/pay/api/android/guides/brand-guidelines), bundle them in your app, and pick a variant based on the active color scheme:

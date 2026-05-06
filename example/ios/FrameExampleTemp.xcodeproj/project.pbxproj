@@ -33,6 +33,7 @@
 		E0A458BA2F45300000B73914 /* FrameSDKBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A458BC2F45300000B73914 /* FrameSDKBridge.swift */; };
 		E0A458C12F46400000B73914 /* FrameVCHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = E0A458C22F46400000B73914 /* FrameVCHelper.m */; };
 		E0A458D12F46500000B73914 /* FramePreloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A458D02F46500000B73914 /* FramePreloader.swift */; };
+		E0A458D32F46500000B73914 /* FrameRNTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A458D22F46500000B73914 /* FrameRNTheme.swift */; };
 		E0AE5A5E2F46500000B73900 /* ApplePayPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0AE5A5D2F46500000B73900 /* ApplePayPresenter.swift */; };
 		E0CE05AA2F463617002C7B9F /* Frame-Onboarding in Frameworks */ = {isa = PBXBuildFile; productRef = E0CE05A92F463617002C7B9F /* Frame-Onboarding */; };
 		E0CE05AC2F463617002C7B9F /* Frame-iOS in Frameworks */ = {isa = PBXBuildFile; productRef = E0CE05AB2F463617002C7B9F /* Frame-iOS */; };
@@ -74,6 +75,7 @@
 		E0A458C02F46400000B73914 /* FrameVCHelper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FrameVCHelper.h; sourceTree = "<group>"; };
 		E0A458C22F46400000B73914 /* FrameVCHelper.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FrameVCHelper.m; sourceTree = "<group>"; };
 		E0A458D02F46500000B73914 /* FramePreloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FramePreloader.swift; sourceTree = "<group>"; };
+		E0A458D22F46500000B73914 /* FrameRNTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameRNTheme.swift; sourceTree = "<group>"; };
 		E0AE5A5D2F46500000B73900 /* ApplePayPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePayPresenter.swift; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F084F1780041309C5F17F878 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = FrameExampleTemp/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -211,6 +213,7 @@
 				E0A458C02F46400000B73914 /* FrameVCHelper.h */,
 				E0A458C22F46400000B73914 /* FrameVCHelper.m */,
 				E0A458D02F46500000B73914 /* FramePreloader.swift */,
+				E0A458D22F46500000B73914 /* FrameRNTheme.swift */,
 				E0AE5A5D2F46500000B73900 /* ApplePayPresenter.swift */,
 			);
 			path = "../node_modules/framepayments-react-native/ios";
@@ -485,6 +488,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E0A458D12F46500000B73914 /* FramePreloader.swift in Sources */,
+				E0A458D32F46500000B73914 /* FrameRNTheme.swift in Sources */,
 				E0AE5A5E2F46500000B73900 /* ApplePayPresenter.swift in Sources */,
 				13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */,
 				E0A458B92F45300000B73914 /* FrameSDKBridge.m in Sources */,

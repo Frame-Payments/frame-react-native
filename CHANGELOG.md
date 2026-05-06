@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-05-06
+
+### Added
+
+- `Frame.setTheme(theme)` (iOS) — configures colors, fonts, and corner radii for the SDK's reusable components (checkout, cart, onboarding). Backed by `FrameTheme` introduced in Frame-iOS 2.1.2. Accepts partial theme dicts; unspecified tokens fall back to SDK defaults. Pass `null` or `{}` to reset. See README for the full token list.
+- New TS exports: `FrameTheme`, `FrameThemeColor`, `FrameThemeFont`, `FrameThemeColors`, `FrameThemeFonts`, `FrameThemeRadii`.
+
+### Changed
+
+- Bumped `Frame-iOS` SPM dependency `2.1.1` → `2.1.2`. CocoaPods consumers must bump `frame-ios` manually in Xcode (File → Add Package Dependencies).
+
+### Notes
+
+- Android: `setTheme()` resolves immediately and has no effect — `frame-android` does not yet have a matching theme API. Same JS code is safe to run on both platforms.
+- Themes are captured at the time of each `present*` call. Modals already on screen are not re-themed when `setTheme()` is called mid-flow.
+
 ## [2.1.0] - 2026-05-05
 
 ### Added
