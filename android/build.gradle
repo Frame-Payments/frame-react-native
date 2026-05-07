@@ -31,9 +31,9 @@ android {
 dependencies {
   implementation 'com.facebook.react:react-native:+'
   implementation "org.jetbrains.kotlin:kotlin-stdlib:2.1.0"
-  implementation 'com.framepayments:framesdk:2.0.2'
-  implementation 'com.framepayments:framesdk_ui:2.0.2'
-  implementation 'com.framepayments:framesdk_onboarding:2.0.2'
+  implementation 'com.framepayments:framesdk:2.0.4'
+  implementation 'com.framepayments:framesdk_ui:2.0.4'
+  implementation 'com.framepayments:framesdk_onboarding:2.0.4'
   // Required by FrameGooglePayButton (PaymentsClient, WalletConstants).
   // framesdk_ui declares this as `implementation`, so it is not exposed transitively.
   implementation 'com.google.android.gms:play-services-wallet:19.4.0'

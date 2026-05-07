@@ -119,6 +119,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
   fun presentOnboarding(
     accountId: String?,
     capabilities: com.facebook.react.bridge.ReadableArray,
+    googlePayMerchantId: String?,
     promise: Promise
   ) {
     val activity = reactApplicationContext.currentActivity ?: run {
@@ -131,6 +132,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       val intent = Intent(activity, FrameOnboardingActivity::class.java).apply {
         putExtra(FrameOnboardingActivity.EXTRA_ACCOUNT_ID, accountId)
         putExtra(FrameOnboardingActivity.EXTRA_CAPABILITIES_JSON, capabilitiesJson)
+        putExtra(FrameOnboardingActivity.EXTRA_GOOGLE_PAY_MERCHANT_ID, googlePayMerchantId)
       }
       activity.startActivityForResult(intent, FrameOnboardingActivity.REQUEST_CODE)
     }

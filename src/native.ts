@@ -103,6 +103,7 @@ export function presentOnboarding(options: {
   accountId?: string | null;
   capabilities?: OnboardingCapability[];
   applePayMerchantId?: string | null;
+  googlePayMerchantId?: string | null;
 }): Promise<OnboardingResult> {
   guardInitialized();
   if (Platform.OS === 'ios' && options.applePayMerchantId) {
@@ -117,7 +118,8 @@ export function presentOnboarding(options: {
   return wrapPromise(
     FrameSDK.presentOnboarding(
       options.accountId ?? null,
-      options.capabilities ?? []
+      options.capabilities ?? [],
+      options.googlePayMerchantId ?? null
     )
   );
 }
