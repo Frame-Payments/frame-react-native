@@ -208,9 +208,9 @@ public class FrameSDKBridge: NSObject {
           accountId: accountId,
           requiredCapabilities: capabilities,
           applePayMerchantId: applePayMerchantId,
-          onComplete: { [weak hosting] in
+          onComplete: { [weak top] in
             delegate?.finish(completed: true)
-            hosting?.dismiss(animated: true)
+            top?.dismiss(animated: true)
           }
         ),
         theme: FrameRNTheme.resolved()
