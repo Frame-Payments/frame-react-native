@@ -115,6 +115,14 @@ export function presentOnboarding(options: {
       )
     );
   }
+  if (Platform.OS === 'ios') {
+    return wrapPromise(
+      FrameSDK.presentOnboarding(
+        options.accountId ?? null,
+        options.capabilities ?? []
+      )
+    );
+  }
   return wrapPromise(
     FrameSDK.presentOnboarding(
       options.accountId ?? null,
