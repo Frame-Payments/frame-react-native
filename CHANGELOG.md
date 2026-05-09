@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.2.0] - 2026-05-06
+## [2.1.0] - 2026-05-08
+
+### Fixed
+
+- iOS: `presentOnboarding` Promise no longer hangs indefinitely on apps using the New Architecture (TurboModules). The bridge previously exposed two sibling `RCT_EXTERN_METHOD`s (`presentOnboarding` and `presentOnboardingWithApplePay`) whose shared prefix caused the TurboModule interop layer to mis-resolve the promise resolver, leaving completion callbacks dropped on the floor. Consolidated into a single `presentOnboarding(accountId, capabilities, applePayMerchantId)` selector to match the Android signature.
+
+### Changed
+
+- iOS native bridge: removed `FrameSDK.presentOnboardingWithApplePay`. The JS API (`Frame.presentOnboarding({ applePayMerchantId })`) is unchanged; consumers do not need to update their TS/JS code, but **must** rebuild the native iOS target after upgrading.
+
+## [2.0.6] - 2026-05-06
 
 ### Added
 
@@ -21,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Android: `setTheme()` resolves immediately and has no effect — `frame-android` does not yet have a matching theme API. Same JS code is safe to run on both platforms.
 - Themes are captured at the time of each `present*` call. Modals already on screen are not re-themed when `setTheme()` is called mid-flow.
 
-## [2.1.0] - 2026-05-05
+## [2.0.5] - 2026-05-05
 
 ### Added
 

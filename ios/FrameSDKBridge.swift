@@ -51,14 +51,7 @@ public class FrameSDKBridge: NSObject {
   }
 
   @objc public
-  func presentOnboarding(from viewController: UIViewController, accountId: NSObject?, capabilities: NSArray, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-    let parsedCapabilities = parseCapabilities(capabilities)
-    let accountIdString = accountId as? String
-    presentOnboardingOnMain(from: viewController, accountId: accountIdString, capabilities: parsedCapabilities, applePayMerchantId: nil, resolve: resolve, reject: reject)
-  }
-
-  @objc public
-  func presentOnboardingWithApplePay(from viewController: UIViewController, accountId: NSObject?, capabilities: NSArray, applePayMerchantId: NSObject?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+  func presentOnboarding(from viewController: UIViewController, accountId: NSObject?, capabilities: NSArray, applePayMerchantId: NSObject?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     let parsedCapabilities = parseCapabilities(capabilities)
     let accountIdString = accountId as? String
     let merchantIdString = applePayMerchantId as? String

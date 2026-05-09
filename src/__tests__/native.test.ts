@@ -6,8 +6,7 @@
 const mockInitialize = jest.fn((_secretKey: string, _publishableKey: string, _debugMode: boolean) => Promise.resolve());
 const mockPresentCheckout = jest.fn((_customerId: unknown, _amount: number) => Promise.resolve({ id: 'ci_1', amount: 10000 }));
 const mockPresentCart = jest.fn((_customerId: unknown, _items: unknown[], _shipping: number) => Promise.resolve({ id: 'ci_2', amount: 15000 }));
-const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unknown[]) => Promise.resolve({ status: 'completed', paymentMethodId: 'pm_1' }));
-const mockPresentOnboardingWithApplePay = jest.fn((_accountId: unknown, _capabilities: unknown[], _merchantId: string) => Promise.resolve({ status: 'completed', paymentMethodId: 'pm_2' }));
+const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unknown[], _merchantId: string | null) => Promise.resolve({ status: 'completed', paymentMethodId: 'pm_1' }));
 
 const mockPlatform = { OS: 'ios' as 'ios' | 'android' };
 
@@ -18,7 +17,6 @@ jest.mock('react-native', () => ({
       presentCheckout: mockPresentCheckout,
       presentCart: mockPresentCart,
       presentOnboarding: mockPresentOnboarding,
-      presentOnboardingWithApplePay: mockPresentOnboardingWithApplePay,
     },
   },
   Platform: mockPlatform,
@@ -40,7 +38,6 @@ beforeEach(() => {
   mockPresentCheckout.mockClear();
   mockPresentCart.mockClear();
   mockPresentOnboarding.mockClear();
-  mockPresentOnboardingWithApplePay.mockClear();
   mockPlatform.OS = 'ios';
   const native = require('../native');
   initialize = native.initialize;
@@ -145,33 +142,33 @@ describe('presentOnboarding', () => {
     expect(mockPresentOnboarding).not.toHaveBeenCalled();
   });
 
-  it('calls native presentOnboarding with accountId and capabilities after initialize', async () => {
+  it('calls native presentOnboarding with accountId, capabilities, and null merchantId after initialize on iOS', async () => {
+    mockPlatform.OS = 'ios';
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     const result = await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc', 'bank_account_verification'] });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc', 'bank_account_verification']);
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc', 'bank_account_verification'], null);
     expect(result).toEqual({ status: 'completed', paymentMethodId: 'pm_1' });
   });
 
-  it('passes null for accountId and empty array for capabilities when not provided', async () => {
+  it('passes null for accountId and empty array for capabilities when not provided on iOS', async () => {
+    mockPlatform.OS = 'ios';
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     await presentOnboarding({});
-    expect(mockPresentOnboarding).toHaveBeenCalledWith(null, []);
+    expect(mockPresentOnboarding).toHaveBeenCalledWith(null, [], null);
   });
 
-  it('routes to presentOnboardingWithApplePay on iOS when applePayMerchantId is set', async () => {
+  it('forwards applePayMerchantId on iOS', async () => {
     mockPlatform.OS = 'ios';
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], applePayMerchantId: 'merchant.com.example' });
-    expect(mockPresentOnboardingWithApplePay).toHaveBeenCalledWith('acct_1', ['kyc'], 'merchant.com.example');
-    expect(mockPresentOnboarding).not.toHaveBeenCalled();
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], 'merchant.com.example');
   });
 
-  it('still routes to presentOnboarding on Android even when applePayMerchantId is set', async () => {
+  it('ignores applePayMerchantId on Android', async () => {
     mockPlatform.OS = 'android';
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], applePayMerchantId: 'merchant.com.example' });
     expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], null);
-    expect(mockPresentOnboardingWithApplePay).not.toHaveBeenCalled();
   });
 
   it('forwards googlePayMerchantId to native presentOnboarding on Android', async () => {
@@ -181,10 +178,10 @@ describe('presentOnboarding', () => {
     expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], 'BCR2DN4T...');
   });
 
-  it('does not forward googlePayMerchantId to native presentOnboarding on iOS', async () => {
+  it('ignores googlePayMerchantId on iOS', async () => {
     mockPlatform.OS = 'ios';
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], googlePayMerchantId: 'BCR2DN4T...' });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc']);
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], null);
   });
 });
