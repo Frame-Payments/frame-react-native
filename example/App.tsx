@@ -67,20 +67,18 @@ export default function App() {
       secretKey: FRAME_SECRET_KEY,
       publishableKey: FRAME_PUBLISHABLE_KEY,
       debugMode: __DEV__,
+      // theme is iOS-only today; uncomment to exercise the FrameTheme tokens.
+      // theme: {
+      //   colors: {
+      //     primaryButton: '#FF0066',
+      //     surface: '#0A0A0A',
+      //     surfaceStroke: '#222222',
+      //     textPrimary: '#FFFFFF',
+      //     textSecondary: '#AAAAAA',
+      //   },
+      //   radii: { medium: 16 },
+      // },
     })
-      // Uncomment the theme setting below to test out the theming capabilities included in the iOS Framework.
-      // .then(() =>
-      //   Frame.setTheme({
-      //     colors: {
-      //       primaryButton: '#FF0066',
-      //       surface: '#0A0A0A',
-      //       surfaceStroke: '#222222',
-      //       textPrimary: '#FFFFFF',
-      //       textSecondary: '#AAAAAA',
-      //     },
-      //     radii: { medium: 16 },
-      //   })
-      // )
       .catch((e: any) => {
         const msg = e?.message ?? String(e);
         setInitError(msg);

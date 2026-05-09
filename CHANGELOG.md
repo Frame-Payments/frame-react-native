@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-05-09
+
+### Fixed
+
+- iOS: `presentOnboarding` Promise no longer hangs after the user finishes the final step. The 2.0.6 theming work wrapped the SDK's `OnboardingContainerView` in a `ThemedRoot` SwiftUI struct so the bridge could inject `FrameTheme` into the environment. The extra `body` indirection that wrapper introduced sat between `UIHostingController` and the SDK view, which caused `OnboardingContainerView`'s `@Environment(\.dismiss)` action to resolve to the wrong context — the host stayed on screen, `OnboardingDismissDelegate.finish(completed:)` never ran, and the JS Promise never resolved. The bridge now hands the SDK view directly to `UIHostingController` with no intervening wrapper, restoring the 2.0.5 ancestor chain.
+
+### Breaking
+
+- **`Frame.setTheme(theme)` removed.** Theme is now configured at SDK init time. Pass it as an optional field on the existing `Frame.initialize({...})` call:
+  ```ts
+  // Before (2.0.6)
+  await Frame.initialize({ secretKey, publishableKey, debugMode });
+  await Frame.setTheme({ colors: { primaryButton: '#5B2DFF' } });
+
+  // After (2.1.1)
+  await Frame.initialize({
+    secretKey,
+    publishableKey,
+    debugMode,
+    theme: { colors: { primaryButton: '#5B2DFF' } },
+  });
+  ```
+  This collapses to a single bridge call, matches the new `FrameNetworking.shared.initializeWithAPIKey(_:publishableKey:theme:debugMode:)` signature in Frame-iOS 2.1.3, and lets the SDK own the canonical theme via `FrameThemeKey.defaultValue` instead of forcing the bridge to wrap every present site.
+
+### Changed
+
+- iOS native bridge: `initialize` selector now takes an additional `theme:(NSDictionary *)theme` argument. Consumers who depend on the bridge from custom Objective-C code (uncommon) must update their selectors.
+- Bumped `Frame-iOS` SPM dependency `2.1.2` → `2.1.3`. CocoaPods consumers must bump `frame-ios` manually in Xcode.
+
+### Notes
+
+- Android: the `theme` field on `Frame.initialize` is accepted for cross-platform parity but currently has no effect — `frame-android` does not yet have a matching theme API.
+- Themes are still captured at the time of each `present*` call. Modals already on screen are not re-themed if the theme changes mid-flow.
+
 ## [2.1.0] - 2026-05-08
 
 ### Fixed

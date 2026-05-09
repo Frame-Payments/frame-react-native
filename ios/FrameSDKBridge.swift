@@ -20,18 +20,11 @@ public class FrameSDKBridge: NSObject {
   }
 
   @objc public
-  func initialize(_ secretKey: String, publishableKey: String, debugMode: Bool, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+  func initialize(_ secretKey: String, publishableKey: String, debugMode: Bool, theme: NSDictionary?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     DispatchQueue.main.async {
-      FrameNetworking.shared.initializeWithAPIKey(secretKey, publishableKey: publishableKey, debugMode: debugMode)
-      resolve(nil)
-    }
-  }
-
-  @objc public
-  func setTheme(_ theme: NSDictionary, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-    DispatchQueue.main.async {
-      let dict = theme as? [String: Any] ?? [:]
-      FrameRNTheme.current = dict.isEmpty ? nil : FrameRNTheme.parse(dict)
+      let themeDict = theme as? [String: Any] ?? [:]
+      let resolvedTheme = themeDict.isEmpty ? FrameTheme.default : FrameRNTheme.parse(themeDict)
+      FrameNetworking.shared.initializeWithAPIKey(secretKey, publishableKey: publishableKey, theme: resolvedTheme, debugMode: debugMode)
       resolve(nil)
     }
   }
@@ -106,23 +99,20 @@ public class FrameSDKBridge: NSObject {
 
   private func presentCheckoutOnMain(from top: UIViewController, customerId: String?, amount: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     var hosting: CheckoutHostingController!
-    hosting = CheckoutHostingController(rootView: ThemedRoot(
-      FrameCheckoutView(
-        customerId: customerId,
-        paymentAmount: amount,
-        checkoutCallback: { [weak hosting] chargeIntent in
-          hosting?.didComplete = true
-          top.dismiss(animated: true)
-          DispatchQueue.main.async {
-            if let dict = Self.encodeChargeIntent(chargeIntent) {
-              resolve(dict)
-            } else {
-              reject("ENCODE_ERROR", "Failed to encode charge intent", nil)
-            }
+    hosting = CheckoutHostingController(rootView: FrameCheckoutView(
+      customerId: customerId,
+      paymentAmount: amount,
+      checkoutCallback: { [weak hosting] chargeIntent in
+        hosting?.didComplete = true
+        top.dismiss(animated: true)
+        DispatchQueue.main.async {
+          if let dict = Self.encodeChargeIntent(chargeIntent) {
+            resolve(dict)
+          } else {
+            reject("ENCODE_ERROR", "Failed to encode charge intent", nil)
           }
         }
-      ),
-      theme: FrameRNTheme.resolved()
+      }
     ))
     hosting.onCancel = {
       DispatchQueue.main.async {
@@ -179,7 +169,7 @@ public class FrameSDKBridge: NSObject {
       cartItems: cartItems,
       shippingAmountInCents: shippingAmountInCents
     )
-    let hosting = UIHostingController(rootView: ThemedRoot(cartView, theme: FrameRNTheme.resolved()))
+    let hosting = UIHostingController(rootView: cartView)
     hosting.modalPresentationStyle = UIModalPresentationStyle.pageSheet
     if let sheet = hosting.sheetPresentationController {
       sheet.detents = [UISheetPresentationController.Detent.large()]
@@ -193,20 +183,22 @@ public class FrameSDKBridge: NSObject {
   }
 
   private func presentOnboardingOnMain(from top: UIViewController, accountId: String?, capabilities: [FrameObjects.Capabilities], applePayMerchantId: String?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    var hosting: OnboardingHostingController<ThemedRoot<OnboardingContainerView>>!
-    var delegate: OnboardingDismissDelegate!
-    hosting = OnboardingHostingController(
-      rootView: ThemedRoot(
-        OnboardingContainerView(
-          accountId: accountId,
-          requiredCapabilities: capabilities,
-          applePayMerchantId: applePayMerchantId,
-          onComplete: { [weak top] in
-            delegate?.finish(completed: true)
-            top?.dismiss(animated: true)
-          }
-        ),
-        theme: FrameRNTheme.resolved()
+    // Build the dismiss delegate up-front so onComplete captures a non-nil
+    // instance directly. Earlier shape declared `var delegate: …!` and assigned
+    // it AFTER constructing OnboardingContainerView; the onComplete closure
+    // captured the local by reference, so any path that fired the callback
+    // before assignment landed on a nil delegate and silently no-op'd via `?.`.
+    let delegate = OnboardingDismissDelegate(resolve: resolve)
+
+    let hosting = OnboardingHostingController(
+      rootView: OnboardingContainerView(
+        accountId: accountId,
+        requiredCapabilities: capabilities,
+        applePayMerchantId: applePayMerchantId,
+        onComplete: { [delegate, weak top] in
+          delegate.finish(completed: true)
+          top?.dismiss(animated: true)
+        }
       )
     )
     // Embed in a UINavigationController so the outer sheet is a UIKit container,
@@ -222,7 +214,6 @@ public class FrameSDKBridge: NSObject {
     if let sheet = nav.sheetPresentationController {
       sheet.detents = [UISheetPresentationController.Detent.large()]
     }
-    delegate = OnboardingDismissDelegate(resolve: resolve)
     delegate.hostingController = nav
     objc_setAssociatedObject(nav, &onboardingDismissKey, delegate, .OBJC_ASSOCIATION_RETAIN)
     NSLog("[FrameRN][onb] presenting OnboardingHostingController (wrapped in UINavigationController) from \(type(of: top))")
@@ -235,7 +226,7 @@ public class FrameSDKBridge: NSObject {
 
 // MARK: - CheckoutHostingController
 
-private final class CheckoutHostingController: UIHostingController<ThemedRoot<FrameCheckoutView>>, UIAdaptivePresentationControllerDelegate {
+private final class CheckoutHostingController: UIHostingController<FrameCheckoutView>, UIAdaptivePresentationControllerDelegate {
   var didComplete = false
   var onCancel: (() -> Void)?
   private var cancelled = false

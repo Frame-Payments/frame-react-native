@@ -31,7 +31,15 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
-  fun initialize(secretKey: String, publishableKey: String, debugMode: Boolean, promise: Promise) {
+  fun initialize(
+    secretKey: String,
+    publishableKey: String,
+    debugMode: Boolean,
+    @Suppress("UNUSED_PARAMETER") theme: com.facebook.react.bridge.ReadableMap?,
+    promise: Promise
+  ) {
+    // theme is accepted for cross-platform parity with iOS but is currently a
+    // no-op on Android — frame-android does not yet have a matching theme API.
     try {
       val ctx = reactApplicationContext.applicationContext
       FrameNetworking.initializeWithAPIKey(ctx, secretKey, publishableKey, debugMode)

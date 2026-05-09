@@ -2,8 +2,9 @@
 //  FrameRNTheme.swift
 //  FrameReactNative
 //
-//  Bridges JS theme dictionaries to Frame-iOS's FrameTheme and applies it to
-//  every SwiftUI root view we present. Read/written only on the main thread.
+//  Parses JS theme dictionaries into Frame-iOS's FrameTheme. The parsed
+//  theme is handed to FrameNetworking.shared.configureTheme(_:); the SDK
+//  owns storage and applies it via its FrameThemeKey environment default.
 //
 
 import Foundation
@@ -11,12 +12,6 @@ import SwiftUI
 import Frame
 
 enum FrameRNTheme {
-  // Main-thread only: written by FrameSDKBridge.setTheme (dispatched to main),
-  // read by present* methods (already on main).
-  static var current: FrameTheme? = nil
-
-  static func resolved() -> FrameTheme { current ?? .default }
-
   static func parse(_ dict: [String: Any]) -> FrameTheme {
     var theme = FrameTheme.default
 
@@ -72,22 +67,6 @@ enum FrameRNTheme {
     } else {
       set(.custom(name, size: CGFloat(size)))
     }
-  }
-}
-
-// Applies the supplied FrameTheme to a single root view. Captured at present
-// time so each UIHostingController has a stable, concrete rootView type.
-struct ThemedRoot<Content: View>: View {
-  let theme: FrameTheme
-  let content: Content
-
-  init(_ content: Content, theme: FrameTheme) {
-    self.content = content
-    self.theme = theme
-  }
-
-  var body: some View {
-    content.frameTheme(theme)
   }
 }
 

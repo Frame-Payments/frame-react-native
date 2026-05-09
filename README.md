@@ -299,32 +299,37 @@ On non-Android platforms `Frame.presentGooglePay` rejects synchronously with a n
 
 ---
 
-### `Frame.setTheme(theme)` (iOS)
+### Theming (iOS)
 
 Customizes colors, fonts, and corner radii on Frame's reusable components — checkout, cart, and the onboarding flow. Backed by `FrameTheme` introduced in Frame-iOS 2.1.2.
 
-Call once at app startup (after `Frame.initialize`). The theme applies to every subsequent `present*` call. Modals already on screen are not re-themed mid-flow. Pass `null` or `{}` to reset to defaults; pass a partial dict to override only specific tokens.
+Pass an optional `theme` to `Frame.initialize`. It's stored on `FrameNetworking.shared` and read by every Frame view at present time, so all subsequent `present*` calls render with it. Modals already on screen are not re-themed if the theme is changed mid-flow. Omit the field, or pass `{}`, to use SDK defaults; pass a partial dict to override only specific tokens.
 
 ```ts
 import Frame from 'framepayments-react-native';
 
-await Frame.setTheme({
-  colors: {
-    primaryButton: '#5B2DFF',
-    primaryButtonText: '#FFFFFF',
-    surface: '#0A0A0A',
-    textPrimary: '#FFFFFF',
-    error: '#E53935',
+await Frame.initialize({
+  secretKey: 'sk_sandbox_...',
+  publishableKey: 'pk_sandbox_...',
+  debugMode: __DEV__,
+  theme: {
+    colors: {
+      primaryButton: '#5B2DFF',
+      primaryButtonText: '#FFFFFF',
+      surface: '#0A0A0A',
+      textPrimary: '#FFFFFF',
+      error: '#E53935',
+    },
+    fonts: {
+      title: { name: 'Inter-Bold', size: 24 },
+      button: { name: 'Inter-SemiBold', size: 16 },
+    },
+    radii: { medium: 16 },
   },
-  fonts: {
-    title: { name: 'Inter-Bold', size: 24 },
-    button: { name: 'Inter-SemiBold', size: 16 },
-  },
-  radii: { medium: 16 },
 });
 ```
 
-**Android**: `setTheme()` resolves immediately and has no effect — `frame-android` does not yet have a matching theme API.
+**Android**: the `theme` field is accepted for cross-platform parity but currently has no effect — `frame-android` does not yet have a matching theme API.
 
 #### Tokens
 

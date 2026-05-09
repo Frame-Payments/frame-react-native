@@ -14,6 +14,9 @@ import type {
 } from './types';
 import { ErrorCodes } from './errors';
 
+// theme is iOS-only today: frame-android does not yet have a matching theme API,
+// so the field is accepted on both platforms but ignored on Android until it does.
+
 const LINKING_ERROR =
   `The package 'framepayments-react-native' doesn't seem to be linked. Make sure you have run 'pod install' (iOS) or rebuilt the app (Android).`;
 
@@ -34,6 +37,13 @@ export function initialize(options: {
   secretKey: string;
   publishableKey: string;
   debugMode?: boolean;
+  /**
+   * Optional theme applied SDK-wide to Frame's reusable iOS components
+   * (checkout, cart, onboarding). Pass any subset — unspecified tokens fall
+   * back to SDK defaults. No-op on Android until frame-android ships a
+   * matching theme API.
+   */
+  theme?: FrameTheme;
 }): Promise<void> {
   if (!options?.secretKey) {
     throw new Error('Frame.initialize requires secretKey');
@@ -41,11 +51,15 @@ export function initialize(options: {
   if (!options?.publishableKey) {
     throw new Error('Frame.initialize requires publishableKey');
   }
+  if (options.theme !== undefined && (typeof options.theme !== 'object' || Array.isArray(options.theme))) {
+    throw new Error('Frame.initialize: theme must be an object');
+  }
   return wrapPromise(
     FrameSDK.initialize(
       options.secretKey,
       options.publishableKey,
-      options.debugMode ?? false
+      options.debugMode ?? false,
+      options.theme ?? null
     )
   ).then(() => {
     isInitialized = true;
@@ -158,18 +172,3 @@ export function presentGooglePay(options: PresentGooglePayOptions): Promise<Char
   );
 }
 
-/**
- * Configure colors, fonts, and corner radii for Frame's reusable iOS
- * components. Applied to every subsequent `present*` call; an in-flight modal
- * is not re-themed mid-flow.
- *
- * Pass `null` or `{}` to reset to SDK defaults. Android is a no-op until
- * frame-android ships a matching theme API.
- */
-export function setTheme(theme: FrameTheme | null): Promise<void> {
-  if (theme !== null && (typeof theme !== 'object' || Array.isArray(theme))) {
-    throw new Error('Frame.setTheme requires a theme object or null');
-  }
-  if (Platform.OS !== 'ios') return Promise.resolve();
-  return wrapPromise(FrameSDK.setTheme(theme ?? {}));
-}
