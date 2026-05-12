@@ -35,6 +35,7 @@ export type {
   OnboardingCapability,
   OnboardingResult,
   OnboardingResultStatus,
+  WalletOwner,
   ApplePayOwner,
   PresentApplePayOptions,
   PresentGooglePayOptions,

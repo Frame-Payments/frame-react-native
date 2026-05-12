@@ -21,15 +21,17 @@ import {
 import Frame from 'framepayments-react-native';
 import { FrameSDK } from 'framepayments';
 
-// Sandbox keys — same set used by the native iOS and Android example apps so all three demos hit the same Frame test data.
-const FRAME_SECRET_KEY = process.env.FRAME_SECRET_KEY;
-const FRAME_PUBLISHABLE_KEY = process.env.FRAME_PUBLISHABLE_KEY;
+// Supply via environment variables (e.g. `FRAME_SECRET_KEY=... npm run ios`) — do not commit real keys.
+const FRAME_SECRET_KEY = process.env.FRAME_SECRET_KEY ?? '';
+const FRAME_PUBLISHABLE_KEY = process.env.FRAME_PUBLISHABLE_KEY ?? '';
 
 // Apple Pay merchant ID registered in the example app's entitlements. Mirrors the native iOS example.
 const APPLE_PAY_MERCHANT_ID = 'merchant.com.framepayments.example';
 
-// Sandbox customer ID used by the native iOS example for Apple Pay testing.
+// Demo owners. Swap which one the wallet buttons use to exercise either flow:
+// customer → ChargeIntent, account → Transfer.
 const DEMO_CUSTOMER_ID = 'SANDBOX_CUSTOMER_ID';
+const DEMO_ACCOUNT_ID = 'SANDBOX_ACCOUNT_ID';
 
 const frameSDK = new FrameSDK({ apiKey: FRAME_SECRET_KEY });
 
@@ -91,7 +93,10 @@ export default function App() {
   const handleCheckout = async () => {
     setLoading('checkout');
     try {
-      const transferId = await Frame.presentCheckout({ amount: 15000 });
+      const transferId = await Frame.presentCheckout({
+        accountId: DEMO_ACCOUNT_ID,
+        amount: 15000,
+      });
       Alert.alert('Success', `Transfer: ${transferId}`);
     } catch (e: any) {
       if (e.code === 'USER_CANCELED') return;
@@ -105,6 +110,7 @@ export default function App() {
     setLoading('cart');
     try {
       const transferId = await Frame.presentCart({
+        accountId: DEMO_ACCOUNT_ID,
         items: sampleCartItems,
         shippingAmountInCents: 4000,
       });
@@ -140,12 +146,14 @@ export default function App() {
   const handleGooglePay = async () => {
     setLoading('googlePay');
     try {
-      const transferId = await Frame.presentGooglePay({
+      // Switch `owner.type` to 'customer' to create a ChargeIntent against a customer
+      // instead of a Transfer against an account. The resolved id type matches the owner.
+      const chargeId = await Frame.presentGooglePay({
         amountCents: 100,
         currencyCode: 'USD',
-        accountId: DEMO_ACCOUNT_ID,
+        owner: { type: 'account', id: DEMO_ACCOUNT_ID },
       });
-      Alert.alert('Google Pay', `Transfer: ${transferId}`);
+      Alert.alert('Google Pay', `Charge id: ${chargeId}`);
     } catch (e: any) {
       if (e.code === 'USER_CANCELED') return;
       Alert.alert('Google Pay error', e.message ?? String(e));

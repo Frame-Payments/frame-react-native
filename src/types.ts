@@ -83,8 +83,9 @@ export interface OnboardingResult {
 }
 
 /**
- * Identifies who the Apple Pay payment method belongs to and which downstream
- * resource is created when the user authorizes payment.
+ * Identifies who the wallet payment method belongs to and which downstream
+ * resource is created when the user authorizes payment. Used by both
+ * `presentApplePay` and `presentGooglePay`.
  *
  *  - `{ type: 'customer', id }` → creates a `ChargeIntent`; promise resolves with the ChargeIntent id.
  *  - `{ type: 'account',  id }` → creates a `Transfer`;     promise resolves with the Transfer id.
@@ -92,9 +93,12 @@ export interface OnboardingResult {
  * The promise always resolves with a string id; the caller knows which resource
  * it refers to based on the owner type they passed in.
  */
-export type ApplePayOwner =
+export type WalletOwner =
   | { type: 'customer'; id: string }
   | { type: 'account'; id: string };
+
+/** @deprecated Use {@link WalletOwner}. Retained as an alias for source compatibility. */
+export type ApplePayOwner = WalletOwner;
 
 /** Options for Frame.presentApplePay. */
 export interface PresentApplePayOptions {
@@ -103,7 +107,7 @@ export interface PresentApplePayOptions {
   /** ISO 4217 currency code. Defaults to 'usd'. */
   currency?: string;
   /** Customer or account that owns the resulting payment method and charge. */
-  owner: ApplePayOwner;
+  owner: WalletOwner;
   /** Apple Pay merchant ID configured in your Apple Developer account. */
   merchantId: string;
 }
@@ -112,8 +116,8 @@ export interface PresentApplePayOptions {
 export interface PresentGooglePayOptions {
   /** Payment amount in cents. */
   amountCents: number;
-  /** Frame account ID that the resulting Transfer is created against. */
-  accountId: string;
+  /** Customer or account that owns the resulting payment method and charge. */
+  owner: WalletOwner;
   /** ISO 4217 currency code. Defaults to 'USD'. */
   currencyCode?: string;
   /** Optional override for the Google Pay merchant ID. */

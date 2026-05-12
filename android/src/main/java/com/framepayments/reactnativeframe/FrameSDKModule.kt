@@ -94,7 +94,8 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun presentGooglePay(
     amountCents: Double,
-    accountId: String?,
+    ownerType: String?,
+    ownerId: String?,
     currencyCode: String?,
     googlePayMerchantId: String?,
     promise: Promise
@@ -108,8 +109,12 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       promise.reject("INVALID_AMOUNT", "amountCents must be positive", null)
       return
     }
-    if (accountId.isNullOrEmpty()) {
-      promise.reject("INVALID_ACCOUNT", "accountId is required", null)
+    if (ownerType != "customer" && ownerType != "account") {
+      promise.reject("INVALID_OWNER", "owner.type must be 'customer' or 'account'", null)
+      return
+    }
+    if (ownerId.isNullOrEmpty()) {
+      promise.reject("INVALID_OWNER", "owner.id is required", null)
       return
     }
     googlePayPromise = promise
@@ -119,7 +124,8 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     activity.runOnUiThread {
       val intent = Intent(activity, FrameGooglePayActivity::class.java).apply {
         putExtra(FrameGooglePayActivity.EXTRA_AMOUNT_CENTS, amountInt)
-        putExtra(FrameGooglePayActivity.EXTRA_ACCOUNT_ID, accountId)
+        putExtra(FrameGooglePayActivity.EXTRA_OWNER_TYPE, ownerType)
+        putExtra(FrameGooglePayActivity.EXTRA_OWNER_ID, ownerId)
         putExtra(FrameGooglePayActivity.EXTRA_CURRENCY, currencyCode ?: "USD")
         putExtra(FrameGooglePayActivity.EXTRA_MERCHANT_ID, googlePayMerchantId)
       }
@@ -186,20 +192,11 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     val promise = checkoutPromise ?: return
     checkoutPromise = null
     if (resultCode == Activity.RESULT_OK && data != null) {
-      val json = data.getStringExtra(FrameCheckoutActivity.EXTRA_TRANSFER_JSON)
-      if (json != null) {
-        try {
-          val id = JSONObject(json).optString("id")
-          if (id.isNullOrEmpty()) {
-            promise.reject("NO_RESULT", "Transfer returned without an id", null)
-          } else {
-            promise.resolve(id)
-          }
-        } catch (e: Exception) {
-          promise.reject("PARSE_ERROR", e.message, e)
-        }
+      val transferId = data.getStringExtra(FrameCheckoutActivity.EXTRA_TRANSFER_ID)
+      if (!transferId.isNullOrEmpty()) {
+        promise.resolve(transferId)
       } else {
-        promise.reject("NO_RESULT", "No transfer in result", null)
+        promise.reject("NO_RESULT", "No transfer id in result", null)
       }
     } else {
       promise.reject("USER_CANCELED", "User cancelled checkout", null)
@@ -210,20 +207,11 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     val promise = cartPromise ?: return
     cartPromise = null
     if (resultCode == Activity.RESULT_OK && data != null) {
-      val json = data.getStringExtra(FrameFlowActivity.EXTRA_TRANSFER_JSON)
-      if (json != null) {
-        try {
-          val id = JSONObject(json).optString("id")
-          if (id.isNullOrEmpty()) {
-            promise.reject("NO_RESULT", "Transfer returned without an id", null)
-          } else {
-            promise.resolve(id)
-          }
-        } catch (e: Exception) {
-          promise.reject("PARSE_ERROR", e.message, e)
-        }
+      val transferId = data.getStringExtra(FrameFlowActivity.EXTRA_TRANSFER_ID)
+      if (!transferId.isNullOrEmpty()) {
+        promise.resolve(transferId)
       } else {
-        promise.reject("NO_RESULT", "No transfer in result", null)
+        promise.reject("NO_RESULT", "No transfer id in result", null)
       }
     } else {
       promise.reject("USER_CANCELED", "User cancelled", null)
@@ -235,20 +223,11 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     googlePayPromise = null
     when (resultCode) {
       Activity.RESULT_OK -> {
-        val json = data?.getStringExtra(FrameGooglePayActivity.EXTRA_TRANSFER_JSON)
-        if (json != null) {
-          try {
-            val id = JSONObject(json).optString("id")
-            if (id.isNullOrEmpty()) {
-              promise.reject("NO_RESULT", "Transfer returned without an id", null)
-            } else {
-              promise.resolve(id)
-            }
-          } catch (e: Exception) {
-            promise.reject("PARSE_ERROR", e.message, e)
-          }
+        val id = data?.getStringExtra(FrameGooglePayActivity.EXTRA_CHARGE_ID)
+        if (id.isNullOrEmpty()) {
+          promise.reject("NO_RESULT", "Google Pay returned no charge id", null)
         } else {
-          promise.reject("NO_RESULT", "No transfer in result", null)
+          promise.resolve(id)
         }
       }
       FrameGooglePayActivity.RESULT_FAILURE -> {

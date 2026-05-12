@@ -7,7 +7,7 @@ const mockInitialize = jest.fn((_secretKey: string, _publishableKey: string, _de
 const mockPresentCheckout = jest.fn((_accountId: unknown, _amount: number) => Promise.resolve('tr_1'));
 const mockPresentCart = jest.fn((_accountId: unknown, _items: unknown[], _shipping: number) => Promise.resolve('tr_2'));
 const mockPresentApplePay = jest.fn((_ownerType: string, _ownerId: string, _amount: number, _currency: string, _merchantId: string) => Promise.resolve('tr_3'));
-const mockPresentGooglePay = jest.fn((_amountCents: number, _accountId: string, _currencyCode: string, _googlePayMerchantId: string | null) => Promise.resolve('tr_4'));
+const mockPresentGooglePay = jest.fn((_amountCents: number, _ownerType: string, _ownerId: string, _currencyCode: string, _googlePayMerchantId: string | null) => Promise.resolve('tr_4'));
 const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unknown[], _merchantId: string | null) => Promise.resolve({ status: 'completed', paymentMethodId: 'pm_1' }));
 
 const mockPlatform = { OS: 'ios' as 'ios' | 'android' };
@@ -28,14 +28,14 @@ jest.mock('react-native', () => ({
 
 // Re-import after mock so we get the mocked NativeModules
 let initialize: (opts: { secretKey: string; publishableKey: string; debugMode?: boolean }) => Promise<void>;
-let presentCheckout: (opts: { accountId?: string | null; amount: number }) => Promise<string>;
+let presentCheckout: (opts: { accountId: string; amount: number }) => Promise<string>;
 let presentCart: (opts: {
-  accountId?: string | null;
+  accountId: string;
   items: Array<{ id: string; title: string; amountInCents: number; imageUrl: string }>;
   shippingAmountInCents: number;
 }) => Promise<string>;
 let presentApplePay: (opts: { amount: number; currency?: string; owner: { type: 'customer' | 'account'; id: string }; merchantId: string }) => Promise<string>;
-let presentGooglePay: (opts: { amountCents: number; accountId: string; currencyCode?: string; googlePayMerchantId?: string }) => Promise<string>;
+let presentGooglePay: (opts: { amountCents: number; owner: { type: 'customer' | 'account'; id: string }; currencyCode?: string; googlePayMerchantId?: string }) => Promise<string>;
 let presentOnboarding: (opts: { accountId?: string | null; capabilities?: string[]; applePayMerchantId?: string | null; googlePayMerchantId?: string | null }) => Promise<unknown>;
 
 beforeEach(() => {
@@ -84,11 +84,22 @@ describe('initialize', () => {
 describe('presentCheckout', () => {
   it('throws NOT_INITIALIZED if initialize was not called', async () => {
     try {
-      await presentCheckout({ amount: 10000 });
+      await presentCheckout({ accountId: 'acct_1', amount: 10000 });
       expect(true).toBe(false);
     } catch (e: any) {
       expect(e.code).toBe('NOT_INITIALIZED');
       expect(e.message).toContain('initialized');
+    }
+    expect(mockPresentCheckout).not.toHaveBeenCalled();
+  });
+
+  it('throws INVALID_ACCOUNT when accountId is missing', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    try {
+      await presentCheckout({ amount: 5000 } as any);
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_ACCOUNT');
     }
     expect(mockPresentCheckout).not.toHaveBeenCalled();
   });
@@ -99,12 +110,6 @@ describe('presentCheckout', () => {
     expect(mockPresentCheckout).toHaveBeenCalledWith('acct_1', 10000);
     expect(result).toBe('tr_1');
   });
-
-  it('passes null for accountId when not provided', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    await presentCheckout({ amount: 5000 });
-    expect(mockPresentCheckout).toHaveBeenCalledWith(null, 5000);
-  });
 });
 
 describe('presentCart', () => {
@@ -114,10 +119,21 @@ describe('presentCart', () => {
 
   it('throws NOT_INITIALIZED if initialize was not called', async () => {
     try {
-      await presentCart({ items, shippingAmountInCents: 500 });
+      await presentCart({ accountId: 'acct_1', items, shippingAmountInCents: 500 });
       expect(true).toBe(false);
     } catch (e: any) {
       expect(e.code).toBe('NOT_INITIALIZED');
+    }
+    expect(mockPresentCart).not.toHaveBeenCalled();
+  });
+
+  it('throws INVALID_ACCOUNT when accountId is missing', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    try {
+      await presentCart({ items, shippingAmountInCents: 0 } as any);
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_ACCOUNT');
     }
     expect(mockPresentCart).not.toHaveBeenCalled();
   });
@@ -131,12 +147,6 @@ describe('presentCart', () => {
     });
     expect(mockPresentCart).toHaveBeenCalledWith('acct_2', items, 500);
     expect(result).toBe('tr_2');
-  });
-
-  it('passes null for accountId when not provided', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    await presentCart({ items, shippingAmountInCents: 0 });
-    expect(mockPresentCart).toHaveBeenCalledWith(null, items, 0);
   });
 });
 
@@ -216,7 +226,7 @@ describe('presentApplePay', () => {
 describe('presentGooglePay', () => {
   it('throws NOT_INITIALIZED if initialize was not called', async () => {
     try {
-      await presentGooglePay({ amountCents: 100, accountId: 'acct_1' });
+      await presentGooglePay({ amountCents: 100, owner: { type: 'account', id: 'acct_1' } });
       expect(true).toBe(false);
     } catch (e: any) {
       expect(e.code).toBe('NOT_INITIALIZED');
@@ -224,33 +234,53 @@ describe('presentGooglePay', () => {
     expect(mockPresentGooglePay).not.toHaveBeenCalled();
   });
 
-  it('throws INVALID_ACCOUNT when accountId is missing', async () => {
+  it('throws INVALID_OWNER when owner is missing', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     try {
       await presentGooglePay({ amountCents: 100 } as any);
       expect(true).toBe(false);
     } catch (e: any) {
-      expect(e.code).toBe('INVALID_ACCOUNT');
+      expect(e.code).toBe('INVALID_OWNER');
     }
     expect(mockPresentGooglePay).not.toHaveBeenCalled();
   });
 
-  it('calls native presentGooglePay with positional args; resolves with transfer id string', async () => {
+  it('throws INVALID_OWNER when owner.id is empty', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    try {
+      await presentGooglePay({ amountCents: 100, owner: { type: 'account', id: '' } });
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_OWNER');
+    }
+    expect(mockPresentGooglePay).not.toHaveBeenCalled();
+  });
+
+  it('forwards account owner; resolves with transfer id string', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     const result = await presentGooglePay({
       amountCents: 9999,
-      accountId: 'acct_1',
+      owner: { type: 'account', id: 'acct_1' },
       currencyCode: 'EUR',
       googlePayMerchantId: 'BCR2DN4T...',
     });
-    expect(mockPresentGooglePay).toHaveBeenCalledWith(9999, 'acct_1', 'EUR', 'BCR2DN4T...');
+    expect(mockPresentGooglePay).toHaveBeenCalledWith(9999, 'account', 'acct_1', 'EUR', 'BCR2DN4T...');
     expect(result).toBe('tr_4');
+  });
+
+  it('forwards customer owner; resolves with charge intent id string', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    await presentGooglePay({
+      amountCents: 4242,
+      owner: { type: 'customer', id: 'cus_1' },
+    });
+    expect(mockPresentGooglePay).toHaveBeenCalledWith(4242, 'customer', 'cus_1', 'USD', null);
   });
 
   it('defaults currencyCode to USD and merchantId to null', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    await presentGooglePay({ amountCents: 100, accountId: 'acct_1' });
-    expect(mockPresentGooglePay).toHaveBeenCalledWith(100, 'acct_1', 'USD', null);
+    await presentGooglePay({ amountCents: 100, owner: { type: 'account', id: 'acct_1' } });
+    expect(mockPresentGooglePay).toHaveBeenCalledWith(100, 'account', 'acct_1', 'USD', null);
   });
 });
 

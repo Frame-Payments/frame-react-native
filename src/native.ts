@@ -102,30 +102,42 @@ function wrapPromise<T>(p: Promise<T>): Promise<T> {
  * Presents the Frame checkout sheet for the given account. Resolves with the
  * created Transfer's id string on success, or rejects with `USER_CANCELED` if
  * the user dismisses the sheet.
+ *
+ * `accountId` is required: the bundled checkout creates a `Transfer`, which is
+ * account-scoped. Callers needing a customer/ChargeIntent flow should use
+ * `presentApplePay` / `presentGooglePay` directly with a customer owner.
  */
 export function presentCheckout(options: {
-  accountId?: string | null;
+  accountId: string;
   amount: number;
 }): Promise<string> {
   guardInitialized();
+  if (!options?.accountId) {
+    throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentCheckout requires accountId');
+  }
   return wrapPromise(
-    FrameSDK.presentCheckout(options.accountId ?? null, options.amount)
+    FrameSDK.presentCheckout(options.accountId, options.amount)
   );
 }
 
 /**
  * Presents the Frame cart UI; tapping checkout routes through the same flow
  * as `presentCheckout` and resolves with the created Transfer's id string.
+ *
+ * `accountId` is required for the same reason as `presentCheckout`.
  */
 export function presentCart(options: {
-  accountId?: string | null;
+  accountId: string;
   items: FrameCartItem[];
   shippingAmountInCents: number;
 }): Promise<string> {
   guardInitialized();
+  if (!options?.accountId) {
+    throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentCart requires accountId');
+  }
   return wrapPromise(
     FrameSDK.presentCart(
-      options.accountId ?? null,
+      options.accountId,
       options.items,
       options.shippingAmountInCents
     )
@@ -188,18 +200,25 @@ export function presentApplePay(options: PresentApplePayOptions): Promise<string
 }
 
 /**
- * Presents Google Pay and creates a Transfer charged from the resulting wallet
- * payment method. Resolves with the created Transfer's id string on success.
+ * Presents Google Pay and creates a charge from the resulting wallet payment method.
+ * Resolves with the created resource's id string on success.
+ *
+ *  - `owner.type === 'customer'` → creates a `ChargeIntent`; resolves with its id.
+ *  - `owner.type === 'account'`  → creates a `Transfer`;     resolves with its id.
  */
 export function presentGooglePay(options: PresentGooglePayOptions): Promise<string> {
   guardInitialized();
-  if (!options?.accountId) {
-    throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentGooglePay requires accountId');
+  if (!options?.owner || (options.owner.type !== 'customer' && options.owner.type !== 'account')) {
+    throwCoded(ErrorCodes.INVALID_OWNER, 'Frame.presentGooglePay requires owner: { type: "customer" | "account", id: string }');
+  }
+  if (!options.owner.id) {
+    throwCoded(ErrorCodes.INVALID_OWNER, 'Frame.presentGooglePay requires owner.id');
   }
   return wrapPromise(
     FrameSDK.presentGooglePay(
       options.amountCents,
-      options.accountId,
+      options.owner.type,
+      options.owner.id,
       options.currencyCode ?? 'USD',
       options.googlePayMerchantId ?? null
     )

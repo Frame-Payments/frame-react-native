@@ -7,7 +7,6 @@ import android.os.Looper
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
 import com.framepayments.framesdk_ui.buttons.FrameGooglePayButton
-import com.google.gson.Gson
 
 /**
  * Hidden host activity for Frame.presentGooglePay(). The Frame Android SDK only
@@ -38,7 +37,8 @@ class FrameGooglePayActivity : AppCompatActivity() {
     setContentView(container)
 
     val amountCents = intent.getIntExtra(EXTRA_AMOUNT_CENTS, 0)
-    val accountId = intent.getStringExtra(EXTRA_ACCOUNT_ID)
+    val ownerType = intent.getStringExtra(EXTRA_OWNER_TYPE)
+    val ownerId = intent.getStringExtra(EXTRA_OWNER_ID)
     val currencyCode = intent.getStringExtra(EXTRA_CURRENCY) ?: "USD"
     val googlePayMerchantId = intent.getStringExtra(EXTRA_MERCHANT_ID)
 
@@ -46,9 +46,17 @@ class FrameGooglePayActivity : AppCompatActivity() {
       deliverFailure("Invalid amountCents")
       return
     }
-    if (accountId.isNullOrEmpty()) {
-      deliverFailure("accountId is required")
+    if (ownerId.isNullOrEmpty()) {
+      deliverFailure("owner.id is required")
       return
+    }
+    val owner: FrameGooglePayButton.Owner = when (ownerType) {
+      "customer" -> FrameGooglePayButton.Owner.Customer(ownerId)
+      "account"  -> FrameGooglePayButton.Owner.Account(ownerId)
+      else -> {
+        deliverFailure("owner.type must be 'customer' or 'account'")
+        return
+      }
     }
 
     val button = FrameGooglePayButton(this)
@@ -58,7 +66,7 @@ class FrameGooglePayActivity : AppCompatActivity() {
 
     button.configure(
       amountCents = amountCents,
-      accountId = accountId,
+      owner = owner,
       currencyCode = currencyCode,
       googlePayMerchantId = googlePayMerchantId,
       onResult = { result -> handleResult(result) },
@@ -97,8 +105,9 @@ class FrameGooglePayActivity : AppCompatActivity() {
     didDeliverResult = true
     when (result) {
       is FrameGooglePayButton.Result.Success -> {
-        val json = Gson().toJson(result.transfer)
-        deliverViaCallback(android.app.Activity.RESULT_OK, Intent().putExtra(EXTRA_TRANSFER_JSON, json))
+        // `result.id` is a Transfer id (for Owner.Account) or a ChargeIntent id
+        // (for Owner.Customer). JS knows which it is because it passed the owner.
+        deliverViaCallback(android.app.Activity.RESULT_OK, Intent().putExtra(EXTRA_CHARGE_ID, result.id))
       }
       is FrameGooglePayButton.Result.PaymentMethodCreated -> {
         // RN bridge does not currently expose AddToOwner mode, so this branch
@@ -141,10 +150,16 @@ class FrameGooglePayActivity : AppCompatActivity() {
 
   companion object {
     const val EXTRA_AMOUNT_CENTS = "amount_cents"
-    const val EXTRA_ACCOUNT_ID = "account_id"
+    const val EXTRA_OWNER_TYPE = "owner_type"
+    const val EXTRA_OWNER_ID = "owner_id"
     const val EXTRA_CURRENCY = "currency"
     const val EXTRA_MERCHANT_ID = "merchant_id"
-    const val EXTRA_TRANSFER_JSON = "transfer_json"
+    /**
+     * The id of the resource created by the wallet flow. Holds a Transfer id when
+     * the owner was an account, or a ChargeIntent id when the owner was a customer.
+     * JS knows which by inspecting the owner it passed in.
+     */
+    const val EXTRA_CHARGE_ID = "charge_id"
     const val EXTRA_FAILURE_MESSAGE = "failure_message"
 
     const val REQUEST_CODE = 9003

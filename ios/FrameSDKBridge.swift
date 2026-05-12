@@ -31,6 +31,10 @@ public class FrameSDKBridge: NSObject {
 
   @objc public
   func presentCheckout(from viewController: UIViewController, accountId: String?, amount: Int, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    guard let accountId, !accountId.isEmpty else {
+      reject("INVALID_ACCOUNT", "Frame.presentCheckout requires a non-empty accountId", nil)
+      return
+    }
     presentCheckoutOnMain(from: viewController, accountId: accountId, amount: amount, resolve: resolve, reject: reject)
   }
 
@@ -40,7 +44,11 @@ public class FrameSDKBridge: NSObject {
       reject("INVALID_ITEMS", "Invalid cart items array", nil)
       return
     }
-    presentCartOnMain(from: viewController, accountId: accountId as? String, cartItems: cartItems, shippingAmountInCents: shippingAmountInCents, resolve: resolve, reject: reject)
+    guard let accountIdString = accountId as? String, !accountIdString.isEmpty else {
+      reject("INVALID_ACCOUNT", "Frame.presentCart requires a non-empty accountId", nil)
+      return
+    }
+    presentCartOnMain(from: viewController, accountId: accountIdString, cartItems: cartItems, shippingAmountInCents: shippingAmountInCents, resolve: resolve, reject: reject)
   }
 
   @objc public
@@ -97,7 +105,7 @@ public class FrameSDKBridge: NSObject {
 
   // MARK: - Private helpers
 
-  private func presentCheckoutOnMain(from top: UIViewController, accountId: String?, amount: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+  private func presentCheckoutOnMain(from top: UIViewController, accountId: String, amount: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     var hosting: CheckoutHostingController!
     hosting = CheckoutHostingController(rootView: FrameCheckoutView(
       accountId: accountId,
@@ -158,7 +166,7 @@ public class FrameSDKBridge: NSObject {
     return result
   }
 
-  private func presentCartOnMain(from top: UIViewController, accountId: String?, cartItems: [RNFrameCartItem], shippingAmountInCents: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+  private func presentCartOnMain(from top: UIViewController, accountId: String, cartItems: [RNFrameCartItem], shippingAmountInCents: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     // Single dismiss delegate guards against double-resolve: the inner checkout
     // calls `finish(.success)` with the transfer id; bare-dismiss (swipe-down
     // without completing checkout) calls `finish(.cancel)`.

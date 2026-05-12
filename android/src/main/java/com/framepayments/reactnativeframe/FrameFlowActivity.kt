@@ -31,6 +31,14 @@ class FrameFlowActivity : AppCompatActivity() {
     val itemsJson = intent.getStringExtra(EXTRA_ITEMS_JSON)
     val shippingCents = intent.getIntExtra(EXTRA_SHIPPING_CENTS, 0)
     val items: List<FrameCartItem> = parseCartItems(itemsJson) ?: emptyList()
+
+    // Bundled cart → checkout always creates a Transfer, which requires an account.
+    if (accountId.isNullOrEmpty()) {
+      setResult(RESULT_CANCELED)
+      finish()
+      return
+    }
+
     showCart(accountId, items, shippingCents)
   }
 
@@ -52,7 +60,7 @@ class FrameFlowActivity : AppCompatActivity() {
     val imageUrl: String
   )
 
-  private fun showCart(accountId: String?, items: List<FrameCartItem>, shippingCents: Int) {
+  private fun showCart(accountId: String, items: List<FrameCartItem>, shippingCents: Int) {
     container.removeAllViews()
     cartView = FrameCartView(this).apply {
       configure(accountId, items, shippingCents, { totalCents ->
@@ -62,12 +70,11 @@ class FrameFlowActivity : AppCompatActivity() {
     container.addView(cartView)
   }
 
-  private fun showCheckout(accountId: String?, amount: Int) {
+  private fun showCheckout(accountId: String, amount: Int) {
     container.removeAllViews()
     checkoutView = FrameCheckoutView(this).apply {
-      configure(accountId, amount) { transfer ->
-        val json = Gson().toJson(transfer)
-        setResult(RESULT_OK, Intent().putExtra(EXTRA_TRANSFER_JSON, json))
+      configure(accountId, amount) { transferId ->
+        setResult(RESULT_OK, Intent().putExtra(EXTRA_TRANSFER_ID, transferId))
         finish()
       }
     }
@@ -78,7 +85,7 @@ class FrameFlowActivity : AppCompatActivity() {
     const val EXTRA_ACCOUNT_ID = "account_id"
     const val EXTRA_ITEMS_JSON = "items_json"
     const val EXTRA_SHIPPING_CENTS = "shipping_cents"
-    const val EXTRA_TRANSFER_JSON = "transfer_json"
+    const val EXTRA_TRANSFER_ID = "transfer_id"
     const val REQUEST_CODE = 9002
   }
 }

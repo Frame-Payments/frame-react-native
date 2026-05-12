@@ -8,7 +8,6 @@ import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
 import com.framepayments.framesdk.FrameNetworking
 import com.framepayments.framesdk_ui.FrameCheckoutView
-import com.google.gson.Gson
 
 class FrameCheckoutActivity : AppCompatActivity() {
 
@@ -27,12 +26,19 @@ class FrameCheckoutActivity : AppCompatActivity() {
     val accountId = intent.getStringExtra(EXTRA_ACCOUNT_ID)
     val amount = intent.getIntExtra(EXTRA_AMOUNT, 0)
 
+    // Bundled checkout always creates a Transfer, which requires an account.
+    if (accountId.isNullOrEmpty()) {
+      setResult(RESULT_CANCELED)
+      finish()
+      return
+    }
+
     // Evervault must be configured before FrameCheckoutView (EncryptedPaymentCardInput) can inflate.
     // configureEvervault() is async on first launch; direct checkout opens before it completes.
     tryShowCheckout(container, accountId, amount)
   }
 
-  private fun tryShowCheckout(container: FrameLayout, accountId: String?, amount: Int) {
+  private fun tryShowCheckout(container: FrameLayout, accountId: String, amount: Int) {
     if (FrameNetworking.isEvervaultConfigured) {
       addCheckoutView(container, accountId, amount)
       return
@@ -59,11 +65,10 @@ class FrameCheckoutActivity : AppCompatActivity() {
     handler.postDelayed(pollRunnable!!, 100)
   }
 
-  private fun addCheckoutView(container: FrameLayout, accountId: String?, amount: Int) {
+  private fun addCheckoutView(container: FrameLayout, accountId: String, amount: Int) {
     val checkoutView = FrameCheckoutView(this)
-    checkoutView.configure(accountId, amount) { transfer ->
-      val json = Gson().toJson(transfer)
-      setResult(RESULT_OK, Intent().putExtra(EXTRA_TRANSFER_JSON, json))
+    checkoutView.configure(accountId, amount) { transferId ->
+      setResult(RESULT_OK, Intent().putExtra(EXTRA_TRANSFER_ID, transferId))
       finish()
     }
     container.addView(checkoutView)
@@ -77,7 +82,7 @@ class FrameCheckoutActivity : AppCompatActivity() {
   companion object {
     const val EXTRA_ACCOUNT_ID = "account_id"
     const val EXTRA_AMOUNT = "amount"
-    const val EXTRA_TRANSFER_JSON = "transfer_json"
+    const val EXTRA_TRANSFER_ID = "transfer_id"
     const val REQUEST_CODE = 9001
   }
 }
