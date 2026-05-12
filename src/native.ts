@@ -4,7 +4,6 @@
 
 import { NativeModules, Platform } from 'react-native';
 import type {
-  ChargeIntent,
   FrameCartItem,
   FrameTheme,
   OnboardingCapability,
@@ -13,6 +12,17 @@ import type {
   PresentGooglePayOptions,
 } from './types';
 import { ErrorCodes } from './errors';
+
+/**
+ * Throw a coded error from synchronous JS validation. Mirrors the `code`/`message`
+ * shape that native rejections produce so consumers can catch `e.code === 'INVALID_*'`
+ * uniformly.
+ */
+function throwCoded(code: string, message: string): never {
+  const err = new Error(message) as Error & { code: string };
+  err.code = code;
+  throw err;
+}
 
 // theme is iOS-only today: frame-android does not yet have a matching theme API,
 // so the field is accepted on both platforms but ignored on Android until it does.
@@ -46,13 +56,13 @@ export function initialize(options: {
   theme?: FrameTheme;
 }): Promise<void> {
   if (!options?.secretKey) {
-    throw new Error('Frame.initialize requires secretKey');
+    throwCoded(ErrorCodes.INIT_FAILED, 'Frame.initialize requires secretKey');
   }
   if (!options?.publishableKey) {
-    throw new Error('Frame.initialize requires publishableKey');
+    throwCoded(ErrorCodes.INIT_FAILED, 'Frame.initialize requires publishableKey');
   }
   if (options.theme !== undefined && (typeof options.theme !== 'object' || Array.isArray(options.theme))) {
-    throw new Error('Frame.initialize: theme must be an object');
+    throwCoded(ErrorCodes.INIT_FAILED, 'Frame.initialize: theme must be an object');
   }
   return wrapPromise(
     FrameSDK.initialize(
@@ -88,25 +98,46 @@ function wrapPromise<T>(p: Promise<T>): Promise<T> {
   });
 }
 
+/**
+ * Presents the Frame checkout sheet for the given account. Resolves with the
+ * created Transfer's id string on success, or rejects with `USER_CANCELED` if
+ * the user dismisses the sheet.
+ *
+ * `accountId` is required: the bundled checkout creates a `Transfer`, which is
+ * account-scoped. Callers needing a customer/ChargeIntent flow should use
+ * `presentApplePay` / `presentGooglePay` directly with a customer owner.
+ */
 export function presentCheckout(options: {
-  customerId?: string | null;
+  accountId: string;
   amount: number;
-}): Promise<ChargeIntent> {
+}): Promise<string> {
   guardInitialized();
+  if (!options?.accountId) {
+    throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentCheckout requires accountId');
+  }
   return wrapPromise(
-    FrameSDK.presentCheckout(options.customerId ?? null, options.amount)
+    FrameSDK.presentCheckout(options.accountId, options.amount)
   );
 }
 
+/**
+ * Presents the Frame cart UI; tapping checkout routes through the same flow
+ * as `presentCheckout` and resolves with the created Transfer's id string.
+ *
+ * `accountId` is required for the same reason as `presentCheckout`.
+ */
 export function presentCart(options: {
-  customerId?: string | null;
+  accountId: string;
   items: FrameCartItem[];
   shippingAmountInCents: number;
-}): Promise<ChargeIntent> {
+}): Promise<string> {
   guardInitialized();
+  if (!options?.accountId) {
+    throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentCart requires accountId');
+  }
   return wrapPromise(
     FrameSDK.presentCart(
-      options.customerId ?? null,
+      options.accountId,
       options.items,
       options.shippingAmountInCents
     )
@@ -138,16 +169,24 @@ export function presentOnboarding(options: {
   );
 }
 
-export function presentApplePay(options: PresentApplePayOptions): Promise<ChargeIntent> {
+/**
+ * Presents the Apple Pay sheet and creates a charge from the resulting wallet
+ * payment method. Resolves with the created resource's id string on success,
+ * or rejects with `USER_CANCELED` if the sheet is dismissed.
+ *
+ *  - `owner.type === 'customer'` → creates a `ChargeIntent`; resolves with its id.
+ *  - `owner.type === 'account'`  → creates a `Transfer`;     resolves with its id.
+ */
+export function presentApplePay(options: PresentApplePayOptions): Promise<string> {
   guardInitialized();
   if (!options?.owner || (options.owner.type !== 'customer' && options.owner.type !== 'account')) {
-    throw new Error('Frame.presentApplePay requires owner: { type: "customer" | "account", id: string }');
+    throwCoded(ErrorCodes.INVALID_OWNER, 'Frame.presentApplePay requires owner: { type: "customer" | "account", id: string }');
   }
   if (!options.owner.id) {
-    throw new Error('Frame.presentApplePay requires owner.id');
+    throwCoded(ErrorCodes.INVALID_OWNER, 'Frame.presentApplePay requires owner.id');
   }
   if (!options.merchantId) {
-    throw new Error('Frame.presentApplePay requires merchantId');
+    throwCoded(ErrorCodes.INVALID_MERCHANT_ID, 'Frame.presentApplePay requires merchantId');
   }
   return wrapPromise(
     FrameSDK.presentApplePay(
@@ -160,15 +199,28 @@ export function presentApplePay(options: PresentApplePayOptions): Promise<Charge
   );
 }
 
-export function presentGooglePay(options: PresentGooglePayOptions): Promise<ChargeIntent> {
+/**
+ * Presents Google Pay and creates a charge from the resulting wallet payment method.
+ * Resolves with the created resource's id string on success.
+ *
+ *  - `owner.type === 'customer'` → creates a `ChargeIntent`; resolves with its id.
+ *  - `owner.type === 'account'`  → creates a `Transfer`;     resolves with its id.
+ */
+export function presentGooglePay(options: PresentGooglePayOptions): Promise<string> {
   guardInitialized();
+  if (!options?.owner || (options.owner.type !== 'customer' && options.owner.type !== 'account')) {
+    throwCoded(ErrorCodes.INVALID_OWNER, 'Frame.presentGooglePay requires owner: { type: "customer" | "account", id: string }');
+  }
+  if (!options.owner.id) {
+    throwCoded(ErrorCodes.INVALID_OWNER, 'Frame.presentGooglePay requires owner.id');
+  }
   return wrapPromise(
     FrameSDK.presentGooglePay(
       options.amountCents,
-      options.customerId ?? null,
+      options.owner.type,
+      options.owner.id,
       options.currencyCode ?? 'USD',
       options.googlePayMerchantId ?? null
     )
   );
 }
-

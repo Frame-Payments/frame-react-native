@@ -27,9 +27,6 @@ export {
 } from './native';
 export type {
   FrameCartItem,
-  ChargeIntent,
-  ChargeIntentStatus,
-  AuthorizationMode,
   FrameError,
   BillingAddress,
   PaymentCard,
@@ -38,6 +35,7 @@ export type {
   OnboardingCapability,
   OnboardingResult,
   OnboardingResultStatus,
+  WalletOwner,
   ApplePayOwner,
   PresentApplePayOptions,
   PresentGooglePayOptions,

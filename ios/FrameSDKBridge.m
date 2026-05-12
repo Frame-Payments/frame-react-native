@@ -32,12 +32,12 @@ RCT_EXTERN_METHOD(initialize:(NSString *)secretKey
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
-RCT_EXTERN_METHOD(presentCheckout:(id)customerId
+RCT_EXTERN_METHOD(presentCheckout:(id)accountId
                   amount:(nonnull NSNumber *)amount
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
-RCT_EXTERN_METHOD(presentCart:(id)customerId
+RCT_EXTERN_METHOD(presentCart:(id)accountId
                   items:(NSArray *)items
                   shippingAmountInCents:(nonnull NSNumber *)shippingAmountInCents
                   resolver:(RCTPromiseResolveBlock)resolve
@@ -72,26 +72,26 @@ RCT_EXTERN_METHOD(presentApplePay:(NSString *)ownerType
   [[[ObjCFrameSDKBridge alloc] init] initialize:secretKey publishableKey:publishableKey debugMode:debugMode theme:theme resolver:resolve rejecter:reject];
 }
 
-- (void)presentCheckout:(id)customerId amount:(NSNumber *)amount resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+- (void)presentCheckout:(id)accountId amount:(NSNumber *)amount resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
   dispatch_async(dispatch_get_main_queue(), ^{
     UIViewController *topVC = FrameGetTopViewController();
     if (!topVC) {
       reject(@"NO_ROOT_VC", @"Could not find root view controller to present checkout", nil);
       return;
     }
-    NSString *cId = [customerId isKindOfClass:[NSString class]] ? (NSString *)customerId : nil;
-    [[[ObjCFrameSDKBridge alloc] init] presentCheckoutFrom:topVC customerId:cId amount:amount.intValue resolver:resolve rejecter:reject];
+    NSString *aId = [accountId isKindOfClass:[NSString class]] ? (NSString *)accountId : nil;
+    [[[ObjCFrameSDKBridge alloc] init] presentCheckoutFrom:topVC accountId:aId amount:amount.intValue resolver:resolve rejecter:reject];
   });
 }
 
-- (void)presentCart:(id)customerId items:(NSArray *)items shippingAmountInCents:(NSNumber *)shippingAmountInCents resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+- (void)presentCart:(id)accountId items:(NSArray *)items shippingAmountInCents:(NSNumber *)shippingAmountInCents resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
   dispatch_async(dispatch_get_main_queue(), ^{
     UIViewController *topVC = FrameGetTopViewController();
     if (!topVC) {
       reject(@"NO_ROOT_VC", @"Could not find root view controller to present cart", nil);
       return;
     }
-    [[[ObjCFrameSDKBridge alloc] init] presentCartFrom:topVC customerId:customerId items:items shippingAmountInCents:shippingAmountInCents.integerValue resolver:resolve rejecter:reject];
+    [[[ObjCFrameSDKBridge alloc] init] presentCartFrom:topVC accountId:accountId items:items shippingAmountInCents:shippingAmountInCents.integerValue resolver:resolve rejecter:reject];
   });
 }
 

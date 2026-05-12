@@ -3,10 +3,14 @@
 //  FrameReactNative
 //
 //  Programmatic Apple Pay presentation for Frame.presentApplePay(). Wraps
-//  PKPaymentAuthorizationController + ApplePayAPI + ChargeIntentsAPI directly
-//  so we can detect the user-cancel path (PKPaymentAuthorizationController's
-//  didFinish fires for both success and cancel; the underlying SDK's view
-//  model only delivers success, so we re-implement that flow here).
+//  PKPaymentAuthorizationController + ApplePayAPI + (ChargeIntentsAPI | TransfersAPI)
+//  directly so we can detect the user-cancel path — PKPaymentAuthorizationController's
+//  didFinish fires for both success and cancel, and the underlying SDK's view
+//  model only delivers success, so we re-implement that flow here.
+//
+//  Supports both:
+//   - `.customer(id)` owner → creates a `ChargeIntent`; resolves with the ChargeIntent id.
+//   - `.account(id)`  owner → creates a `Transfer`;     resolves with the Transfer id.
 //
 
 import Foundation
@@ -16,9 +20,14 @@ import Frame
 @MainActor
 final class ApplePayPresenter: NSObject, PKPaymentAuthorizationControllerDelegate {
 
+  enum Owner {
+    case customer(String)
+    case account(String)
+  }
+
   private let amount: Int
   private let currency: String
-  private let owner: FrameApplePayViewModel.PaymentMethodOwner
+  private let owner: Owner
   private let merchantId: String
   private let resolve: (Any?) -> Void
   private let reject: (String, String, Error?) -> Void
@@ -36,7 +45,7 @@ final class ApplePayPresenter: NSObject, PKPaymentAuthorizationControllerDelegat
 
   init(amount: Int,
        currency: String,
-       owner: FrameApplePayViewModel.PaymentMethodOwner,
+       owner: Owner,
        merchantId: String,
        resolve: @escaping (Any?) -> Void,
        reject: @escaping (String, String, Error?) -> Void) {
@@ -80,6 +89,8 @@ final class ApplePayPresenter: NSObject, PKPaymentAuthorizationControllerDelegat
     didAuthorizePayment payment: PKPayment
   ) async -> PKPaymentAuthorizationResult {
     do {
+      // 1. Create the Frame PaymentMethod from the Apple Pay token, scoped to
+      //    whichever owner the caller asked for.
       let (paymentMethod, methodError): (FrameObjects.PaymentMethod?, NetworkingError?)
       switch owner {
       case .customer(let customerId):
@@ -97,27 +108,45 @@ final class ApplePayPresenter: NSObject, PKPaymentAuthorizationControllerDelegat
         return PKPaymentAuthorizationResult(status: .failure, errors: nil)
       }
 
-      let request: ChargeIntentsRequests.CreateChargeIntentRequest
+      // 2. Create the charge. Customer owners produce a ChargeIntent; account
+      //    owners produce a Transfer. Both surface the resulting id to JS — the
+      //    caller knows which resource the id refers to based on the owner.
       switch owner {
       case .customer(let customerId):
-        request = ChargeIntentsRequests.CreateChargeIntentRequest(
-          amount: amount, currency: currency, customer: customerId,
-          paymentMethod: paymentMethodId, confirm: true, authorizationMode: .automatic
+        let request = ChargeIntentsRequests.CreateChargeIntentRequest(
+          amount: amount,
+          currency: currency,
+          customer: customerId,
+          paymentMethod: paymentMethodId,
+          confirm: true,
+          authorizationMode: .automatic
         )
-      case .account(let accountId):
-        request = ChargeIntentsRequests.CreateChargeIntentRequest(
-          amount: amount, currency: currency, account: accountId,
-          paymentMethod: paymentMethodId, confirm: true, authorizationMode: .automatic
-        )
-      }
-      let (chargeIntent, chargeError) = try await ChargeIntentsAPI.createChargeIntent(request: request)
+        let (chargeIntent, chargeError) = try await ChargeIntentsAPI.createChargeIntent(request: request)
 
-      if let chargeIntent {
-        deliverSuccess(chargeIntent)
-        return PKPaymentAuthorizationResult(status: .success, errors: nil)
-      } else {
-        deliverFailure(code: "CHARGE_INTENT_FAILED", error: chargeError)
-        return PKPaymentAuthorizationResult(status: .failure, errors: nil)
+        if let chargeIntent {
+          deliverSuccess(id: chargeIntent.id)
+          return PKPaymentAuthorizationResult(status: .success, errors: nil)
+        } else {
+          deliverFailure(code: "PAYMENT_FAILED", error: chargeError)
+          return PKPaymentAuthorizationResult(status: .failure, errors: nil)
+        }
+
+      case .account(let accountId):
+        let request = TransferRequests.CreateTransferRequest(
+          amount: amount,
+          accountId: accountId,
+          currency: currency,
+          sourcePaymentMethodId: paymentMethodId
+        )
+        let (transfer, transferError) = try await TransfersAPI.createTransfer(request: request)
+
+        if let transfer {
+          deliverSuccess(id: transfer.id)
+          return PKPaymentAuthorizationResult(status: .success, errors: nil)
+        } else {
+          deliverFailure(code: "PAYMENT_FAILED", error: transferError)
+          return PKPaymentAuthorizationResult(status: .failure, errors: nil)
+        }
       }
     } catch {
       deliverFailure(code: "PAYMENT_FAILED", error: error)
@@ -136,14 +165,10 @@ final class ApplePayPresenter: NSObject, PKPaymentAuthorizationControllerDelegat
 
   // MARK: - Result delivery
 
-  private func deliverSuccess(_ intent: FrameObjects.ChargeIntent) {
+  private func deliverSuccess(id: String) {
     guard !didDeliverResult else { return }
     didDeliverResult = true
-    if let dict = FrameSDKBridge.encodeChargeIntent(intent) {
-      resolve(dict)
-    } else {
-      reject("ENCODE_ERROR", "Failed to encode charge intent", nil)
-    }
+    resolve(id)
   }
 
   private func deliverFailure(code: String, error: Error?) {
