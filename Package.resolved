@@ -23,8 +23,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Frame-Payments/frame-ios",
       "state" : {
-        "revision" : "399f678098668c5daf0f20a8297df0cad608abf8",
-        "version" : "2.2.0"
+        "revision" : "25efcc3672c6e4da3d40dc98ee84f2f77b6b8690",
+        "version" : "2.2.1"
       }
     },
     {
