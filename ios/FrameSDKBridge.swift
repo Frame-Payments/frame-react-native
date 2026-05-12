@@ -30,17 +30,17 @@ public class FrameSDKBridge: NSObject {
   }
 
   @objc public
-  func presentCheckout(from viewController: UIViewController, customerId: String?, amount: Int, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-    presentCheckoutOnMain(from: viewController, customerId: customerId, amount: amount, resolve: resolve, reject: reject)
+  func presentCheckout(from viewController: UIViewController, accountId: String?, amount: Int, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    presentCheckoutOnMain(from: viewController, accountId: accountId, amount: amount, resolve: resolve, reject: reject)
   }
 
   @objc public
-  func presentCart(from viewController: UIViewController, customerId: NSObject?, items: NSArray, shippingAmountInCents: Int, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+  func presentCart(from viewController: UIViewController, accountId: NSObject?, items: NSArray, shippingAmountInCents: Int, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     guard let cartItems = parseCartItems(items) else {
       reject("INVALID_ITEMS", "Invalid cart items array", nil)
       return
     }
-    presentCartOnMain(from: viewController, customerId: customerId as? String, cartItems: cartItems, shippingAmountInCents: shippingAmountInCents, resolve: resolve, reject: reject)
+    presentCartOnMain(from: viewController, accountId: accountId as? String, cartItems: cartItems, shippingAmountInCents: shippingAmountInCents, resolve: resolve, reject: reject)
   }
 
   @objc public
@@ -55,10 +55,10 @@ public class FrameSDKBridge: NSObject {
   func presentApplePay(_ ownerType: String, ownerId: String, amount: Int, currency: String, merchantId: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     DispatchQueue.main.async {
       Task { @MainActor in
-        let owner: FrameApplePayViewModel.PaymentMethodOwner
+        let owner: ApplePayPresenter.Owner
         switch ownerType {
         case "customer": owner = .customer(ownerId)
-        case "account": owner = .account(ownerId)
+        case "account":  owner = .account(ownerId)
         default:
           reject("INVALID_OWNER", "owner.type must be 'customer' or 'account'", nil)
           return
@@ -97,19 +97,19 @@ public class FrameSDKBridge: NSObject {
 
   // MARK: - Private helpers
 
-  private func presentCheckoutOnMain(from top: UIViewController, customerId: String?, amount: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+  private func presentCheckoutOnMain(from top: UIViewController, accountId: String?, amount: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     var hosting: CheckoutHostingController!
     hosting = CheckoutHostingController(rootView: FrameCheckoutView(
-      customerId: customerId,
+      accountId: accountId,
       paymentAmount: amount,
-      checkoutCallback: { [weak hosting] chargeIntent in
+      checkoutCallback: { [weak hosting] success, transferId in
         hosting?.didComplete = true
         top.dismiss(animated: true)
         DispatchQueue.main.async {
-          if let dict = Self.encodeChargeIntent(chargeIntent) {
-            resolve(dict)
+          if success, let transferId {
+            resolve(transferId)
           } else {
-            reject("ENCODE_ERROR", "Failed to encode charge intent", nil)
+            reject("PAYMENT_FAILED", "Checkout did not produce a transfer id", nil)
           }
         }
       }
@@ -126,11 +126,6 @@ public class FrameSDKBridge: NSObject {
     top.present(hosting, animated: true) {
       hosting.presentationController?.delegate = hosting
     }
-  }
-
-  internal static func encodeChargeIntent(_ intent: FrameObjects.ChargeIntent) -> [String: Any]? {
-    guard let data = try? JSONEncoder().encode(intent) else { return nil }
-    return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
   }
 
   private struct RNFrameCartItem: FrameCartItem {
@@ -163,19 +158,29 @@ public class FrameSDKBridge: NSObject {
     return result
   }
 
-  private func presentCartOnMain(from top: UIViewController, customerId: String?, cartItems: [RNFrameCartItem], shippingAmountInCents: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+  private func presentCartOnMain(from top: UIViewController, accountId: String?, cartItems: [RNFrameCartItem], shippingAmountInCents: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+    // Single dismiss delegate guards against double-resolve: the inner checkout
+    // calls `finish(.success)` with the transfer id; bare-dismiss (swipe-down
+    // without completing checkout) calls `finish(.cancel)`.
+    let delegate = CartDismissDelegate(resolve: resolve, reject: reject)
     let cartView = FrameCartView(
-      customer: nil,
+      accountId: accountId,
       cartItems: cartItems,
-      shippingAmountInCents: shippingAmountInCents
+      shippingAmountInCents: shippingAmountInCents,
+      checkoutCallback: { [weak top, delegate] success, transferId in
+        if success, let transferId {
+          delegate.finish(.success(transferId))
+        } else {
+          delegate.finish(.cancel)
+        }
+        top?.dismiss(animated: true)
+      }
     )
     let hosting = UIHostingController(rootView: cartView)
     hosting.modalPresentationStyle = UIModalPresentationStyle.pageSheet
     if let sheet = hosting.sheetPresentationController {
       sheet.detents = [UISheetPresentationController.Detent.large()]
     }
-    // When the sheet is dismissed (swipe or close), resolve. Note: FrameCartView does not expose ChargeIntent from nested checkout.
-    let delegate = CartDismissDelegate(resolve: resolve)
     objc_setAssociatedObject(hosting, &cartDismissKey, delegate, .OBJC_ASSOCIATION_RETAIN)
     top.present(hosting, animated: true) {
       hosting.presentationController?.delegate = delegate
@@ -254,12 +259,33 @@ private final class OnboardingHostingController<V: View>: UIHostingController<V>
 // MARK: - Delegates
 
 private final class CartDismissDelegate: NSObject, UIAdaptivePresentationControllerDelegate {
-  let resolve: RCTPromiseResolveBlock
-  init(resolve: @escaping RCTPromiseResolveBlock) { self.resolve = resolve }
-  func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
-    DispatchQueue.main.async { [resolve] in
-      resolve([String: Any]())
+  enum Outcome {
+    case success(String)
+    case cancel
+  }
+
+  private let resolve: RCTPromiseResolveBlock
+  private let reject: RCTPromiseRejectBlock
+  private var didFinish = false
+
+  init(resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+    self.resolve = resolve
+    self.reject = reject
+  }
+
+  func finish(_ outcome: Outcome) {
+    guard !didFinish else { return }
+    didFinish = true
+    DispatchQueue.main.async { [resolve, reject] in
+      switch outcome {
+      case .success(let transferId): resolve(transferId)
+      case .cancel: reject("USER_CANCELED", "User dismissed cart without completing checkout", nil)
+      }
     }
+  }
+
+  func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+    finish(.cancel)
   }
 }
 

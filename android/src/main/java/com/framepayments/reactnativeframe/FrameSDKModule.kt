@@ -50,7 +50,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
-  fun presentCheckout(customerId: String?, amount: Double, promise: Promise) {
+  fun presentCheckout(accountId: String?, amount: Double, promise: Promise) {
     val activity = reactApplicationContext.currentActivity ?: run {
       promise.reject("NO_ACTIVITY", "No current activity", null)
       return
@@ -58,7 +58,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     checkoutPromise = promise
     activity.runOnUiThread {
       val intent = Intent(activity, FrameCheckoutActivity::class.java).apply {
-        putExtra(FrameCheckoutActivity.EXTRA_CUSTOMER_ID, customerId)
+        putExtra(FrameCheckoutActivity.EXTRA_ACCOUNT_ID, accountId)
         putExtra(FrameCheckoutActivity.EXTRA_AMOUNT, amount.toInt())
       }
       activity.startActivityForResult(intent, FrameCheckoutActivity.REQUEST_CODE)
@@ -67,7 +67,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun presentCart(
-    customerId: String?,
+    accountId: String?,
     items: com.facebook.react.bridge.ReadableArray,
     shippingAmountInCents: Double,
     promise: Promise
@@ -83,7 +83,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     cartPromise = promise
     activity.runOnUiThread {
       val intent = Intent(activity, FrameFlowActivity::class.java).apply {
-        putExtra(FrameFlowActivity.EXTRA_CUSTOMER_ID, customerId)
+        putExtra(FrameFlowActivity.EXTRA_ACCOUNT_ID, accountId)
         putExtra(FrameFlowActivity.EXTRA_ITEMS_JSON, itemsJson)
         putExtra(FrameFlowActivity.EXTRA_SHIPPING_CENTS, shippingAmountInCents.toInt())
       }
@@ -94,7 +94,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun presentGooglePay(
     amountCents: Double,
-    customerId: String?,
+    accountId: String?,
     currencyCode: String?,
     googlePayMerchantId: String?,
     promise: Promise
@@ -108,6 +108,10 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       promise.reject("INVALID_AMOUNT", "amountCents must be positive", null)
       return
     }
+    if (accountId.isNullOrEmpty()) {
+      promise.reject("INVALID_ACCOUNT", "accountId is required", null)
+      return
+    }
     googlePayPromise = promise
     pendingGooglePayCallback = { resultCode, data ->
       handleGooglePayResult(resultCode, data)
@@ -115,7 +119,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     activity.runOnUiThread {
       val intent = Intent(activity, FrameGooglePayActivity::class.java).apply {
         putExtra(FrameGooglePayActivity.EXTRA_AMOUNT_CENTS, amountInt)
-        putExtra(FrameGooglePayActivity.EXTRA_CUSTOMER_ID, customerId)
+        putExtra(FrameGooglePayActivity.EXTRA_ACCOUNT_ID, accountId)
         putExtra(FrameGooglePayActivity.EXTRA_CURRENCY, currencyCode ?: "USD")
         putExtra(FrameGooglePayActivity.EXTRA_MERCHANT_ID, googlePayMerchantId)
       }
@@ -182,17 +186,20 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     val promise = checkoutPromise ?: return
     checkoutPromise = null
     if (resultCode == Activity.RESULT_OK && data != null) {
-      val json = data.getStringExtra(FrameCheckoutActivity.EXTRA_CHARGE_INTENT_JSON)
+      val json = data.getStringExtra(FrameCheckoutActivity.EXTRA_TRANSFER_JSON)
       if (json != null) {
         try {
-          val obj = JSONObject(json)
-          val map = jsonObjectToWritableMap(obj)
-          promise.resolve(map)
+          val id = JSONObject(json).optString("id")
+          if (id.isNullOrEmpty()) {
+            promise.reject("NO_RESULT", "Transfer returned without an id", null)
+          } else {
+            promise.resolve(id)
+          }
         } catch (e: Exception) {
           promise.reject("PARSE_ERROR", e.message, e)
         }
       } else {
-        promise.reject("NO_RESULT", "No charge intent in result", null)
+        promise.reject("NO_RESULT", "No transfer in result", null)
       }
     } else {
       promise.reject("USER_CANCELED", "User cancelled checkout", null)
@@ -203,17 +210,20 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     val promise = cartPromise ?: return
     cartPromise = null
     if (resultCode == Activity.RESULT_OK && data != null) {
-      val json = data.getStringExtra(FrameFlowActivity.EXTRA_CHARGE_INTENT_JSON)
+      val json = data.getStringExtra(FrameFlowActivity.EXTRA_TRANSFER_JSON)
       if (json != null) {
         try {
-          val obj = JSONObject(json)
-          val map = jsonObjectToWritableMap(obj)
-          promise.resolve(map)
+          val id = JSONObject(json).optString("id")
+          if (id.isNullOrEmpty()) {
+            promise.reject("NO_RESULT", "Transfer returned without an id", null)
+          } else {
+            promise.resolve(id)
+          }
         } catch (e: Exception) {
           promise.reject("PARSE_ERROR", e.message, e)
         }
       } else {
-        promise.reject("NO_RESULT", "No charge intent in result", null)
+        promise.reject("NO_RESULT", "No transfer in result", null)
       }
     } else {
       promise.reject("USER_CANCELED", "User cancelled", null)
@@ -225,16 +235,20 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     googlePayPromise = null
     when (resultCode) {
       Activity.RESULT_OK -> {
-        val json = data?.getStringExtra(FrameGooglePayActivity.EXTRA_CHARGE_INTENT_JSON)
+        val json = data?.getStringExtra(FrameGooglePayActivity.EXTRA_TRANSFER_JSON)
         if (json != null) {
           try {
-            val map = jsonObjectToWritableMap(JSONObject(json))
-            promise.resolve(map)
+            val id = JSONObject(json).optString("id")
+            if (id.isNullOrEmpty()) {
+              promise.reject("NO_RESULT", "Transfer returned without an id", null)
+            } else {
+              promise.resolve(id)
+            }
           } catch (e: Exception) {
             promise.reject("PARSE_ERROR", e.message, e)
           }
         } else {
-          promise.reject("NO_RESULT", "No charge intent in result", null)
+          promise.reject("NO_RESULT", "No transfer in result", null)
         }
       }
       FrameGooglePayActivity.RESULT_FAILURE -> {

@@ -91,8 +91,8 @@ export default function App() {
   const handleCheckout = async () => {
     setLoading('checkout');
     try {
-      const intent = await Frame.presentCheckout({ amount: 15000 });
-      Alert.alert('Success', `Charge intent: ${intent?.id ?? 'created'}`);
+      const transferId = await Frame.presentCheckout({ amount: 15000 });
+      Alert.alert('Success', `Transfer: ${transferId}`);
     } catch (e: any) {
       if (e.code === 'USER_CANCELED') return;
       Alert.alert('Error', e.message ?? String(e));
@@ -104,11 +104,11 @@ export default function App() {
   const handleCart = async () => {
     setLoading('cart');
     try {
-      const intent = await Frame.presentCart({
+      const transferId = await Frame.presentCart({
         items: sampleCartItems,
         shippingAmountInCents: 4000,
       });
-      Alert.alert('Success', intent?.id ? `Charge intent: ${intent.id}` : 'Cart flow completed');
+      Alert.alert('Success', transferId ? `Transfer: ${transferId}` : 'Cart flow completed');
     } catch (e: any) {
       if (e.code === 'USER_CANCELED') return;
       Alert.alert('Error', e.message ?? String(e));
@@ -120,13 +120,15 @@ export default function App() {
   const handleApplePay = async () => {
     setLoading('applePay');
     try {
-      const intent = await Frame.presentApplePay({
+      // Switch `owner.type` to 'customer' to create a ChargeIntent against a customer
+      // instead of a Transfer against an account. The resolved id type matches the owner.
+      const chargeId = await Frame.presentApplePay({
         amount: 100,
         currency: 'usd',
-        owner: { type: 'customer', id: DEMO_CUSTOMER_ID },
+        owner: { type: 'account', id: DEMO_ACCOUNT_ID },
         merchantId: APPLE_PAY_MERCHANT_ID,
       });
-      Alert.alert('Apple Pay', `Charge intent: ${intent?.id ?? 'created'}`);
+      Alert.alert('Apple Pay', `Charge id: ${chargeId}`);
     } catch (e: any) {
       if (e.code === 'USER_CANCELED') return;
       Alert.alert('Apple Pay error', e.message ?? String(e));
@@ -138,12 +140,12 @@ export default function App() {
   const handleGooglePay = async () => {
     setLoading('googlePay');
     try {
-      const intent = await Frame.presentGooglePay({
+      const transferId = await Frame.presentGooglePay({
         amountCents: 100,
         currencyCode: 'USD',
-        customerId: DEMO_CUSTOMER_ID,
+        accountId: DEMO_ACCOUNT_ID,
       });
-      Alert.alert('Google Pay', `Charge intent: ${intent?.id ?? 'created'}`);
+      Alert.alert('Google Pay', `Transfer: ${transferId}`);
     } catch (e: any) {
       if (e.code === 'USER_CANCELED') return;
       Alert.alert('Google Pay error', e.message ?? String(e));
@@ -156,6 +158,7 @@ export default function App() {
     setLoading('onboarding');
     try {
       const result = await Frame.presentOnboarding({
+        accountId: '572c840d-d7c6-49ed-a92a-08ea8e61a8cf',
         capabilities: ['kyc', 'kyc_prefill', 'age_verification', 'phone_verification', 'card_verification', 'bank_account_verification'],
       });
       Alert.alert(

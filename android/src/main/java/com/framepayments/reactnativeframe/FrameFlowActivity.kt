@@ -27,11 +27,11 @@ class FrameFlowActivity : AppCompatActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     setContentView(container)
-    val customerId = intent.getStringExtra(EXTRA_CUSTOMER_ID)
+    val accountId = intent.getStringExtra(EXTRA_ACCOUNT_ID)
     val itemsJson = intent.getStringExtra(EXTRA_ITEMS_JSON)
     val shippingCents = intent.getIntExtra(EXTRA_SHIPPING_CENTS, 0)
     val items: List<FrameCartItem> = parseCartItems(itemsJson) ?: emptyList()
-    showCart(customerId, items, shippingCents)
+    showCart(accountId, items, shippingCents)
   }
 
   private fun parseCartItems(json: String?): List<FrameCartItem>? {
@@ -52,22 +52,22 @@ class FrameFlowActivity : AppCompatActivity() {
     val imageUrl: String
   )
 
-  private fun showCart(customerId: String?, items: List<FrameCartItem>, shippingCents: Int) {
+  private fun showCart(accountId: String?, items: List<FrameCartItem>, shippingCents: Int) {
     container.removeAllViews()
     cartView = FrameCartView(this).apply {
-      configure(customerId, items, shippingCents, { totalCents ->
-        showCheckout(customerId, totalCents)
+      configure(accountId, items, shippingCents, { totalCents ->
+        showCheckout(accountId, totalCents)
       }, null)
     }
     container.addView(cartView)
   }
 
-  private fun showCheckout(customerId: String?, amount: Int) {
+  private fun showCheckout(accountId: String?, amount: Int) {
     container.removeAllViews()
     checkoutView = FrameCheckoutView(this).apply {
-      configure(customerId, amount) { chargeIntent ->
-        val json = Gson().toJson(chargeIntent)
-        setResult(RESULT_OK, Intent().putExtra(EXTRA_CHARGE_INTENT_JSON, json))
+      configure(accountId, amount) { transfer ->
+        val json = Gson().toJson(transfer)
+        setResult(RESULT_OK, Intent().putExtra(EXTRA_TRANSFER_JSON, json))
         finish()
       }
     }
@@ -75,10 +75,10 @@ class FrameFlowActivity : AppCompatActivity() {
   }
 
   companion object {
-    const val EXTRA_CUSTOMER_ID = "customer_id"
+    const val EXTRA_ACCOUNT_ID = "account_id"
     const val EXTRA_ITEMS_JSON = "items_json"
     const val EXTRA_SHIPPING_CENTS = "shipping_cents"
-    const val EXTRA_CHARGE_INTENT_JSON = "charge_intent_json"
+    const val EXTRA_TRANSFER_JSON = "transfer_json"
     const val REQUEST_CODE = 9002
   }
 }

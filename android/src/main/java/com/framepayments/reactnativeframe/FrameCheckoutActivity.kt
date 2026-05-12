@@ -7,7 +7,6 @@ import android.os.Looper
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
 import com.framepayments.framesdk.FrameNetworking
-import com.framepayments.framesdk.chargeintents.ChargeIntent
 import com.framepayments.framesdk_ui.FrameCheckoutView
 import com.google.gson.Gson
 
@@ -25,17 +24,17 @@ class FrameCheckoutActivity : AppCompatActivity() {
       )
     }
     setContentView(container)
-    val customerId = intent.getStringExtra(EXTRA_CUSTOMER_ID)
+    val accountId = intent.getStringExtra(EXTRA_ACCOUNT_ID)
     val amount = intent.getIntExtra(EXTRA_AMOUNT, 0)
 
     // Evervault must be configured before FrameCheckoutView (EncryptedPaymentCardInput) can inflate.
     // configureEvervault() is async on first launch; direct checkout opens before it completes.
-    tryShowCheckout(container, customerId, amount)
+    tryShowCheckout(container, accountId, amount)
   }
 
-  private fun tryShowCheckout(container: FrameLayout, customerId: String?, amount: Int) {
+  private fun tryShowCheckout(container: FrameLayout, accountId: String?, amount: Int) {
     if (FrameNetworking.isEvervaultConfigured) {
-      addCheckoutView(container, customerId, amount)
+      addCheckoutView(container, accountId, amount)
       return
     }
     var attempts = 0
@@ -44,7 +43,7 @@ class FrameCheckoutActivity : AppCompatActivity() {
       override fun run() {
         if (isFinishing) return
         if (FrameNetworking.isEvervaultConfigured) {
-          addCheckoutView(container, customerId, amount)
+          addCheckoutView(container, accountId, amount)
           pollRunnable = null
           return
         }
@@ -60,11 +59,11 @@ class FrameCheckoutActivity : AppCompatActivity() {
     handler.postDelayed(pollRunnable!!, 100)
   }
 
-  private fun addCheckoutView(container: FrameLayout, customerId: String?, amount: Int) {
+  private fun addCheckoutView(container: FrameLayout, accountId: String?, amount: Int) {
     val checkoutView = FrameCheckoutView(this)
-    checkoutView.configure(customerId, amount) { chargeIntent ->
-      val json = Gson().toJson(chargeIntent)
-      setResult(RESULT_OK, Intent().putExtra(EXTRA_CHARGE_INTENT_JSON, json))
+    checkoutView.configure(accountId, amount) { transfer ->
+      val json = Gson().toJson(transfer)
+      setResult(RESULT_OK, Intent().putExtra(EXTRA_TRANSFER_JSON, json))
       finish()
     }
     container.addView(checkoutView)
@@ -76,9 +75,9 @@ class FrameCheckoutActivity : AppCompatActivity() {
   }
 
   companion object {
-    const val EXTRA_CUSTOMER_ID = "customer_id"
+    const val EXTRA_ACCOUNT_ID = "account_id"
     const val EXTRA_AMOUNT = "amount"
-    const val EXTRA_CHARGE_INTENT_JSON = "charge_intent_json"
+    const val EXTRA_TRANSFER_JSON = "transfer_json"
     const val REQUEST_CODE = 9001
   }
 }

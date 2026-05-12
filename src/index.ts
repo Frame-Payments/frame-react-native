@@ -27,9 +27,6 @@ export {
 } from './native';
 export type {
   FrameCartItem,
-  ChargeIntent,
-  ChargeIntentStatus,
-  AuthorizationMode,
   FrameError,
   BillingAddress,
   PaymentCard,
