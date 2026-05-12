@@ -250,12 +250,8 @@ private final class CheckoutHostingController: UIHostingController<FrameCheckout
     onCancel?()
   }
 
-  override func viewDidDisappear(_ animated: Bool) {
-    super.viewDidDisappear(animated)
-    cancel()
-  }
-
   func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+    guard presentationController.presentedViewController === self else { return }
     cancel()
   }
 }
