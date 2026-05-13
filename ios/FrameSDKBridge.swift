@@ -110,8 +110,7 @@ public class FrameSDKBridge: NSObject {
     hosting = CheckoutHostingController(rootView: FrameCheckoutView(
       accountId: accountId,
       paymentAmount: amount,
-      checkoutCallback: { [weak hosting] success, transferId in
-        hosting?.didComplete = true
+      checkoutCallback: { success, transferId in
         top.dismiss(animated: true)
         DispatchQueue.main.async {
           if success, let transferId {
@@ -122,11 +121,6 @@ public class FrameSDKBridge: NSObject {
         }
       }
     ))
-    hosting.onCancel = {
-      DispatchQueue.main.async {
-        reject("USER_CANCELED", "User dismissed checkout without completing payment", nil)
-      }
-    }
     hosting.modalPresentationStyle = UIModalPresentationStyle.pageSheet
     if let sheet = hosting.sheetPresentationController {
       sheet.detents = [UISheetPresentationController.Detent.large()]
@@ -248,11 +242,6 @@ private final class CheckoutHostingController: UIHostingController<FrameCheckout
     guard !didComplete, !cancelled else { return }
     cancelled = true
     onCancel?()
-  }
-
-  func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
-    guard presentationController.presentedViewController === self else { return }
-    cancel()
   }
 }
 
