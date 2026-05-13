@@ -63,6 +63,7 @@ class FrameFlowActivity : AppCompatActivity() {
   private fun showCart(accountId: String, items: List<FrameCartItem>, shippingCents: Int) {
     container.removeAllViews()
     cartView = FrameCartView(this).apply {
+      FrameRNTheme.current?.let { setTheme(it) }
       configure(accountId, items, shippingCents, { totalCents ->
         showCheckout(accountId, totalCents)
       }, null)
@@ -73,6 +74,7 @@ class FrameFlowActivity : AppCompatActivity() {
   private fun showCheckout(accountId: String, amount: Int) {
     container.removeAllViews()
     checkoutView = FrameCheckoutView(this).apply {
+      FrameRNTheme.current?.let { setTheme(it) }
       configure(accountId, amount) { transferId ->
         setResult(RESULT_OK, Intent().putExtra(EXTRA_TRANSFER_ID, transferId))
         finish()

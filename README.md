@@ -332,11 +332,11 @@ On non-Android platforms `Frame.presentGooglePay` rejects synchronously with a n
 
 ---
 
-### Theming (iOS)
+### Theming
 
-Customizes colors, fonts, and corner radii on Frame's reusable components — checkout, cart, and the onboarding flow. Backed by `FrameTheme` introduced in Frame-iOS 2.1.2.
+Customizes colors, fonts, and corner radii on Frame's reusable components — checkout, cart, and the onboarding flow. Supported on iOS (`FrameTheme` in Frame-iOS 2.1.2+) and Android (`FrameTheme` in frame-android 2.0.7+).
 
-Pass an optional `theme` to `Frame.initialize`. It's stored on `FrameNetworking.shared` and read by every Frame view at present time, so all subsequent `present*` calls render with it. Modals already on screen are not re-themed if the theme is changed mid-flow. Omit the field, or pass `{}`, to use SDK defaults; pass a partial dict to override only specific tokens.
+Pass an optional `theme` to `Frame.initialize`. On iOS it's stored on `FrameNetworking.shared`; on Android it's stashed in the bridge and applied per-screen on each subsequent `present*` call. Modals already on screen are not re-themed if the theme is changed mid-flow. Omit the field, or pass `{}`, to use SDK defaults; pass a partial dict to override only specific tokens.
 
 ```ts
 import Frame from 'framepayments-react-native';
@@ -362,8 +362,6 @@ await Frame.initialize({
 });
 ```
 
-**Android**: the `theme` field is accepted for cross-platform parity but currently has no effect — `frame-android` does not yet have a matching theme API.
-
 #### Tokens
 
 **Colors** — hex strings (`#RGB`, `#RRGGBB`, or `#RRGGBBAA`, with or without leading `#`):
@@ -379,7 +377,7 @@ await Frame.initialize({
 | `onboardingHeaderBackground` | Onboarding header bar |
 | `onboardingProgressFilledOnBrand` / `onboardingProgressEmptyOnBrand` | Onboarding progress indicator |
 
-**Fonts** — `{ name: string; size: number }` objects. `name` must match a PostScript font name registered in your app's `Info.plist` (`UIAppFonts`) and bundled as a resource. Use `name: 'system'` for the system font.
+**Fonts** — `{ name: string; size: number }` objects. `name` resolves to a PostScript font on iOS and to an asset filename on Android (see [Custom fonts](#custom-fonts) below). Use `name: 'system'` for the platform default.
 
 | Key | Default | Used by |
 |-----|---------|---------|
@@ -402,10 +400,10 @@ await Frame.initialize({
 
 #### Custom fonts
 
-Custom fonts are passed through to SwiftUI's `Font.custom(name:size:)`. Two requirements on the host iOS app:
+**iOS** — `name` is passed to SwiftUI's `Font.custom(name:size:)`. The host app must:
 
-1. Add the font file to your app's bundle (Xcode → Build Phases → Copy Bundle Resources).
-2. Register it in your app's `Info.plist`:
+1. Add the font file to the app bundle (Xcode → Build Phases → Copy Bundle Resources).
+2. Register it in `Info.plist`:
    ```xml
    <key>UIAppFonts</key>
    <array>
@@ -413,7 +411,13 @@ Custom fonts are passed through to SwiftUI's `Font.custom(name:size:)`. Two requ
    </array>
    ```
 
-If a font name doesn't resolve, iOS silently falls back to the system font.
+`name` must match the font's PostScript name.
+
+**Android** — `name` is looked up under `android/app/src/main/assets/fonts/`. The resolver tries `<name>`, `<name>.ttf`, then `<name>.otf` in order.
+
+If you already use `react-native.config.js` with `assets: ['./assets/fonts/']`, the RN bundler copies the same files iOS uses into the Android assets directory, so a JS `name` of `Inter-Bold` works on both platforms.
+
+If a font name doesn't resolve on either platform, the SDK silently falls back to the system font.
 
 ---
 

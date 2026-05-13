@@ -69,7 +69,7 @@ export default function App() {
       secretKey: FRAME_SECRET_KEY,
       publishableKey: FRAME_PUBLISHABLE_KEY,
       debugMode: __DEV__,
-      // theme is iOS-only today; uncomment to exercise the FrameTheme tokens.
+      // Uncomment to exercise the FrameTheme tokens (iOS + Android).
       // theme: {
       //   colors: {
       //     primaryButton: '#FF0066',

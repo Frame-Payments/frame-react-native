@@ -67,6 +67,7 @@ class FrameCheckoutActivity : AppCompatActivity() {
 
   private fun addCheckoutView(container: FrameLayout, accountId: String, amount: Int) {
     val checkoutView = FrameCheckoutView(this)
+    FrameRNTheme.current?.let { checkoutView.setTheme(it) }
     checkoutView.configure(accountId, amount) { transferId ->
       setResult(RESULT_OK, Intent().putExtra(EXTRA_TRANSFER_ID, transferId))
       finish()

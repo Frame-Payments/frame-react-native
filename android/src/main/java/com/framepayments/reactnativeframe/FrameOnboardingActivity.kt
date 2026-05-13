@@ -8,6 +8,7 @@ import com.framepayments.frameonboarding.classes.Capabilities
 import com.framepayments.frameonboarding.classes.OnboardingConfig
 import com.framepayments.frameonboarding.classes.OnboardingResult
 import com.framepayments.frameonboarding.views.OnboardingContainerView
+import com.framepayments.framesdk_ui.theme.FrameTheme
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
@@ -26,23 +27,27 @@ class FrameOnboardingActivity : ComponentActivity() {
       googlePayMerchantId = googlePayMerchantId
     )
 
+    val themeOverride = FrameRNTheme.current
     setContent {
-      OnboardingContainerView(config = config) { result ->
-        when (result) {
-          is OnboardingResult.Completed -> {
-            val data = Intent().apply {
-              putExtra(EXTRA_PAYMENT_METHOD_ID, result.paymentMethodId)
+      val theme = themeOverride ?: FrameTheme.default(this)
+      FrameTheme(theme = theme) {
+        OnboardingContainerView(config = config) { result ->
+          when (result) {
+            is OnboardingResult.Completed -> {
+              val data = Intent().apply {
+                putExtra(EXTRA_PAYMENT_METHOD_ID, result.paymentMethodId)
+              }
+              setResult(RESULT_OK, data)
+              finish()
             }
-            setResult(RESULT_OK, data)
-            finish()
-          }
-          is OnboardingResult.Cancelled -> {
-            setResult(RESULT_CANCELED)
-            finish()
-          }
-          is OnboardingResult.Error -> {
-            setResult(RESULT_CANCELED)
-            finish()
+            is OnboardingResult.Cancelled -> {
+              setResult(RESULT_CANCELED)
+              finish()
+            }
+            is OnboardingResult.Error -> {
+              setResult(RESULT_CANCELED)
+              finish()
+            }
           }
         }
       }
