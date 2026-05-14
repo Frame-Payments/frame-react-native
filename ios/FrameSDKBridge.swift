@@ -106,27 +106,30 @@ public class FrameSDKBridge: NSObject {
   // MARK: - Private helpers
 
   private func presentCheckoutOnMain(from top: UIViewController, accountId: String, amount: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    var hosting: CheckoutHostingController!
-    hosting = CheckoutHostingController(rootView: FrameCheckoutView(
+    // Single dismiss delegate guards against double-resolve: the inner checkout
+    // calls `finish(.success)` with the transfer id; bare-dismiss (swipe-down
+    // without completing checkout) calls `finish(.cancel)`.
+    let delegate = CheckoutDismissDelegate(resolve: resolve, reject: reject)
+    let checkoutView = FrameCheckoutView(
       accountId: accountId,
       paymentAmount: amount,
-      checkoutCallback: { success, transferId in
-        top.dismiss(animated: true)
-        DispatchQueue.main.async {
-          if success, let transferId {
-            resolve(transferId)
-          } else {
-            reject("PAYMENT_FAILED", "Checkout did not produce a transfer id", nil)
-          }
+      checkoutCallback: { [weak top, delegate] success, transferId in
+        if success, let transferId {
+          delegate.finish(.success(transferId))
+        } else {
+          delegate.finish(.failure)
         }
+        top?.dismiss(animated: true)
       }
-    ))
+    )
+    let hosting = UIHostingController(rootView: checkoutView)
     hosting.modalPresentationStyle = UIModalPresentationStyle.pageSheet
     if let sheet = hosting.sheetPresentationController {
       sheet.detents = [UISheetPresentationController.Detent.large()]
     }
+    objc_setAssociatedObject(hosting, &checkoutDismissKey, delegate, .OBJC_ASSOCIATION_RETAIN)
     top.present(hosting, animated: true) {
-      hosting.presentationController?.delegate = hosting
+      hosting.presentationController?.delegate = delegate
     }
   }
 
@@ -231,25 +234,44 @@ public class FrameSDKBridge: NSObject {
   }
 }
 
-// MARK: - CheckoutHostingController
-
-private final class CheckoutHostingController: UIHostingController<FrameCheckoutView>, UIAdaptivePresentationControllerDelegate {
-  var didComplete = false
-  var onCancel: (() -> Void)?
-  private var cancelled = false
-
-  func cancel() {
-    guard !didComplete, !cancelled else { return }
-    cancelled = true
-    onCancel?()
-  }
-}
-
 // MARK: - OnboardingHostingController
 
 private final class OnboardingHostingController<V: View>: UIHostingController<V> {}
 
 // MARK: - Delegates
+
+private final class CheckoutDismissDelegate: NSObject, UIAdaptivePresentationControllerDelegate {
+  enum Outcome {
+    case success(String)
+    case failure
+    case cancel
+  }
+
+  private let resolve: RCTPromiseResolveBlock
+  private let reject: RCTPromiseRejectBlock
+  private var didFinish = false
+
+  init(resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+    self.resolve = resolve
+    self.reject = reject
+  }
+
+  func finish(_ outcome: Outcome) {
+    guard !didFinish else { return }
+    didFinish = true
+    DispatchQueue.main.async { [resolve, reject] in
+      switch outcome {
+      case .success(let transferId): resolve(transferId)
+      case .failure: reject("PAYMENT_FAILED", "Checkout did not produce a transfer id", nil)
+      case .cancel: reject("USER_CANCELED", "User dismissed checkout without completing payment", nil)
+      }
+    }
+  }
+
+  func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+    finish(.cancel)
+  }
+}
 
 private final class CartDismissDelegate: NSObject, UIAdaptivePresentationControllerDelegate {
   enum Outcome {
@@ -308,5 +330,6 @@ private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationC
   }
 }
 
+private var checkoutDismissKey: UInt8 = 0
 private var cartDismissKey: UInt8 = 0
 private var onboardingDismissKey: UInt8 = 0

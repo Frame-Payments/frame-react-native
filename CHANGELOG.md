@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-05-14
+
+### Breaking
+
+- **React Native floor raised to 0.81**. The iOS autolinking path uses RN's
+  `spm_dependency` Podfile hook, which stabilized in 0.81.
+
+### Added
+
+- **True iOS autolinking.** `pod install` now resolves Frame-iOS + Frame-Onboarding
+  automatically via RN's SPM hook. The manual Xcode "File → Add Package
+  Dependencies" step is gone — installation is just `npm install` + `pod install`.
+- **Single source of truth for native SDK versions.** Bump frame-android by
+  editing one field (`package.json:frameNativeVersions.android`); the podspec
+  and `build.gradle` both read it. Frame-iOS still needs a paired bump in
+  `Package.swift` (SPM manifests can't read JSON).
+- JS-side `Platform.OS` guards on `presentApplePay` (iOS-only) and `presentGooglePay`
+  (Android-only). Both throw `PLATFORM_UNSUPPORTED` if called on the wrong platform.
+
+### Changed
+
+- Frame-iOS floor: 2.2.2.
+- Frame-Android: 2.0.7 → 2.0.8.
+
+### Fixed
+
+- iOS: `presentCheckout` Promise no longer hangs when the user swipes the sheet
+  away without completing payment. Replaced the half-finished
+  `CheckoutHostingController` (which conformed to
+  `UIAdaptivePresentationControllerDelegate` but never implemented
+  `presentationControllerDidDismiss`) with a `CheckoutDismissDelegate` matching
+  the shape `presentCart` already uses — completion resolves with the transfer
+  id, swipe-down rejects with `USER_CANCELED`, double-resolution is guarded by
+  a `didFinish` flag.
+
 ## [2.1.1] - 2026-05-09
 
 ### Fixed

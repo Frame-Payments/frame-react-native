@@ -224,6 +224,11 @@ describe('presentApplePay', () => {
 });
 
 describe('presentGooglePay', () => {
+  beforeEach(() => {
+    // presentGooglePay is Android-only; tests run on Android except where noted.
+    mockPlatform.OS = 'android';
+  });
+
   it('throws NOT_INITIALIZED if initialize was not called', async () => {
     try {
       await presentGooglePay({ amountCents: 100, owner: { type: 'account', id: 'acct_1' } });

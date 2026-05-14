@@ -4,7 +4,7 @@ React Native SDK for [Frame Payments](https://framepayments.com). Bridges the na
 
 ## Requirements
 
-- React Native >= 0.74
+- React Native >= 0.81 (autolinking on iOS depends on RN's `spm_dependency` Podfile hook, which stabilized in 0.81)
 - iOS 17+ / Android 8.0+ (API 26+)
 - A [Frame](https://framepayments.com) account and API key
 
@@ -18,19 +18,13 @@ yarn add framepayments-react-native
 
 ### iOS setup
 
-#### 1. Add the Frame iOS SDK via Swift Package Manager
-
-The React Native SDK's native layer depends on the Frame iOS SDK, which must be added manually via SPM — CocoaPods cannot pull it in automatically.
-
-In Xcode: **File → Add Package Dependencies**, enter:
-
-```
-https://github.com/Frame-Payments/frame-ios
+```bash
+cd ios && pod install && cd ..
 ```
 
-Add the **Frame-iOS** package and select the version you need.
+That's it. `pod install` autolinks the React Native bridge **and** resolves the underlying Frame iOS SDK (Frame-iOS + Frame-Onboarding) via Swift Package Manager — no Xcode "Add Package Dependencies" step required.
 
-#### 2. Preload Frame on the main thread
+#### Preload Frame on the main thread
 
 Add this to your `AppDelegate.m` or `AppDelegate.mm` **before** `[super application:didFinishLaunchingWithOptions:]`:
 
@@ -48,15 +42,11 @@ This prevents the **"Helpers are not supported by the default hub"** crash, whic
 
 > If your app module name isn't the default (i.e., not matching the generated `-Swift.h` header), set `FRAME_SWIFT_HEADER=YourApp-Swift.h` in your target's **Preprocessor Macros** in Xcode build settings.
 
-#### 3. Install pods
-
-```bash
-cd ios && pod install && cd ..
-```
+> Using Swift Package Manager directly instead of CocoaPods? The package's `Package.swift` resolves `frame-ios` transitively, so just add `framepayments-react-native` via **File → Add Package Dependencies** in Xcode.
 
 ### Android setup
 
-No extra steps required. Autolinking handles the native module automatically.
+No extra steps required. Autolinking handles the native module automatically and pulls in `com.framepayments:framesdk*` from Maven Central.
 
 ---
 
