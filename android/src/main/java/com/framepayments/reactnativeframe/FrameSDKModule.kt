@@ -7,9 +7,10 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.bridge.ReadableArray
+import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableNativeMap
 import com.framepayments.framesdk.FrameNetworking
-import org.json.JSONObject
 
 class FrameSDKModule(reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext), ActivityEventListener {
@@ -35,7 +36,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     secretKey: String,
     publishableKey: String,
     debugMode: Boolean,
-    theme: com.facebook.react.bridge.ReadableMap?,
+    theme: ReadableMap?,
     promise: Promise
   ) {
     try {
@@ -69,7 +70,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun presentCart(
     accountId: String?,
-    items: com.facebook.react.bridge.ReadableArray,
+    items: ReadableArray,
     shippingAmountInCents: Double,
     promise: Promise
   ) {
@@ -137,7 +138,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun presentOnboarding(
     accountId: String?,
-    capabilities: com.facebook.react.bridge.ReadableArray,
+    capabilities: ReadableArray,
     googlePayMerchantId: String?,
     promise: Promise
   ) {
@@ -157,7 +158,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     }
   }
 
-  private fun readableArrayToJson(items: com.facebook.react.bridge.ReadableArray): String? {
+  private fun readableArrayToJson(items: ReadableArray): String? {
     val arr = org.json.JSONArray()
     for (i in 0 until items.size()) {
       val item = items.getMap(i) ?: return null
@@ -171,7 +172,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     return arr.toString()
   }
 
-  private fun readableArrayToJsonArray(arr: com.facebook.react.bridge.ReadableArray): String {
+  private fun readableArrayToJsonArray(arr: ReadableArray): String {
     val jsonArr = org.json.JSONArray()
     for (i in 0 until arr.size()) {
       arr.getString(i)?.let { jsonArr.put(it) }

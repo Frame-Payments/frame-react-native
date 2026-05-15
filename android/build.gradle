@@ -1,3 +1,5 @@
+import groovy.json.JsonSlurper
+
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 apply plugin: 'org.jetbrains.kotlin.plugin.compose'
@@ -5,6 +7,10 @@ apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 def safeExtGet(prop, fallback) {
   rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
 }
+
+// Single source of truth for Frame native SDK versions — see package.json:frameNativeVersions.
+def frameNativeVersions = new JsonSlurper().parse(file("$projectDir/../package.json")).frameNativeVersions
+def frameAndroidVersion = frameNativeVersions.android
 
 android {
   namespace "com.framepayments.reactnativeframe"
@@ -31,9 +37,9 @@ android {
 dependencies {
   implementation 'com.facebook.react:react-native:+'
   implementation "org.jetbrains.kotlin:kotlin-stdlib:2.1.0"
-  implementation 'com.framepayments:framesdk:2.0.7'
-  implementation 'com.framepayments:framesdk_ui:2.0.7'
-  implementation 'com.framepayments:framesdk_onboarding:2.0.7'
+  implementation "com.framepayments:framesdk:${frameAndroidVersion}"
+  implementation "com.framepayments:framesdk_ui:${frameAndroidVersion}"
+  implementation "com.framepayments:framesdk_onboarding:${frameAndroidVersion}"
   // Required by FrameGooglePayButton (PaymentsClient, WalletConstants).
   // framesdk_ui declares this as `implementation`, so it is not exposed transitively.
   implementation 'com.google.android.gms:play-services-wallet:19.4.0'

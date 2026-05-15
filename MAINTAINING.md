@@ -29,17 +29,42 @@ Key packages to watch:
 
 ---
 
+## Native SDK versions — single source of truth
+
+The Frame iOS and Android SDK versions live in **one place**: the top-level
+`frameNativeVersions` field in `package.json`.
+
+```json
+"frameNativeVersions": {
+  "ios": "2.2.2",
+  "android": "2.0.8"
+}
+```
+
+- **iOS podspec** (`ios/FrameReactNative.podspec`) reads `frameNativeVersions.ios`
+  and passes it to RN's `spm_dependency(...)` Podfile hook. `pod install` then
+  resolves `frame-ios` automatically via Swift Package Manager.
+- **Android build.gradle** parses `package.json` with `JsonSlurper` and uses
+  `frameNativeVersions.android` for `com.framepayments:framesdk*` dependencies.
+- **`Package.swift`** is the one duplicated pin (Swift Package manifests cannot
+  read JSON). Keep the `from: "X.Y.Z"` in `Package.swift` in lock-step with
+  `frameNativeVersions.ios` when you bump.
+
+Bumping a native SDK is therefore a 1- or 2-line edit:
+
+| Bumping… | Files to edit |
+|---|---|
+| frame-android only | `package.json` (`frameNativeVersions.android`) |
+| frame-ios only     | `package.json` (`frameNativeVersions.ios`) AND `Package.swift` line 26 |
+| Both               | All three places above |
+
+Releases:
+- frame-ios: https://github.com/Frame-Payments/frame-ios
+- frame-android: https://github.com/Frame-Payments/frame-android
+
 ## Android
 
 Android dependencies are declared in `android/build.gradle`.
-
-### Frame SDK (primary)
-The Frame Android SDK is hosted on JitPack. Update these versions manually:
-```groovy
-implementation 'com.framepayments:framesdk:1.2.0'
-implementation 'com.framepayments:framesdk_ui:1.2.0'
-```
-Check for new releases at: https://github.com/Frame-Payments/frame-android
 
 ### Supporting dependencies
 Update these as needed, checking for compatibility with the Frame SDK version:
@@ -66,16 +91,13 @@ Also update `compileSdk` / `targetSdk` defaults as new Android API levels are re
 
 ## iOS
 
-### Frame iOS SDK (primary)
-The Frame iOS SDK is **not** managed by this package's podspec — it must be added via Swift Package Manager in the host app's Xcode project.
+### Frame iOS SDK
+Managed via `frameNativeVersions.ios` in `package.json` (see "Native SDK versions —
+single source of truth" above). The podspec calls RN's `spm_dependency(...)`
+helper with that version; host apps using CocoaPods get `Frame-iOS` and
+`Frame-Onboarding` resolved automatically by `pod install` (no Xcode GUI step).
 
-To update it in the host app:
-1. Open Xcode
-2. **File → Packages → Update to Latest Package Versions**
-
-Or pin to a specific version in the host app's `Package.resolved`.
-
-Releases: https://github.com/Frame-Payments/frame-ios
+Pure-SPM consumers resolve `frame-ios` transitively through `Package.swift`.
 
 ### CocoaPods / React-Core
 This package declares only `React-Core` as a pod dependency, which is versioned by the host app's React Native version. No manual update needed here.
@@ -91,10 +113,10 @@ bundle exec pod update
 
 | Platform | Current minimum | Declared in |
 |---|---|---|
-| iOS | 17.0 | `ios/FrameReactNative.podspec` |
+| iOS | 17.0 | `ios/FrameReactNative.podspec`, `Package.swift` |
 | Android minSdk | 26 | `android/build.gradle` |
-| Android compileSdk / targetSdk | 34 | `android/build.gradle` |
-| React Native | >= 0.72.0 | `package.json` |
+| Android compileSdk / targetSdk | 36 | `android/build.gradle` |
+| React Native | >= 0.81.0 | `package.json` |
 | Node | >= 16 | `package.json` |
 
 When raising minimums, update both the relevant config file and this table.

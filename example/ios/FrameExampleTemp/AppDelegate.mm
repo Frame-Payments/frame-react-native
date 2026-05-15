@@ -2,8 +2,10 @@
 
 #import <React/RCTBundleURLProvider.h>
 
-// Preload Frame on main thread before bridge starts - avoids "Helpers are not supported by the default hub" crash
-#import "FrameExampleTemp-Swift.h"
+// Preload Frame on main thread before bridge starts - avoids "Helpers are not supported by the default hub" crash.
+// FramePreloader ships inside the FrameReactNative pod (autolinked). Importing the Obj-C header
+// rather than the Swift one works in C++ contexts (.mm) without needing modules enabled.
+#import "FramePreloader.h"
 
 @implementation AppDelegate
 

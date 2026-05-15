@@ -13,20 +13,6 @@ import type {
 } from './types';
 import { ErrorCodes } from './errors';
 
-/**
- * Throw a coded error from synchronous JS validation. Mirrors the `code`/`message`
- * shape that native rejections produce so consumers can catch `e.code === 'INVALID_*'`
- * uniformly.
- */
-function throwCoded(code: string, message: string): never {
-  const err = new Error(message) as Error & { code: string };
-  err.code = code;
-  throw err;
-}
-
-// theme is iOS-only today: frame-android does not yet have a matching theme API,
-// so the field is accepted on both platforms but ignored on Android until it does.
-
 const LINKING_ERROR =
   `The package 'framepayments-react-native' doesn't seem to be linked. Make sure you have run 'pod install' (iOS) or rebuilt the app (Android).`;
 
@@ -40,6 +26,20 @@ const FrameSDK = NativeModules.FrameSDK
         },
       }
     );
+
+/**
+ * Throw a coded error from synchronous JS validation. Mirrors the `code`/`message`
+ * shape that native rejections produce so consumers can catch `e.code === 'INVALID_*'`
+ * uniformly.
+ */
+function throwCoded(code: string, message: string): never {
+  const err = new Error(message) as Error & { code: string };
+  err.code = code;
+  throw err;
+}
+
+// theme is iOS-only today: frame-android does not yet have a matching theme API,
+// so the field is accepted on both platforms but ignored on Android until it does.
 
 let isInitialized = false;
 
@@ -179,6 +179,9 @@ export function presentOnboarding(options: {
  */
 export function presentApplePay(options: PresentApplePayOptions): Promise<string> {
   guardInitialized();
+  if (Platform.OS !== 'ios') {
+    throwCoded('PLATFORM_UNSUPPORTED', 'Frame.presentApplePay is iOS-only; use presentGooglePay on Android.');
+  }
   if (!options?.owner || (options.owner.type !== 'customer' && options.owner.type !== 'account')) {
     throwCoded(ErrorCodes.INVALID_OWNER, 'Frame.presentApplePay requires owner: { type: "customer" | "account", id: string }');
   }
@@ -208,6 +211,9 @@ export function presentApplePay(options: PresentApplePayOptions): Promise<string
  */
 export function presentGooglePay(options: PresentGooglePayOptions): Promise<string> {
   guardInitialized();
+  if (Platform.OS !== 'android') {
+    throwCoded('PLATFORM_UNSUPPORTED', 'Frame.presentGooglePay is Android-only; use presentApplePay on iOS.');
+  }
   if (!options?.owner || (options.owner.type !== 'customer' && options.owner.type !== 'account')) {
     throwCoded(ErrorCodes.INVALID_OWNER, 'Frame.presentGooglePay requires owner: { type: "customer" | "account", id: string }');
   }

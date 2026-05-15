@@ -8,16 +8,16 @@
 #import <React/RCTBridgeModule.h>
 #import "FrameVCHelper.h"
 
-// Import app's Swift header (ObjCFrameSDKBridge, FramePreloader). The example uses FrameExampleTemp.
-// If your app has a different module name, add Preprocessor Macro: FRAME_SWIFT_HEADER="YourApp-Swift.h"
-#if defined(FRAME_SWIFT_HEADER)
-#import FRAME_SWIFT_HEADER
-#elif __has_include("FrameExampleTemp-Swift.h")
-#import "FrameExampleTemp-Swift.h"
-#elif __has_include(<FrameExampleTemp/FrameExampleTemp-Swift.h>)
-#import <FrameExampleTemp/FrameExampleTemp-Swift.h>
+// Import the FrameReactNative pod's auto-generated Swift header so this Obj-C
+// file can reach the Swift `ObjCFrameSDKBridge` class. CocoaPods generates
+// "FrameReactNative-Swift.h" from the pod's Swift sources during the pod's
+// build phase.
+#if __has_include("FrameReactNative-Swift.h")
+#import "FrameReactNative-Swift.h"
+#elif __has_include(<FrameReactNative/FrameReactNative-Swift.h>)
+#import <FrameReactNative/FrameReactNative-Swift.h>
 #else
-#error "Swift header not found. Add FRAME_SWIFT_HEADER=\"YourApp-Swift.h\" to your app target's Preprocessor Macros, or ensure Swift files compile before this file."
+#error "FrameReactNative-Swift.h not found. The Frame React Native pod's Swift code did not generate its module header — check that pod install ran cleanly."
 #endif
 
 @interface FrameSDKModule : NSObject <RCTBridgeModule>
