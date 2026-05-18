@@ -20,11 +20,21 @@ public class FrameSDKBridge: NSObject {
   }
 
   @objc public
-  func initialize(_ secretKey: String, publishableKey: String, debugMode: Bool, theme: NSDictionary?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+  func initialize(_ secretKey: String, publishableKey: String, debugMode: Bool, applePayMerchantId: NSObject?, googlePayMerchantId: NSObject?, theme: NSDictionary?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     DispatchQueue.main.async {
       let themeDict = theme as? [String: Any] ?? [:]
       let resolvedTheme = themeDict.isEmpty ? FrameTheme.default : FrameRNTheme.parse(themeDict)
-      FrameNetworking.shared.initializeWithAPIKey(secretKey, publishableKey: publishableKey, theme: resolvedTheme, debugMode: debugMode)
+      // googlePayMerchantId is iOS-side ignored — frame-iOS has no Google Pay surface today.
+      // Accepted in the bridge signature so the JS Frame.initialize() API stays cross-platform.
+      _ = googlePayMerchantId
+      let applePayMerchantIdString = applePayMerchantId as? String
+      FrameNetworking.shared.initializeWithAPIKey(
+        secretKey,
+        publishableKey: publishableKey,
+        applePayMerchantId: applePayMerchantIdString,
+        theme: resolvedTheme,
+        debugMode: debugMode
+      )
       resolve(nil)
     }
   }
@@ -52,15 +62,14 @@ public class FrameSDKBridge: NSObject {
   }
 
   @objc public
-  func presentOnboarding(from viewController: UIViewController, accountId: NSObject?, capabilities: NSArray, applePayMerchantId: NSObject?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+  func presentOnboarding(from viewController: UIViewController, accountId: NSObject?, capabilities: NSArray, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     let parsedCapabilities = parseCapabilities(capabilities)
     let accountIdString = accountId as? String
-    let merchantIdString = applePayMerchantId as? String
-    presentOnboardingOnMain(from: viewController, accountId: accountIdString, capabilities: parsedCapabilities, applePayMerchantId: merchantIdString, resolve: resolve, reject: reject)
+    presentOnboardingOnMain(from: viewController, accountId: accountIdString, capabilities: parsedCapabilities, resolve: resolve, reject: reject)
   }
 
   @objc public
-  func presentApplePay(_ ownerType: String, ownerId: String, amount: Int, currency: String, merchantId: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+  func presentApplePay(_ ownerType: String, ownerId: String, amount: Int, currency: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     DispatchQueue.main.async {
       Task { @MainActor in
         let owner: ApplePayPresenter.Owner
@@ -75,8 +84,9 @@ public class FrameSDKBridge: NSObject {
           reject("INVALID_OWNER", "owner.id must be non-empty", nil)
           return
         }
-        guard !merchantId.isEmpty else {
-          reject("INVALID_MERCHANT_ID", "merchantId must be non-empty", nil)
+        let configuredMerchantId = FrameNetworking.shared.applePayMerchantId ?? ""
+        guard !configuredMerchantId.isEmpty else {
+          reject("INVALID_MERCHANT_ID", "Apple Pay merchant ID is not configured. Pass `applePayMerchantId` to Frame.initialize().", nil)
           return
         }
         guard ApplePayPresenter.canMakePayments() else {
@@ -94,7 +104,6 @@ public class FrameSDKBridge: NSObject {
           amount: amount,
           currency: currency,
           owner: owner,
-          merchantId: merchantId,
           resolve: { resolve($0) },
           reject: { code, message, error in reject(code, message, error) }
         )
@@ -106,17 +115,21 @@ public class FrameSDKBridge: NSObject {
   // MARK: - Private helpers
 
   private func presentCheckoutOnMain(from top: UIViewController, accountId: String, amount: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    // Single dismiss delegate guards against double-resolve: the inner checkout
-    // calls `finish(.success)` with the transfer id; bare-dismiss (swipe-down
-    // without completing checkout) calls `finish(.cancel)`.
+    // Single dismiss delegate guards against double-resolve. The native FrameCheckoutView now
+    // emits `.cancelled` on its own .onDisappear and the bridge's
+    // `presentationControllerDidDismiss` ALSO fires on swipe-down — the delegate's `didFinish`
+    // guard prevents the double-resolve.
     let delegate = CheckoutDismissDelegate(resolve: resolve, reject: reject)
     let checkoutView = FrameCheckoutView(
       accountId: accountId,
       paymentAmount: amount,
-      checkoutCallback: { [weak top, delegate] success, transferId in
-        if success, let transferId {
-          delegate.finish(.success(transferId))
-        } else {
+      onResult: { [weak top, delegate] result in
+        switch result {
+        case .completed(let id):
+          delegate.finish(.success(id))
+        case .cancelled:
+          delegate.finish(.cancel)
+        case .failed:
           delegate.finish(.failure)
         }
         top?.dismiss(animated: true)
@@ -164,19 +177,22 @@ public class FrameSDKBridge: NSObject {
   }
 
   private func presentCartOnMain(from top: UIViewController, accountId: String, cartItems: [RNFrameCartItem], shippingAmountInCents: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    // Single dismiss delegate guards against double-resolve: the inner checkout
-    // calls `finish(.success)` with the transfer id; bare-dismiss (swipe-down
-    // without completing checkout) calls `finish(.cancel)`.
+    // Single dismiss delegate guards against double-resolve. The native FrameCartView's own
+    // .onDisappear emits `.cancelled`, and the bridge's `presentationControllerDidDismiss`
+    // also fires on swipe-down — the delegate's `didFinish` guard prevents re-resolve.
     let delegate = CartDismissDelegate(resolve: resolve, reject: reject)
     let cartView = FrameCartView(
       accountId: accountId,
       cartItems: cartItems,
       shippingAmountInCents: shippingAmountInCents,
-      checkoutCallback: { [weak top, delegate] success, transferId in
-        if success, let transferId {
-          delegate.finish(.success(transferId))
-        } else {
+      onResult: { [weak top, delegate] result in
+        switch result {
+        case .completed(let id):
+          delegate.finish(.success(id))
+        case .cancelled:
           delegate.finish(.cancel)
+        case .failed:
+          delegate.finish(.failure)
         }
         top?.dismiss(animated: true)
       }
@@ -192,21 +208,23 @@ public class FrameSDKBridge: NSObject {
     }
   }
 
-  private func presentOnboardingOnMain(from top: UIViewController, accountId: String?, capabilities: [FrameObjects.Capabilities], applePayMerchantId: String?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    // Build the dismiss delegate up-front so onComplete captures a non-nil
-    // instance directly. Earlier shape declared `var delegate: …!` and assigned
-    // it AFTER constructing OnboardingContainerView; the onComplete closure
-    // captured the local by reference, so any path that fired the callback
-    // before assignment landed on a nil delegate and silently no-op'd via `?.`.
+  private func presentOnboardingOnMain(from top: UIViewController, accountId: String?, capabilities: [FrameObjects.Capabilities], resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+    // Build the dismiss delegate up-front so onResult captures a non-nil instance directly.
     let delegate = OnboardingDismissDelegate(resolve: resolve)
 
     let hosting = OnboardingHostingController(
       rootView: OnboardingContainerView(
         accountId: accountId,
         requiredCapabilities: capabilities,
-        applePayMerchantId: applePayMerchantId,
-        onComplete: { [delegate, weak top] in
-          delegate.finish(completed: true)
+        onResult: { [delegate, weak top] result in
+          switch result {
+          case .completed(let id):
+            delegate.finish(.completed(paymentMethodId: id.isEmpty ? nil : id))
+          case .cancelled:
+            delegate.finish(.cancelled)
+          case .failed:
+            delegate.finish(.cancelled)
+          }
           top?.dismiss(animated: true)
         }
       )
@@ -276,6 +294,7 @@ private final class CheckoutDismissDelegate: NSObject, UIAdaptivePresentationCon
 private final class CartDismissDelegate: NSObject, UIAdaptivePresentationControllerDelegate {
   enum Outcome {
     case success(String)
+    case failure
     case cancel
   }
 
@@ -294,6 +313,7 @@ private final class CartDismissDelegate: NSObject, UIAdaptivePresentationControl
     DispatchQueue.main.async { [resolve, reject] in
       switch outcome {
       case .success(let transferId): resolve(transferId)
+      case .failure: reject("PAYMENT_FAILED", "Cart checkout did not produce a transfer id", nil)
       case .cancel: reject("USER_CANCELED", "User dismissed cart without completing checkout", nil)
       }
     }
@@ -305,6 +325,11 @@ private final class CartDismissDelegate: NSObject, UIAdaptivePresentationControl
 }
 
 private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationControllerDelegate {
+  enum Outcome {
+    case completed(paymentMethodId: String?)
+    case cancelled
+  }
+
   let resolve: RCTPromiseResolveBlock
   weak var hostingController: UIViewController?
   var didFinish = false
@@ -313,11 +338,18 @@ private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationC
     self.resolve = resolve
   }
 
-  func finish(completed: Bool) {
+  func finish(_ outcome: Outcome) {
     guard !didFinish else { return }
     didFinish = true
-    DispatchQueue.main.async { [resolve, completed] in
-      resolve(["status": completed ? "completed" : "cancelled"])
+    DispatchQueue.main.async { [resolve] in
+      switch outcome {
+      case .completed(let paymentMethodId):
+        var payload: [String: Any] = ["status": "completed"]
+        if let paymentMethodId { payload["paymentMethodId"] = paymentMethodId }
+        resolve(payload)
+      case .cancelled:
+        resolve(["status": "cancelled"])
+      }
     }
   }
 
@@ -326,7 +358,7 @@ private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationC
     // callback to the Onboarding host's delegate. Only treat dismissal of the
     // Onboarding hosting controller itself as a cancellation.
     guard presentationController.presentedViewController === hostingController else { return }
-    finish(completed: false)
+    finish(.cancelled)
   }
 }
 

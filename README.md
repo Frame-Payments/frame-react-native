@@ -91,6 +91,8 @@ Initializes the native SDK. Must be called before any `present*` method. Call on
 await Frame.initialize({
   secretKey: 'sk_sandbox_...',      // your Frame secret key
   publishableKey: 'pk_sandbox_...', // your Frame publishable key
+  applePayMerchantId: 'merchant.com.yourapp', // optional — see Apple Pay section
+  googlePayMerchantId: 'BCR2DN4T...',         // optional — see Google Pay section
   debugMode: false,                 // set true in development to enable native debug logging
 });
 ```
@@ -99,6 +101,8 @@ await Frame.initialize({
 |---|---|---|---|
 | `secretKey` | `string` | Yes | Your Frame secret key (`sk_…`). Used for server-style operations. |
 | `publishableKey` | `string` | Yes | Your Frame publishable key (`pk_…`). Used for client-side operations like wallet payments. |
+| `applePayMerchantId` | `string` | No | Apple Pay merchant identifier (`merchant.com.…`). Single source of truth for every Apple Pay surface — `presentApplePay`, the bundled checkout's wallet row, the onboarding wallet attach button. iOS-only; ignored on Android. |
+| `googlePayMerchantId` | `string` | No | Google Pay merchant identifier from the Google Pay & Wallet Console. Single source of truth for every Google Pay surface — `presentGooglePay`, the bundled checkout's wallet row, the onboarding wallet attach button. Android-only; ignored on iOS. |
 | `debugMode` | `boolean` | No | Enables native debug logging and routes wallet flows through sandbox/test environments. Default: `false`. |
 
 ---
@@ -184,7 +188,8 @@ if (result.status === 'completed') {
 |---|---|---|---|
 | `accountId` | `string` | No | The Frame account to onboard |
 | `capabilities` | `OnboardingCapability[]` | No | Which onboarding steps to include (see below) |
-| `applePayMerchantId` | `string` | No | Apple Pay merchant ID. When set, the onboarding flow includes an Apple Pay setup step. iOS only — ignored on Android. Same prerequisites as `presentApplePay`. |
+
+The Apple Pay / Google Pay wallet attach steps are rendered automatically when the corresponding merchant ID was passed to `Frame.initialize`. No per-call merchant params here.
 
 **`capabilities` values:**
 
@@ -217,6 +222,8 @@ if (result.status === 'completed') {
 
 Launches the native Apple Pay sheet, creates a Frame payment method from the authorized payment, and creates a charge against the owner. Resolves with the resulting resource's id string. Render your own button — Apple's `PKPaymentButton`, a community wrapper, or your own design-system component — and call this from its `onPress`.
 
+The Apple Pay merchant ID is configured **once** at `Frame.initialize({ applePayMerchantId })`; there is no per-call merchant parameter.
+
 The `owner` determines which downstream resource is created:
 
 - `owner.type === 'customer'` → creates a `ChargeIntent` against the customer; resolves with the ChargeIntent's `id`.
@@ -232,7 +239,6 @@ const transferId = await Frame.presentApplePay({
   amount: 15000,
   currency: 'usd',
   owner: { type: 'account', id: 'acct_xxx' },
-  merchantId: 'merchant.com.yourapp',
 });
 
 // Customer → ChargeIntent
@@ -240,7 +246,6 @@ const chargeIntentId = await Frame.presentApplePay({
   amount: 15000,
   currency: 'usd',
   owner: { type: 'customer', id: 'cus_xxx' },
-  merchantId: 'merchant.com.yourapp',
 });
 ```
 
@@ -249,23 +254,42 @@ const chargeIntentId = await Frame.presentApplePay({
 | `amount` | `number` | Yes | Payment amount in cents |
 | `currency` | `string` | No | ISO 4217 currency code. Default `'usd'` |
 | `owner` | `{ type: 'customer' \| 'account', id: string }` | Yes | Customer or account that owns the resulting payment method and charge |
-| `merchantId` | `string` | Yes | Apple Pay merchant ID configured in your Apple Developer account |
 
 **Returns:** `Promise<string>` — the created `ChargeIntent`'s `id` (for customer owners) or the `Transfer`'s `id` (for account owners).
 
-The promise rejects with `code: 'USER_CANCELED'` when the user dismisses the sheet, `'INVALID_OWNER'` if the owner is missing or malformed, `'APPLE_PAY_UNAVAILABLE'` if the device cannot make Apple Pay payments, `'NOT_ATTESTED'` if device attestation has not completed yet (try again in a moment), `'PAYMENT_METHOD_FAILED'` when the wallet payment method could not be persisted, and `'PAYMENT_FAILED'` when the downstream ChargeIntent or Transfer could not be created.
+The promise rejects with `code: 'USER_CANCELED'` when the user dismisses the sheet, `'INVALID_OWNER'` if the owner is missing or malformed, `'INVALID_MERCHANT_ID'` if `applePayMerchantId` was not configured at `Frame.initialize`, `'APPLE_PAY_UNAVAILABLE'` if the device cannot make Apple Pay payments, `'NOT_ATTESTED'` if device attestation has not completed yet (try again in a moment), `'PAYMENT_METHOD_FAILED'` when the wallet payment method could not be persisted, and `'PAYMENT_FAILED'` when the downstream ChargeIntent or Transfer could not be created.
 
-**Required iOS setup:**
+#### Required iOS setup
 
-1. **Apple Pay capability + merchant ID.** Add Apple Pay in your target's *Signing & Capabilities*, and register a merchant ID in your Apple Developer account.
-2. **App Attest entitlement.** The Frame iOS SDK uses Apple's App Attest for device attestation on every Apple Pay payment. Add to your `.entitlements`:
+Apple Pay setup is a four-part process: create a merchant ID with Apple, configure your Xcode project, pass the merchant ID to `Frame.initialize`, then **contact Frame** to enable the feature on your account.
+
+1. **Create a merchant identifier.** Sign in to [developer.apple.com → Certificates, Identifiers & Profiles → Identifiers → Merchant IDs](https://developer.apple.com/account/resources/identifiers/list/merchant), click **+**, choose **Merchant IDs**, and create one in reverse-DNS form (e.g. `merchant.com.yourapp`).
+2. **Add the Apple Pay capability in Xcode.** Open your project, select your **app target**, go to **Signing & Capabilities** → **+ Capability** → **Apple Pay**, and add the merchant ID you created in step 1. Xcode writes it into your entitlements file:
+   ```xml
+   <key>com.apple.developer.in-app-payments</key>
+   <array>
+       <string>merchant.com.yourapp</string>
+   </array>
+   ```
+3. **App Attest entitlement.** Frame uses Apple's App Attest for device attestation on every Apple Pay payment. Add to your `.entitlements`:
    ```xml
    <key>com.apple.developer.devicecheck.appattest-environment</key>
    <string>development</string>
    ```
-   Use `production` for App Store builds.
-3. **Real device required.** App Attest does not work in the simulator.
-4. **Frame dashboard configuration.** In your Frame dashboard, go to **Settings → Device Attestation** and set your Apple Team ID and the Bundle ID of your iOS app. These must exactly match the app you're running — the backend computes `SHA256("<TeamID>.<BundleID>")` and compares it to the hash signed by the device. If they don't match, payment-method creation fails with `App ID verification failed`.
+   Use `production` for App Store builds. App Attest does not work in the simulator — Apple Pay requires a real device.
+4. **Frame dashboard — device attestation.** In your Frame dashboard, **Settings → Device Attestation**, set your Apple Team ID and the Bundle ID of your iOS app. These must exactly match the app you're running — the backend computes `SHA256("<TeamID>.<BundleID>")` and compares it to the hash signed by the device. If they don't match, payment-method creation fails with `App ID verification failed`.
+5. **Pass the merchant ID to `Frame.initialize`.** This is the single source of truth — every Frame Apple Pay surface reads it from here.
+   ```ts
+   await Frame.initialize({
+     secretKey: 'sk_...',
+     publishableKey: 'pk_...',
+     applePayMerchantId: 'merchant.com.yourapp',
+   });
+   ```
+
+#### Enabling Apple Pay on your account
+
+Once the steps above are complete, contact Frame at [support@framepayments.com](mailto:support@framepayments.com) (or via your [Frame dashboard](https://framepayments.com)) and we'll enable Apple Pay on your account. Apple Pay charges won't succeed until this is done on our side.
 
 On non-iOS platforms `Frame.presentApplePay` rejects synchronously with a not-supported error.
 
@@ -274,6 +298,8 @@ On non-iOS platforms `Frame.presentApplePay` rejects synchronously with a not-su
 ### `Frame.presentGooglePay(options)` (Android)
 
 Launches the native Google Pay sheet, creates a Frame payment method from the wallet token, and creates a charge against the owner. Resolves with the resulting resource's id string. Render your own button (Google's `PayButton` from `play-services-pay`, a community wrapper, or your own component) and call this from its `onPress`.
+
+The Google Pay merchant ID is configured **once** at `Frame.initialize({ googlePayMerchantId })`; there is no per-call merchant parameter.
 
 The `owner` mirrors `presentApplePay` and determines which downstream resource is created:
 
@@ -302,21 +328,36 @@ const chargeIntentId = await Frame.presentGooglePay({
 | `amountCents` | `number` | Yes | Payment amount in cents |
 | `owner` | `{ type: 'customer' \| 'account', id: string }` | Yes | Customer or account that owns the resulting payment method and charge |
 | `currencyCode` | `string` | No | ISO 4217 currency code. Default `'USD'` |
-| `googlePayMerchantId` | `string` | No | Google Pay merchant ID override |
 
 **Returns:** `Promise<string>` — the created `ChargeIntent`'s `id` (for customer owners) or the `Transfer`'s `id` (for account owners).
 
-The promise rejects with `code: 'USER_CANCELED'` when the user dismisses the sheet, `'INVALID_OWNER'` if the owner is missing or malformed, `'GOOGLE_PAY_UNAVAILABLE'` if Google Pay is not ready on the device (no signed-in account, no test card, or Wallet API disabled), and `'PAYMENT_FAILED'` for backend failures.
+The promise rejects with `code: 'USER_CANCELED'` when the user dismisses the sheet, `'INVALID_OWNER'` if the owner is missing or malformed, `'GOOGLE_PAY_UNAVAILABLE'` if Google Pay is not ready on the device (no signed-in account, no test card, no `googlePayMerchantId` configured at `Frame.initialize`, or Wallet API disabled in the manifest), and `'PAYMENT_FAILED'` for backend failures.
 
-**Required Android setup:**
+#### Required Android setup
 
-1. **Google Pay metadata.** Add to your app's `AndroidManifest.xml` inside `<application>`:
+Google Pay setup is a four-part process: get a merchant ID from Google, declare the wallet capability in your manifest, pass the merchant ID to `Frame.initialize`, then **contact Frame** to enable the feature on your account.
+
+1. **Obtain a Google Pay merchant ID.** Sign up for a [Google Pay & Wallet Console](https://pay.google.com/business/console/) account, complete the business profile, and accept the Google Pay API Terms of Service. Your **Merchant ID** (looks like `BCR2DN4T…`) appears on the Business Console home page once approved.
+2. **Declare the wallet capability in `AndroidManifest.xml`.** Inside `<application>`:
    ```xml
    <meta-data
        android:name="com.google.android.gms.wallet.api.enabled"
        android:value="true" />
    ```
-2. **Test environment.** When the SDK is initialized with `debugMode: true`, Google Pay runs in `ENVIRONMENT_TEST`; otherwise it uses `ENVIRONMENT_PRODUCTION`.
+   Without this entry the Google Pay button stays hidden — the Wallet API is opted-out by default.
+3. **Test environment.** When the SDK is initialized with `debugMode: true`, Google Pay runs in `ENVIRONMENT_TEST`; otherwise it uses `ENVIRONMENT_PRODUCTION`.
+4. **Pass the merchant ID to `Frame.initialize`.** This is the single source of truth — every Frame Google Pay surface reads it from here.
+   ```ts
+   await Frame.initialize({
+     secretKey: 'sk_...',
+     publishableKey: 'pk_...',
+     googlePayMerchantId: 'BCR2DN4T...',
+   });
+   ```
+
+#### Enabling Google Pay on your account
+
+Once the steps above are complete, contact Frame at [support@framepayments.com](mailto:support@framepayments.com) (or via your [Frame dashboard](https://framepayments.com)) and we'll enable Google Pay on your account. Google Pay charges won't succeed until this is done on our side.
 
 On non-Android platforms `Frame.presentGooglePay` rejects synchronously with a not-supported error.
 

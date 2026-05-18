@@ -3,12 +3,12 @@
  * presentApplePay, presentGooglePay, presentOnboarding). NativeModules.FrameSDK is mocked.
  */
 
-const mockInitialize = jest.fn((_secretKey: string, _publishableKey: string, _debugMode: boolean) => Promise.resolve());
+const mockInitialize = jest.fn((_secretKey: string, _publishableKey: string, _debugMode: boolean, _applePayMerchantId: string | null, _googlePayMerchantId: string | null, _theme: unknown) => Promise.resolve());
 const mockPresentCheckout = jest.fn((_accountId: unknown, _amount: number) => Promise.resolve('tr_1'));
 const mockPresentCart = jest.fn((_accountId: unknown, _items: unknown[], _shipping: number) => Promise.resolve('tr_2'));
-const mockPresentApplePay = jest.fn((_ownerType: string, _ownerId: string, _amount: number, _currency: string, _merchantId: string) => Promise.resolve('tr_3'));
-const mockPresentGooglePay = jest.fn((_amountCents: number, _ownerType: string, _ownerId: string, _currencyCode: string, _googlePayMerchantId: string | null) => Promise.resolve('tr_4'));
-const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unknown[], _merchantId: string | null) => Promise.resolve({ status: 'completed', paymentMethodId: 'pm_1' }));
+const mockPresentApplePay = jest.fn((_ownerType: string, _ownerId: string, _amount: number, _currency: string) => Promise.resolve('tr_3'));
+const mockPresentGooglePay = jest.fn((_amountCents: number, _ownerType: string, _ownerId: string, _currencyCode: string) => Promise.resolve('tr_4'));
+const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unknown[]) => Promise.resolve({ status: 'completed', paymentMethodId: 'pm_1' }));
 
 const mockPlatform = { OS: 'ios' as 'ios' | 'android' };
 
@@ -27,16 +27,16 @@ jest.mock('react-native', () => ({
 }));
 
 // Re-import after mock so we get the mocked NativeModules
-let initialize: (opts: { secretKey: string; publishableKey: string; debugMode?: boolean }) => Promise<void>;
+let initialize: (opts: { secretKey: string; publishableKey: string; debugMode?: boolean; applePayMerchantId?: string; googlePayMerchantId?: string }) => Promise<void>;
 let presentCheckout: (opts: { accountId: string; amount: number }) => Promise<string>;
 let presentCart: (opts: {
   accountId: string;
   items: Array<{ id: string; title: string; amountInCents: number; imageUrl: string }>;
   shippingAmountInCents: number;
 }) => Promise<string>;
-let presentApplePay: (opts: { amount: number; currency?: string; owner: { type: 'customer' | 'account'; id: string }; merchantId: string }) => Promise<string>;
-let presentGooglePay: (opts: { amountCents: number; owner: { type: 'customer' | 'account'; id: string }; currencyCode?: string; googlePayMerchantId?: string }) => Promise<string>;
-let presentOnboarding: (opts: { accountId?: string | null; capabilities?: string[]; applePayMerchantId?: string | null; googlePayMerchantId?: string | null }) => Promise<unknown>;
+let presentApplePay: (opts: { amount: number; currency?: string; owner: { type: 'customer' | 'account'; id: string } }) => Promise<string>;
+let presentGooglePay: (opts: { amountCents: number; owner: { type: 'customer' | 'account'; id: string }; currencyCode?: string }) => Promise<string>;
+let presentOnboarding: (opts: { accountId?: string | null; capabilities?: string[] }) => Promise<unknown>;
 
 beforeEach(() => {
   jest.resetModules();
@@ -57,15 +57,33 @@ beforeEach(() => {
 });
 
 describe('initialize', () => {
-  it('calls native FrameSDK.initialize with secretKey, publishableKey, and debugMode', () => {
+  it('calls native FrameSDK.initialize with all six positional args', () => {
     initialize({ secretKey: 'sk_test_xxx', publishableKey: 'pk_test_xxx', debugMode: true });
     expect(mockInitialize).toHaveBeenCalledTimes(1);
-    expect(mockInitialize).toHaveBeenCalledWith('sk_test_xxx', 'pk_test_xxx', true, null);
+    expect(mockInitialize).toHaveBeenCalledWith('sk_test_xxx', 'pk_test_xxx', true, null, null, null);
   });
 
-  it('defaults debugMode to false', () => {
+  it('defaults debugMode to false and both merchant IDs to null', () => {
     initialize({ secretKey: 'sk_test_yyy', publishableKey: 'pk_test_yyy' });
-    expect(mockInitialize).toHaveBeenCalledWith('sk_test_yyy', 'pk_test_yyy', false, null);
+    expect(mockInitialize).toHaveBeenCalledWith('sk_test_yyy', 'pk_test_yyy', false, null, null, null);
+  });
+
+  it('forwards applePayMerchantId to native init', () => {
+    initialize({
+      secretKey: 'sk_test',
+      publishableKey: 'pk_test',
+      applePayMerchantId: 'merchant.com.example',
+    });
+    expect(mockInitialize).toHaveBeenCalledWith('sk_test', 'pk_test', false, 'merchant.com.example', null, null);
+  });
+
+  it('forwards googlePayMerchantId to native init', () => {
+    initialize({
+      secretKey: 'sk_test',
+      publishableKey: 'pk_test',
+      googlePayMerchantId: 'BCR2DN4T...',
+    });
+    expect(mockInitialize).toHaveBeenCalledWith('sk_test', 'pk_test', false, null, 'BCR2DN4T...', null);
   });
 
   it('throws if secretKey is missing', () => {
@@ -153,7 +171,7 @@ describe('presentCart', () => {
 describe('presentApplePay', () => {
   it('throws NOT_INITIALIZED if initialize was not called', async () => {
     try {
-      await presentApplePay({ amount: 100, owner: { type: 'account', id: 'acct_1' }, merchantId: 'merchant.test' });
+      await presentApplePay({ amount: 100, owner: { type: 'account', id: 'acct_1' } });
       expect(true).toBe(false);
     } catch (e: any) {
       expect(e.code).toBe('NOT_INITIALIZED');
@@ -164,7 +182,7 @@ describe('presentApplePay', () => {
   it('throws INVALID_OWNER when owner is missing', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     try {
-      await presentApplePay({ amount: 100, merchantId: 'merchant.test' } as any);
+      await presentApplePay({ amount: 100 } as any);
       expect(true).toBe(false);
     } catch (e: any) {
       expect(e.code).toBe('INVALID_OWNER');
@@ -175,7 +193,7 @@ describe('presentApplePay', () => {
   it('throws INVALID_OWNER when owner.id is empty', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     try {
-      await presentApplePay({ amount: 100, owner: { type: 'account', id: '' }, merchantId: 'merchant.test' });
+      await presentApplePay({ amount: 100, owner: { type: 'account', id: '' } });
       expect(true).toBe(false);
     } catch (e: any) {
       expect(e.code).toBe('INVALID_OWNER');
@@ -183,43 +201,30 @@ describe('presentApplePay', () => {
     expect(mockPresentApplePay).not.toHaveBeenCalled();
   });
 
-  it('throws INVALID_MERCHANT_ID when merchantId is missing', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    try {
-      await presentApplePay({ amount: 100, owner: { type: 'account', id: 'acct_1' } } as any);
-      expect(true).toBe(false);
-    } catch (e: any) {
-      expect(e.code).toBe('INVALID_MERCHANT_ID');
-    }
-    expect(mockPresentApplePay).not.toHaveBeenCalled();
-  });
-
   it('forwards account owner; resolves with transfer id string', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', applePayMerchantId: 'merchant.test' });
     const result = await presentApplePay({
       amount: 12345,
       currency: 'usd',
       owner: { type: 'account', id: 'acct_1' },
-      merchantId: 'merchant.test',
     });
-    expect(mockPresentApplePay).toHaveBeenCalledWith('account', 'acct_1', 12345, 'usd', 'merchant.test');
+    expect(mockPresentApplePay).toHaveBeenCalledWith('account', 'acct_1', 12345, 'usd');
     expect(result).toBe('tr_3');
   });
 
   it('forwards customer owner; resolves with charge intent id string', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', applePayMerchantId: 'merchant.test' });
     await presentApplePay({
       amount: 9999,
       owner: { type: 'customer', id: 'cus_1' },
-      merchantId: 'merchant.test',
     });
-    expect(mockPresentApplePay).toHaveBeenCalledWith('customer', 'cus_1', 9999, 'usd', 'merchant.test');
+    expect(mockPresentApplePay).toHaveBeenCalledWith('customer', 'cus_1', 9999, 'usd');
   });
 
   it('defaults currency to usd', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    await presentApplePay({ amount: 100, owner: { type: 'account', id: 'acct_1' }, merchantId: 'merchant.test' });
-    expect(mockPresentApplePay).toHaveBeenCalledWith('account', 'acct_1', 100, 'usd', 'merchant.test');
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', applePayMerchantId: 'merchant.test' });
+    await presentApplePay({ amount: 100, owner: { type: 'account', id: 'acct_1' } });
+    expect(mockPresentApplePay).toHaveBeenCalledWith('account', 'acct_1', 100, 'usd');
   });
 });
 
@@ -262,30 +267,29 @@ describe('presentGooglePay', () => {
   });
 
   it('forwards account owner; resolves with transfer id string', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', googlePayMerchantId: 'BCR2DN4T...' });
     const result = await presentGooglePay({
       amountCents: 9999,
       owner: { type: 'account', id: 'acct_1' },
       currencyCode: 'EUR',
-      googlePayMerchantId: 'BCR2DN4T...',
     });
-    expect(mockPresentGooglePay).toHaveBeenCalledWith(9999, 'account', 'acct_1', 'EUR', 'BCR2DN4T...');
+    expect(mockPresentGooglePay).toHaveBeenCalledWith(9999, 'account', 'acct_1', 'EUR');
     expect(result).toBe('tr_4');
   });
 
   it('forwards customer owner; resolves with charge intent id string', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', googlePayMerchantId: 'BCR2DN4T...' });
     await presentGooglePay({
       amountCents: 4242,
       owner: { type: 'customer', id: 'cus_1' },
     });
-    expect(mockPresentGooglePay).toHaveBeenCalledWith(4242, 'customer', 'cus_1', 'USD', null);
+    expect(mockPresentGooglePay).toHaveBeenCalledWith(4242, 'customer', 'cus_1', 'USD');
   });
 
-  it('defaults currencyCode to USD and merchantId to null', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+  it('defaults currencyCode to USD', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', googlePayMerchantId: 'BCR2DN4T...' });
     await presentGooglePay({ amountCents: 100, owner: { type: 'account', id: 'acct_1' } });
-    expect(mockPresentGooglePay).toHaveBeenCalledWith(100, 'account', 'acct_1', 'USD', null);
+    expect(mockPresentGooglePay).toHaveBeenCalledWith(100, 'account', 'acct_1', 'USD');
   });
 });
 
@@ -301,46 +305,23 @@ describe('presentOnboarding', () => {
     expect(mockPresentOnboarding).not.toHaveBeenCalled();
   });
 
-  it('calls native presentOnboarding with accountId, capabilities, and null merchantId after initialize on iOS', async () => {
-    mockPlatform.OS = 'ios';
+  it('calls native presentOnboarding with accountId and capabilities only — no merchant params', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     const result = await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc', 'bank_account_verification'] });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc', 'bank_account_verification'], null);
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc', 'bank_account_verification']);
     expect(result).toEqual({ status: 'completed', paymentMethodId: 'pm_1' });
   });
 
-  it('passes null for accountId and empty array for capabilities when not provided on iOS', async () => {
-    mockPlatform.OS = 'ios';
+  it('passes null accountId and empty array for capabilities when not provided', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     await presentOnboarding({});
-    expect(mockPresentOnboarding).toHaveBeenCalledWith(null, [], null);
+    expect(mockPresentOnboarding).toHaveBeenCalledWith(null, []);
   });
 
-  it('forwards applePayMerchantId on iOS', async () => {
-    mockPlatform.OS = 'ios';
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], applePayMerchantId: 'merchant.com.example' });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], 'merchant.com.example');
-  });
-
-  it('ignores applePayMerchantId on Android', async () => {
+  it('behaves the same on Android — merchant IDs are init-only across both platforms', async () => {
     mockPlatform.OS = 'android';
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], applePayMerchantId: 'merchant.com.example' });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], null);
-  });
-
-  it('forwards googlePayMerchantId to native presentOnboarding on Android', async () => {
-    mockPlatform.OS = 'android';
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], googlePayMerchantId: 'BCR2DN4T...' });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], 'BCR2DN4T...');
-  });
-
-  it('ignores googlePayMerchantId on iOS', async () => {
-    mockPlatform.OS = 'ios';
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], googlePayMerchantId: 'BCR2DN4T...' });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], null);
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', googlePayMerchantId: 'BCR2DN4T...' });
+    await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'] });
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc']);
   });
 });

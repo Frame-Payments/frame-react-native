@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
+import com.framepayments.framesdk.FrameResult
 import com.framepayments.framesdk_ui.FrameCartItem
 import com.framepayments.framesdk_ui.FrameCartView
 import com.framepayments.framesdk_ui.FrameCheckoutView
@@ -75,9 +76,21 @@ class FrameFlowActivity : AppCompatActivity() {
     container.removeAllViews()
     checkoutView = FrameCheckoutView(this).apply {
       FrameRNTheme.current?.let { setTheme(it) }
-      configure(accountId, amount) { transferId ->
-        setResult(RESULT_OK, Intent().putExtra(EXTRA_TRANSFER_ID, transferId))
-        finish()
+      configure(accountId, amount) { result ->
+        when (result) {
+          is FrameResult.Completed -> {
+            setResult(RESULT_OK, Intent().putExtra(EXTRA_TRANSFER_ID, result.id))
+            finish()
+          }
+          FrameResult.Cancelled -> {
+            setResult(RESULT_CANCELED)
+            finish()
+          }
+          is FrameResult.Failed -> {
+            setResult(RESULT_CANCELED)
+            finish()
+          }
+        }
       }
     }
     container.addView(checkoutView)

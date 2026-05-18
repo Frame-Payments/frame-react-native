@@ -28,6 +28,8 @@
 RCT_EXTERN_METHOD(initialize:(NSString *)secretKey
                   publishableKey:(NSString *)publishableKey
                   debugMode:(BOOL)debugMode
+                  applePayMerchantId:(id)applePayMerchantId
+                  googlePayMerchantId:(id)googlePayMerchantId
                   theme:(NSDictionary *)theme
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
@@ -45,7 +47,6 @@ RCT_EXTERN_METHOD(presentCart:(id)accountId
 
 RCT_EXTERN_METHOD(presentOnboarding:(id)accountId
                   capabilities:(NSArray *)capabilities
-                  applePayMerchantId:(id)applePayMerchantId
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
@@ -53,7 +54,6 @@ RCT_EXTERN_METHOD(presentApplePay:(NSString *)ownerType
                   ownerId:(NSString *)ownerId
                   amount:(nonnull NSNumber *)amount
                   currency:(NSString *)currency
-                  merchantId:(NSString *)merchantId
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
@@ -68,8 +68,8 @@ RCT_EXTERN_METHOD(presentApplePay:(NSString *)ownerType
   return YES;
 }
 
-- (void)initialize:(NSString *)secretKey publishableKey:(NSString *)publishableKey debugMode:(BOOL)debugMode theme:(NSDictionary *)theme resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
-  [[[ObjCFrameSDKBridge alloc] init] initialize:secretKey publishableKey:publishableKey debugMode:debugMode theme:theme resolver:resolve rejecter:reject];
+- (void)initialize:(NSString *)secretKey publishableKey:(NSString *)publishableKey debugMode:(BOOL)debugMode applePayMerchantId:(id)applePayMerchantId googlePayMerchantId:(id)googlePayMerchantId theme:(NSDictionary *)theme resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+  [[[ObjCFrameSDKBridge alloc] init] initialize:secretKey publishableKey:publishableKey debugMode:debugMode applePayMerchantId:applePayMerchantId googlePayMerchantId:googlePayMerchantId theme:theme resolver:resolve rejecter:reject];
 }
 
 - (void)presentCheckout:(id)accountId amount:(NSNumber *)amount resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
@@ -95,19 +95,19 @@ RCT_EXTERN_METHOD(presentApplePay:(NSString *)ownerType
   });
 }
 
-- (void)presentOnboarding:(id)accountId capabilities:(NSArray *)capabilities applePayMerchantId:(id)applePayMerchantId resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+- (void)presentOnboarding:(id)accountId capabilities:(NSArray *)capabilities resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
   dispatch_async(dispatch_get_main_queue(), ^{
     UIViewController *topVC = FrameGetTopViewController();
     if (!topVC) {
       reject(@"NO_ROOT_VC", @"Could not find root view controller to present onboarding", nil);
       return;
     }
-    [[[ObjCFrameSDKBridge alloc] init] presentOnboardingFrom:topVC accountId:accountId capabilities:capabilities applePayMerchantId:applePayMerchantId resolver:resolve rejecter:reject];
+    [[[ObjCFrameSDKBridge alloc] init] presentOnboardingFrom:topVC accountId:accountId capabilities:capabilities resolver:resolve rejecter:reject];
   });
 }
 
-- (void)presentApplePay:(NSString *)ownerType ownerId:(NSString *)ownerId amount:(NSNumber *)amount currency:(NSString *)currency merchantId:(NSString *)merchantId resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
-  [[[ObjCFrameSDKBridge alloc] init] presentApplePay:ownerType ownerId:ownerId amount:amount.intValue currency:currency merchantId:merchantId resolver:resolve rejecter:reject];
+- (void)presentApplePay:(NSString *)ownerType ownerId:(NSString *)ownerId amount:(NSNumber *)amount currency:(NSString *)currency resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+  [[[ObjCFrameSDKBridge alloc] init] presentApplePay:ownerType ownerId:ownerId amount:amount.intValue currency:currency resolver:resolve rejecter:reject];
 }
 
 @end

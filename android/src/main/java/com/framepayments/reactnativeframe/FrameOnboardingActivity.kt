@@ -19,12 +19,10 @@ class FrameOnboardingActivity : ComponentActivity() {
     val accountId = intent.getStringExtra(EXTRA_ACCOUNT_ID)
     val capabilitiesJson = intent.getStringExtra(EXTRA_CAPABILITIES_JSON) ?: "[]"
     val capabilities = parseCapabilities(capabilitiesJson)
-    val googlePayMerchantId = intent.getStringExtra(EXTRA_GOOGLE_PAY_MERCHANT_ID)
 
     val config = OnboardingConfig(
       accountId = accountId,
-      requiredCapabilities = capabilities,
-      googlePayMerchantId = googlePayMerchantId
+      requiredCapabilities = capabilities
     )
 
     val themeOverride = FrameRNTheme.current
@@ -44,7 +42,7 @@ class FrameOnboardingActivity : ComponentActivity() {
               setResult(RESULT_CANCELED)
               finish()
             }
-            is OnboardingResult.Error -> {
+            is OnboardingResult.Failed -> {
               setResult(RESULT_CANCELED)
               finish()
             }
@@ -69,7 +67,6 @@ class FrameOnboardingActivity : ComponentActivity() {
   companion object {
     const val EXTRA_ACCOUNT_ID = "account_id"
     const val EXTRA_CAPABILITIES_JSON = "capabilities_json"
-    const val EXTRA_GOOGLE_PAY_MERCHANT_ID = "google_pay_merchant_id"
     const val EXTRA_PAYMENT_METHOD_ID = "payment_method_id"
     const val REQUEST_CODE = 9003
   }
