@@ -48,6 +48,18 @@ export function initialize(options: {
   publishableKey: string;
   debugMode?: boolean;
   /**
+   * Apple Pay merchant ID configured in your Apple Developer account. Applied to every
+   * Apple Pay surface (presentApplePay, the bundled checkout's wallet row, the
+   * onboarding wallet attach button). iOS-only — ignored on Android.
+   */
+  applePayMerchantId?: string;
+  /**
+   * Google Pay merchant ID from the Google Pay & Wallet Console. Applied to every
+   * Google Pay surface (presentGooglePay, the bundled checkout's wallet row, the
+   * onboarding wallet attach button). Android-only — ignored on iOS.
+   */
+  googlePayMerchantId?: string;
+  /**
    * Optional theme applied SDK-wide to Frame's reusable iOS components
    * (checkout, cart, onboarding). Pass any subset — unspecified tokens fall
    * back to SDK defaults. No-op on Android until frame-android ships a
@@ -69,6 +81,8 @@ export function initialize(options: {
       options.secretKey,
       options.publishableKey,
       options.debugMode ?? false,
+      options.applePayMerchantId ?? null,
+      options.googlePayMerchantId ?? null,
       options.theme ?? null
     )
   ).then(() => {
@@ -147,24 +161,12 @@ export function presentCart(options: {
 export function presentOnboarding(options: {
   accountId?: string | null;
   capabilities?: OnboardingCapability[];
-  applePayMerchantId?: string | null;
-  googlePayMerchantId?: string | null;
 }): Promise<OnboardingResult> {
   guardInitialized();
-  if (Platform.OS === 'ios') {
-    return wrapPromise(
-      FrameSDK.presentOnboarding(
-        options.accountId ?? null,
-        options.capabilities ?? [],
-        options.applePayMerchantId ?? null
-      )
-    );
-  }
   return wrapPromise(
     FrameSDK.presentOnboarding(
       options.accountId ?? null,
-      options.capabilities ?? [],
-      options.googlePayMerchantId ?? null
+      options.capabilities ?? []
     )
   );
 }
@@ -188,16 +190,12 @@ export function presentApplePay(options: PresentApplePayOptions): Promise<string
   if (!options.owner.id) {
     throwCoded(ErrorCodes.INVALID_OWNER, 'Frame.presentApplePay requires owner.id');
   }
-  if (!options.merchantId) {
-    throwCoded(ErrorCodes.INVALID_MERCHANT_ID, 'Frame.presentApplePay requires merchantId');
-  }
   return wrapPromise(
     FrameSDK.presentApplePay(
       options.owner.type,
       options.owner.id,
       options.amount,
-      options.currency ?? 'usd',
-      options.merchantId
+      options.currency ?? 'usd'
     )
   );
 }
@@ -225,8 +223,7 @@ export function presentGooglePay(options: PresentGooglePayOptions): Promise<stri
       options.amountCents,
       options.owner.type,
       options.owner.id,
-      options.currencyCode ?? 'USD',
-      options.googlePayMerchantId ?? null
+      options.currencyCode ?? 'USD'
     )
   );
 }

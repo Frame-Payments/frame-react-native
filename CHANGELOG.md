@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.1] - 2026-05-18
+
+### Breaking
+
+- **Wallet merchant IDs moved to `Frame.initialize`.** Apple Pay and Google Pay merchant IDs are now configured once at init time and become the single source of truth for every wallet surface (`presentApplePay`, `presentGooglePay`, the bundled checkout's wallet row, the onboarding wallet attach step). The per-call `merchantId` / `googlePayMerchantId` / `applePayMerchantId` options have been removed from `presentApplePay`, `presentGooglePay`, and `presentOnboarding`.
+  ```ts
+  // Before (3.0.0)
+  await Frame.initialize({ secretKey, publishableKey });
+  await Frame.presentApplePay({ amount, owner, merchantId: 'merchant.com.yourapp' });
+
+  // After (3.0.1)
+  await Frame.initialize({
+    secretKey,
+    publishableKey,
+    applePayMerchantId: 'merchant.com.yourapp',
+    googlePayMerchantId: 'BCR2DN4T...',
+  });
+  await Frame.presentApplePay({ amount, owner });
+  ```
+  `presentApplePay` / `presentGooglePay` now reject with `INVALID_MERCHANT_ID` if the corresponding merchant ID was not configured at init.
+
+### Changed
+
+- Frame-iOS: `2.2.2` → `2.2.3`.
+- Frame-Android: `2.0.8` → `2.0.9`.
+- iOS native bridge: `initialize` selector gained `applePayMerchantId:` and `googlePayMerchantId:` arguments; `presentApplePay` lost its trailing `merchantId:` argument; `presentOnboarding` lost its trailing wallet-merchant-id argument. Consumers depending on the bridge from custom Objective-C code (uncommon) must update their selectors.
+
+### Fixed
+
+- iOS: `Frame.initialize` no longer crashes with `-[__NSMallocBlock__ count]: unrecognized selector` when called from apps consuming the compiled package. The bridge's argument list grew (see Changed) but `lib/native.js` was stale on disk, so the JS call sent only 4 user args instead of 6. RN appended the resolve/reject blocks after the 4 args, which landed the reject block in the `theme:` slot; the Swift `as? [String: Any]` bridge cast then called `-count` on a block. Rebuilt `lib/` ships the correct call. Going forward, `prepublishOnly` guarantees a fresh build on every publish.
+
+### Notes
+
+- README documents the new init-time merchant ID flow and adds an end-to-end Apple Pay setup walkthrough (merchant identifier → Xcode capability → init → Frame-side enablement).
+
 ## [3.0.0] - 2026-05-14
 
 ### Breaking

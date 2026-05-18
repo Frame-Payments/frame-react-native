@@ -40,7 +40,6 @@ class FrameGooglePayActivity : AppCompatActivity() {
     val ownerType = intent.getStringExtra(EXTRA_OWNER_TYPE)
     val ownerId = intent.getStringExtra(EXTRA_OWNER_ID)
     val currencyCode = intent.getStringExtra(EXTRA_CURRENCY) ?: "USD"
-    val googlePayMerchantId = intent.getStringExtra(EXTRA_MERCHANT_ID)
 
     if (amountCents <= 0) {
       deliverFailure("Invalid amountCents")
@@ -68,7 +67,6 @@ class FrameGooglePayActivity : AppCompatActivity() {
       amountCents = amountCents,
       owner = owner,
       currencyCode = currencyCode,
-      googlePayMerchantId = googlePayMerchantId,
       onResult = { result -> handleResult(result) },
       onReadinessChanged = { isReady -> handleReadiness(isReady) }
     )
@@ -153,7 +151,6 @@ class FrameGooglePayActivity : AppCompatActivity() {
     const val EXTRA_OWNER_TYPE = "owner_type"
     const val EXTRA_OWNER_ID = "owner_id"
     const val EXTRA_CURRENCY = "currency"
-    const val EXTRA_MERCHANT_ID = "merchant_id"
     /**
      * The id of the resource created by the wallet flow. Holds a Transfer id when
      * the owner was an account, or a ChargeIntent id when the owner was a customer.

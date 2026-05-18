@@ -28,7 +28,6 @@ final class ApplePayPresenter: NSObject, PKPaymentAuthorizationControllerDelegat
   private let amount: Int
   private let currency: String
   private let owner: Owner
-  private let merchantId: String
   private let resolve: (Any?) -> Void
   private let reject: (String, String, Error?) -> Void
 
@@ -46,13 +45,11 @@ final class ApplePayPresenter: NSObject, PKPaymentAuthorizationControllerDelegat
   init(amount: Int,
        currency: String,
        owner: Owner,
-       merchantId: String,
        resolve: @escaping (Any?) -> Void,
        reject: @escaping (String, String, Error?) -> Void) {
     self.amount = amount
     self.currency = currency
     self.owner = owner
-    self.merchantId = merchantId
     self.resolve = resolve
     self.reject = reject
   }
@@ -63,7 +60,7 @@ final class ApplePayPresenter: NSObject, PKPaymentAuthorizationControllerDelegat
 
   func present() {
     let request = PKPaymentRequest()
-    request.merchantIdentifier = merchantId
+    request.merchantIdentifier = FrameNetworking.shared.applePayMerchantId ?? ""
     request.supportedNetworks = Self.supportedNetworks
     request.merchantCapabilities = .threeDSecure
     request.countryCode = "US"

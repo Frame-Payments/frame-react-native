@@ -100,7 +100,12 @@ export type WalletOwner =
 /** @deprecated Use {@link WalletOwner}. Retained as an alias for source compatibility. */
 export type ApplePayOwner = WalletOwner;
 
-/** Options for Frame.presentApplePay. */
+/**
+ * Options for Frame.presentApplePay.
+ *
+ * The Apple Pay merchant ID is set once at `Frame.initialize({ applePayMerchantId })`. There is
+ * no per-call merchant ID parameter — the SDK reads it from the singleton at present time.
+ */
 export interface PresentApplePayOptions {
   /** Payment amount in cents. */
   amount: number;
@@ -108,11 +113,14 @@ export interface PresentApplePayOptions {
   currency?: string;
   /** Customer or account that owns the resulting payment method and charge. */
   owner: WalletOwner;
-  /** Apple Pay merchant ID configured in your Apple Developer account. */
-  merchantId: string;
 }
 
-/** Options for Frame.presentGooglePay. */
+/**
+ * Options for Frame.presentGooglePay.
+ *
+ * The Google Pay merchant ID is set once at `Frame.initialize({ googlePayMerchantId })`. There
+ * is no per-call merchant ID parameter — the SDK reads it from the singleton at present time.
+ */
 export interface PresentGooglePayOptions {
   /** Payment amount in cents. */
   amountCents: number;
@@ -120,8 +128,6 @@ export interface PresentGooglePayOptions {
   owner: WalletOwner;
   /** ISO 4217 currency code. Defaults to 'USD'. */
   currencyCode?: string;
-  /** Optional override for the Google Pay merchant ID. */
-  googlePayMerchantId?: string;
 }
 
 /**

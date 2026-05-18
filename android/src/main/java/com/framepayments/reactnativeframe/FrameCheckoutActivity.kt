@@ -7,6 +7,7 @@ import android.os.Looper
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
 import com.framepayments.framesdk.FrameNetworking
+import com.framepayments.framesdk.FrameResult
 import com.framepayments.framesdk_ui.FrameCheckoutView
 
 class FrameCheckoutActivity : AppCompatActivity() {
@@ -68,9 +69,23 @@ class FrameCheckoutActivity : AppCompatActivity() {
   private fun addCheckoutView(container: FrameLayout, accountId: String, amount: Int) {
     val checkoutView = FrameCheckoutView(this)
     FrameRNTheme.current?.let { checkoutView.setTheme(it) }
-    checkoutView.configure(accountId, amount) { transferId ->
-      setResult(RESULT_OK, Intent().putExtra(EXTRA_TRANSFER_ID, transferId))
-      finish()
+    checkoutView.configure(accountId, amount) { result ->
+      when (result) {
+        is FrameResult.Completed -> {
+          setResult(RESULT_OK, Intent().putExtra(EXTRA_TRANSFER_ID, result.id))
+          finish()
+        }
+        FrameResult.Cancelled -> {
+          setResult(RESULT_CANCELED)
+          finish()
+        }
+        is FrameResult.Failed -> {
+          // Surfaced as USER_CANCELED at the JS layer (RESULT_CANCELED maps to it in FrameSDKModule).
+          // Per-error toast UI is already shown by the native FrameCheckoutView before this fires.
+          setResult(RESULT_CANCELED)
+          finish()
+        }
+      }
     }
     container.addView(checkoutView)
   }

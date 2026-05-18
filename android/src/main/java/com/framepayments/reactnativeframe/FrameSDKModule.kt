@@ -36,12 +36,17 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     secretKey: String,
     publishableKey: String,
     debugMode: Boolean,
+    applePayMerchantId: String?,
+    googlePayMerchantId: String?,
     theme: ReadableMap?,
     promise: Promise
   ) {
     try {
       val ctx = reactApplicationContext.applicationContext
-      FrameNetworking.initializeWithAPIKey(ctx, secretKey, publishableKey, debugMode)
+      // applePayMerchantId is iOS-only; accepted in the bridge signature so the JS Frame.initialize()
+      // API stays cross-platform, but ignored here. frame-android has no Apple Pay surface.
+      @Suppress("UNUSED_PARAMETER") val ignoredApplePayMerchantId = applePayMerchantId
+      FrameNetworking.initializeWithAPIKey(ctx, secretKey, publishableKey, googlePayMerchantId, debugMode)
       FrameRNTheme.current = theme?.takeIf { it.keySetIterator().hasNextKey() }?.let {
         FrameRNTheme.parse(ctx, it)
       }
@@ -99,7 +104,6 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     ownerType: String?,
     ownerId: String?,
     currencyCode: String?,
-    googlePayMerchantId: String?,
     promise: Promise
   ) {
     val activity = reactApplicationContext.currentActivity ?: run {
@@ -129,7 +133,6 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
         putExtra(FrameGooglePayActivity.EXTRA_OWNER_TYPE, ownerType)
         putExtra(FrameGooglePayActivity.EXTRA_OWNER_ID, ownerId)
         putExtra(FrameGooglePayActivity.EXTRA_CURRENCY, currencyCode ?: "USD")
-        putExtra(FrameGooglePayActivity.EXTRA_MERCHANT_ID, googlePayMerchantId)
       }
       activity.startActivity(intent)
     }
@@ -139,7 +142,6 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
   fun presentOnboarding(
     accountId: String?,
     capabilities: ReadableArray,
-    googlePayMerchantId: String?,
     promise: Promise
   ) {
     val activity = reactApplicationContext.currentActivity ?: run {
@@ -152,7 +154,6 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       val intent = Intent(activity, FrameOnboardingActivity::class.java).apply {
         putExtra(FrameOnboardingActivity.EXTRA_ACCOUNT_ID, accountId)
         putExtra(FrameOnboardingActivity.EXTRA_CAPABILITIES_JSON, capabilitiesJson)
-        putExtra(FrameOnboardingActivity.EXTRA_GOOGLE_PAY_MERCHANT_ID, googlePayMerchantId)
       }
       activity.startActivityForResult(intent, FrameOnboardingActivity.REQUEST_CODE)
     }
