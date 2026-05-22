@@ -31,13 +31,20 @@
   "homepage": "https://github.com/Frame-Payments/frame-react-native#readme",
   "peerDependencies": {
     "react": "*",
-    "react-native": ">=0.81.0"
+    "react-native": ">=0.81.0",
+    "expo": ">=51.0.0",
+    "@expo/config-plugins": ">=8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "expo": { "optional": true },
+    "@expo/config-plugins": { "optional": true }
   },
   "frameNativeVersions": {
     "ios": "2.2.3",
     "android": "2.0.9"
   },
   "devDependencies": {
+    "@expo/config-plugins": "^8.0.0",
     "@types/jest": "^29.5.0",
     "@types/react": "^19.1.1",
     "@types/react-native": "^0.73.0",
@@ -58,6 +65,8 @@
     "lib",
     "ios",
     "android",
+    "plugin",
+    "app.plugin.js",
     "FrameReactNative.podspec",
     "Package.swift",
     "README.md",

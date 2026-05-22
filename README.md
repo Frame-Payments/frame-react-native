@@ -48,6 +48,33 @@ This prevents the **"Helpers are not supported by the default hub"** crash, whic
 
 No extra steps required. Autolinking handles the native module automatically and pulls in `com.framepayments:framesdk*` from Maven Central.
 
+### Expo
+
+Using Expo SDK 51+ with a development build (Expo Go is **not** supported — this SDK uses native modules)? Add the config plugin to your `app.json` (or `app.config.js`):
+
+```json
+{
+  "expo": {
+    "plugins": [
+      ["framepayments-react-native", {
+        "applePayMerchantId": "merchant.com.yourcompany.app",
+        "enableGooglePay": true
+      }]
+    ]
+  }
+}
+```
+
+Then run `npx expo prebuild --clean` to regenerate `ios/` and `android/`. The plugin:
+
+- Injects `FramePreloader.preloadOnMainThread()` into `AppDelegate.swift` (or `[FramePreloader preloadOnMainThread];` for Obj-C/Obj-C++ AppDelegates).
+- When `applePayMerchantId` is provided: adds it to the `com.apple.developer.in-app-payments` entitlement and sets `com.apple.developer.devicecheck.appattest-environment` to `production` (App Attest is required for every Apple Pay charge — sandbox vs live is keyed off your Frame API keys, not this entitlement).
+- When `enableGooglePay !== false` (default `true`): adds the `com.google.android.gms.wallet.api.enabled` meta-data to `AndroidManifest.xml`.
+
+Both options are optional. The plugin is also a no-op for bare React Native users — `@expo/config-plugins` is declared as an **optional peer dependency**, so it is not installed unless you already have Expo in your project. Yarn 1 users on a bare RN project may see a peer-dependency warning for `expo`; it is safe to ignore.
+
+Frame-iOS requires iOS 17. If `expo prebuild` emits a lower deployment target, set it via [`expo-build-properties`](https://docs.expo.dev/versions/latest/sdk/build-properties/) or in `Podfile.properties.json`.
+
 ---
 
 ## Quick start
