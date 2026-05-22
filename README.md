@@ -44,6 +44,31 @@ This prevents the **"Helpers are not supported by the default hub"** crash, whic
 
 > Using Swift Package Manager directly instead of CocoaPods? The package's `Package.swift` resolves `frame-ios` transitively, so just add `framepayments-react-native` via **File → Add Package Dependencies** in Xcode.
 
+#### Using CocoaPods instead of SPM for Frame-iOS
+
+By default, this SDK autolinks Frame-iOS and Frame-Onboarding via Swift Package Manager (using RN 0.81+'s `spm_dependency` Podfile hook). If you'd rather pull Frame-iOS through CocoaPods — for example, if your build infrastructure doesn't support SPM, or you need to pin to a private fork — disable the SPM injection and declare the pods explicitly.
+
+**1. Disable the SPM injection** by adding this line at the top of your `ios/Podfile`:
+
+```ruby
+ENV['FRAME_RN_SKIP_SPM'] = '1'
+```
+
+This stops `framepayments-react-native`'s podspec from registering its SPM packages. (Equivalently, you can set `FRAME_RN_SKIP_SPM=1` in your shell before running `pod install`.)
+
+**2. Declare the pods directly** in your `Podfile`. Frame-iOS and Frame-Onboarding aren't on CocoaPods trunk, so reference them by git tag from the [frame-ios](https://github.com/Frame-Payments/frame-ios) repo:
+
+```ruby
+pod 'Frame-iOS',        :git => 'https://github.com/Frame-Payments/frame-ios.git', :tag => '2.2.3'
+pod 'Frame-Onboarding', :git => 'https://github.com/Frame-Payments/frame-ios.git', :tag => '2.2.3'
+```
+
+Pin to the same version that `framepayments-react-native` declares in its `frameNativeVersions.ios` field (see [package.json](./package.json)) so the API surface matches what the bridge expects.
+
+**3. Run `pod install`** as usual. CocoaPods will resolve Frame-iOS and Frame-Onboarding from the git tags, and the SPM autolinking code path stays dormant.
+
+Note: Frame-Onboarding lives in the same git repo as Frame-iOS — it ships as a separate podspec within the `frame-ios` repository.
+
 ### Android setup
 
 No extra steps required. Autolinking handles the native module automatically and pulls in `com.framepayments:framesdk*` from Maven Central.

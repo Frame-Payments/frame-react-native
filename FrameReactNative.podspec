@@ -32,7 +32,12 @@ Pod::Spec.new do |s|
   # outside the Podfile's `require 'react_native_pods.rb'` context where the
   # helpers are defined. Without guards, `npx react-native config` would crash
   # and return `ios: null`, breaking `use_native_modules!`.
-  if respond_to?(:spm_dependency, true)
+  #
+  # Escape hatch: set FRAME_RN_SKIP_SPM=1 in the env (or `ENV['FRAME_RN_SKIP_SPM'] = '1'`
+  # at the top of the host Podfile) to disable SPM injection. Consumers who prefer
+  # CocoaPods then declare `pod 'Frame-iOS'` and `pod 'Frame-Onboarding'` directly
+  # in their Podfile — see README "iOS setup → Using CocoaPods instead of SPM".
+  if respond_to?(:spm_dependency, true) && !ENV['FRAME_RN_SKIP_SPM']
     spm_dependency(s,
       url: 'https://github.com/Frame-Payments/frame-ios',
       requirement: { kind: 'upToNextMajorVersion', minimumVersion: package['frameNativeVersions']['ios'] },
