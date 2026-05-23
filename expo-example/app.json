@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Frame Expo Example",
+    "slug": "frame-expo-example",
+    "version": "1.0.0",
+    "scheme": "frameexpoexample",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "com.framepayments.expoexample",
+      "supportsTablet": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.framepayments.expoexample"
+    },
+    "plugins": [
+      [
+        "framepayments-react-native",
+        {
+          "applePayMerchantId": "merchant.com.framepayments.example",
+          "enableGooglePay": true
+        }
+      ],
+      "@fingerprintjs/fingerprintjs-pro-react-native",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "17.0"
+          },
+          "android": {
+            "minSdkVersion": 26,
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36
+          }
+        }
+      ]
+    ]
+  }
+}

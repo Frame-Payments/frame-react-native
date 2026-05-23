@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.28.0",
+    "@evervault/evervault-react-native": "^1.4.2",
+    "@fingerprintjs/fingerprintjs-pro-react-native": "^3.14.0",
     "@react-native/assets-registry": "^0.83.9",
     "@react-native/virtualized-lists": "^0.83.9",
     "fast-xml-parser": "^5.3.6",
@@ -18,7 +20,8 @@
     "metro-runtime": "^0.83.5",
     "react": "19.2.0",
     "react-native": "0.83.9",
-    "react-refresh": "^0.14.2"
+    "react-refresh": "^0.14.2",
+    "sift-react-native": "^1.0.1"
   },
   "overrides": {
     "fast-xml-parser": "^5.3.6"

@@ -12,19 +12,82 @@ const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unkno
 
 const mockPlatform = { OS: 'ios' as 'ios' | 'android' };
 
-jest.mock('react-native', () => ({
-  NativeModules: {
-    FrameSDK: {
-      initialize: mockInitialize,
-      presentCheckout: mockPresentCheckout,
-      presentCart: mockPresentCart,
-      presentApplePay: mockPresentApplePay,
-      presentGooglePay: mockPresentGooglePay,
-      presentOnboarding: mockPresentOnboarding,
+// native.tsx now transitively imports the Cart/Checkout screens, which pull in
+// StyleSheet, Animated, Appearance, etc. Provide enough of the RN surface for
+// the modules to load without rendering.
+jest.mock('react-native', () => {
+  const noop = () => undefined;
+  const stylesheetCreate = (s: unknown) => s;
+  return {
+    NativeModules: {
+      FrameSDK: {
+        initialize: mockInitialize,
+        presentCheckout: mockPresentCheckout,
+        presentCart: mockPresentCart,
+        presentApplePay: mockPresentApplePay,
+        presentGooglePay: mockPresentGooglePay,
+        presentOnboarding: mockPresentOnboarding,
+      },
+      FrameApplePay: {
+        canMakeApplePay: () => Promise.resolve(false),
+        presentApplePay: () => Promise.resolve({}),
+        finishApplePay: () => Promise.resolve(),
+      },
+      FrameGooglePay: {
+        isGooglePayReady: () => Promise.resolve(false),
+        presentGooglePay: () => Promise.resolve({}),
+      },
+      FrameAttestation: {
+        isSupported: () => Promise.resolve(false),
+        attestedKeyId: () => Promise.resolve(null),
+        generateKey: () => Promise.resolve(''),
+        attestKey: () => Promise.resolve(''),
+        promoteKey: () => Promise.resolve(),
+        clearPendingKey: () => Promise.resolve(),
+        generateAssertion: () => Promise.resolve(''),
+        resetAttestation: () => Promise.resolve(),
+      },
     },
-  },
-  Platform: mockPlatform,
+    Platform: mockPlatform,
+    StyleSheet: { create: stylesheetCreate, hairlineWidth: 1 },
+    Animated: {
+      Value: class { constructor(_v: number) {} setValue() {} },
+      timing: () => ({ start: noop }),
+      spring: () => ({ start: noop }),
+      parallel: () => ({ start: noop }),
+      View: 'Animated.View',
+    },
+    Appearance: {
+      getColorScheme: () => 'light',
+      addChangeListener: () => ({ remove: noop }),
+    },
+    requireNativeComponent: (name: string) => name,
+  };
+});
+
+// The Evervault RN SDK ships a .tsx entrypoint that transitively imports
+// react-native; stub it out so ts-jest doesn't try to compile Flow syntax.
+const evervaultInitMock = jest.fn(() => Promise.resolve());
+const evervaultEncryptMock = jest.fn((v: unknown) => Promise.resolve(`ev:${String(v)}`));
+jest.mock('@evervault/evervault-react-native', () => ({
+  init: evervaultInitMock,
+  encrypt: evervaultEncryptMock,
 }));
+
+// initialize() kicks off a background prefetch via framepayments. Without
+// mocking it, axios would open real sockets and hang the suite.
+const getEvervaultConfigMock = jest.fn(() => Promise.resolve({ team_id: 'team_x', app_id: 'app_x' }));
+const getSiftConfigMock = jest.fn(() => Promise.resolve({ account_id: 'sift_a', beacon_key: 'beacon_b' }));
+jest.mock('framepayments', () => {
+  class MockFrameSDK {
+    configuration = {
+      getEvervaultConfiguration: getEvervaultConfigMock,
+      getSiftConfiguration: getSiftConfigMock,
+    };
+    constructor(_config: unknown) {}
+  }
+  return { FrameSDK: MockFrameSDK };
+});
 
 // Re-import after mock so we get the mocked NativeModules
 let initialize: (opts: { secretKey: string; publishableKey: string; debugMode?: boolean; applePayMerchantId?: string; googlePayMerchantId?: string }) => Promise<void>;
@@ -46,6 +109,10 @@ beforeEach(() => {
   mockPresentApplePay.mockClear();
   mockPresentGooglePay.mockClear();
   mockPresentOnboarding.mockClear();
+  evervaultInitMock.mockClear().mockResolvedValue(undefined as never);
+  evervaultEncryptMock.mockClear();
+  getEvervaultConfigMock.mockClear().mockResolvedValue({ team_id: 'team_x', app_id: 'app_x' });
+  getSiftConfigMock.mockClear().mockResolvedValue({ account_id: 'sift_a', beacon_key: 'beacon_b' });
   mockPlatform.OS = 'ios';
   const native = require('../native');
   initialize = native.initialize;
@@ -97,6 +164,65 @@ describe('initialize', () => {
     expect(() => (initialize as any)({ secretKey: 'sk_test' })).toThrow(/publishableKey/);
     expect(mockInitialize).not.toHaveBeenCalled();
   });
+
+  it('throws if theme is not a plain object', () => {
+    expect(() =>
+      (initialize as any)({ secretKey: 'sk_test', publishableKey: 'pk_test', theme: 'not-an-object' }),
+    ).toThrow(/theme must be an object/);
+    expect(() =>
+      (initialize as any)({ secretKey: 'sk_test', publishableKey: 'pk_test', theme: [] }),
+    ).toThrow(/theme must be an object/);
+    expect(mockInitialize).not.toHaveBeenCalled();
+  });
+
+  it('accepts a plain-object theme and forwards it to native init', async () => {
+    const theme = { colors: { primaryButton: '#FF0066' } };
+    await initialize({ secretKey: 'sk_test', publishableKey: 'pk_test', theme });
+    expect(mockInitialize).toHaveBeenCalledWith('sk_test', 'pk_test', false, null, null, theme);
+  });
+
+  it('does not flip isInitialized=true until the native bridge resolves', async () => {
+    let resolveNative: (() => void) | undefined;
+    mockInitialize.mockImplementationOnce(
+      () => new Promise<void>((resolve) => { resolveNative = resolve; }),
+    );
+
+    const initPromise = initialize({ secretKey: 'sk_test', publishableKey: 'pk_test' });
+
+    // Mid-flight: native bridge has not resolved yet. A parallel call to a
+    // guarded entry-point should still fail with NOT_INITIALIZED.
+    try {
+      await presentCheckout({ accountId: 'acct_1', amount: 1000 });
+      fail('expected presentCheckout to reject NOT_INITIALIZED');
+    } catch (e: any) {
+      expect(e.code).toBe('NOT_INITIALIZED');
+    }
+
+    resolveNative!();
+    await initPromise;
+
+    // After native bridge resolves, presentCheckout no longer rejects
+    // NOT_INITIALIZED. With no FrameProvider mounted in tests, the next
+    // expected gate is NO_PROVIDER.
+    await expect(
+      presentCheckout({ accountId: 'acct_1', amount: 1000 }),
+    ).rejects.toMatchObject({ code: 'NO_PROVIDER' });
+  });
+
+  it('rolls back config when the native bridge rejects', async () => {
+    mockInitialize.mockImplementationOnce(() => Promise.reject(new Error('native init failed')));
+
+    await expect(
+      initialize({ secretKey: 'sk_test', publishableKey: 'pk_test' }),
+    ).rejects.toThrow(/native init failed/);
+
+    try {
+      await presentCheckout({ accountId: 'acct_1', amount: 1000 });
+      fail('expected presentCheckout to reject NOT_INITIALIZED');
+    } catch (e: any) {
+      expect(e.code).toBe('NOT_INITIALIZED');
+    }
+  });
 });
 
 describe('presentCheckout', () => {
@@ -122,11 +248,12 @@ describe('presentCheckout', () => {
     expect(mockPresentCheckout).not.toHaveBeenCalled();
   });
 
-  it('calls native presentCheckout with accountId and amount; resolves with transfer id string', async () => {
+  it('rejects NO_PROVIDER when FrameProvider is not mounted', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    const result = await presentCheckout({ accountId: 'acct_1', amount: 10000 });
-    expect(mockPresentCheckout).toHaveBeenCalledWith('acct_1', 10000);
-    expect(result).toBe('tr_1');
+    await expect(
+      presentCheckout({ accountId: 'acct_1', amount: 10000 }),
+    ).rejects.toMatchObject({ code: 'NO_PROVIDER' });
+    expect(mockPresentCheckout).not.toHaveBeenCalled();
   });
 });
 
@@ -156,15 +283,12 @@ describe('presentCart', () => {
     expect(mockPresentCart).not.toHaveBeenCalled();
   });
 
-  it('calls native presentCart with accountId, items, shipping; resolves with transfer id string', async () => {
+  it('rejects NO_PROVIDER when FrameProvider is not mounted', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    const result = await presentCart({
-      accountId: 'acct_2',
-      items,
-      shippingAmountInCents: 500,
-    });
-    expect(mockPresentCart).toHaveBeenCalledWith('acct_2', items, 500);
-    expect(result).toBe('tr_2');
+    await expect(
+      presentCart({ accountId: 'acct_2', items, shippingAmountInCents: 500 }),
+    ).rejects.toMatchObject({ code: 'NO_PROVIDER' });
+    expect(mockPresentCart).not.toHaveBeenCalled();
   });
 });
 
@@ -201,31 +325,8 @@ describe('presentApplePay', () => {
     expect(mockPresentApplePay).not.toHaveBeenCalled();
   });
 
-  it('forwards account owner; resolves with transfer id string', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', applePayMerchantId: 'merchant.test' });
-    const result = await presentApplePay({
-      amount: 12345,
-      currency: 'usd',
-      owner: { type: 'account', id: 'acct_1' },
-    });
-    expect(mockPresentApplePay).toHaveBeenCalledWith('account', 'acct_1', 12345, 'usd');
-    expect(result).toBe('tr_3');
-  });
-
-  it('forwards customer owner; resolves with charge intent id string', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', applePayMerchantId: 'merchant.test' });
-    await presentApplePay({
-      amount: 9999,
-      owner: { type: 'customer', id: 'cus_1' },
-    });
-    expect(mockPresentApplePay).toHaveBeenCalledWith('customer', 'cus_1', 9999, 'usd');
-  });
-
-  it('defaults currency to usd', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', applePayMerchantId: 'merchant.test' });
-    await presentApplePay({ amount: 100, owner: { type: 'account', id: 'acct_1' } });
-    expect(mockPresentApplePay).toHaveBeenCalledWith('account', 'acct_1', 100, 'usd');
-  });
+  // End-to-end behavior of presentApplePay (token-out + two-step settle, owner
+  // routing, currency default) is covered by src/__tests__/applePay.test.ts.
 });
 
 describe('presentGooglePay', () => {
@@ -266,31 +367,9 @@ describe('presentGooglePay', () => {
     expect(mockPresentGooglePay).not.toHaveBeenCalled();
   });
 
-  it('forwards account owner; resolves with transfer id string', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', googlePayMerchantId: 'BCR2DN4T...' });
-    const result = await presentGooglePay({
-      amountCents: 9999,
-      owner: { type: 'account', id: 'acct_1' },
-      currencyCode: 'EUR',
-    });
-    expect(mockPresentGooglePay).toHaveBeenCalledWith(9999, 'account', 'acct_1', 'EUR');
-    expect(result).toBe('tr_4');
-  });
-
-  it('forwards customer owner; resolves with charge intent id string', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', googlePayMerchantId: 'BCR2DN4T...' });
-    await presentGooglePay({
-      amountCents: 4242,
-      owner: { type: 'customer', id: 'cus_1' },
-    });
-    expect(mockPresentGooglePay).toHaveBeenCalledWith(4242, 'customer', 'cus_1', 'USD');
-  });
-
-  it('defaults currencyCode to USD', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', googlePayMerchantId: 'BCR2DN4T...' });
-    await presentGooglePay({ amountCents: 100, owner: { type: 'account', id: 'acct_1' } });
-    expect(mockPresentGooglePay).toHaveBeenCalledWith(100, 'account', 'acct_1', 'USD');
-  });
+  // End-to-end behavior of presentGooglePay (wallet config fetch, PaymentData
+  // round-trip, owner routing, currency default) is covered by
+  // src/__tests__/googlePay.test.ts.
 });
 
 describe('presentOnboarding', () => {
@@ -305,23 +384,65 @@ describe('presentOnboarding', () => {
     expect(mockPresentOnboarding).not.toHaveBeenCalled();
   });
 
-  it('calls native presentOnboarding with accountId and capabilities only — no merchant params', async () => {
+  it('rejects NO_PROVIDER when FrameProvider is not mounted', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    const result = await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc', 'bank_account_verification'] });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc', 'bank_account_verification']);
-    expect(result).toEqual({ status: 'completed', paymentMethodId: 'pm_1' });
+    await expect(
+      presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc', 'bank_account_verification'] }),
+    ).rejects.toMatchObject({ code: 'NO_PROVIDER' });
+    // Native FrameSDK.presentOnboarding no longer exists; the JS presenter
+    // owns onboarding now. Verify the legacy bridge mock is never touched.
+    expect(mockPresentOnboarding).not.toHaveBeenCalled();
+  });
+});
+
+describe('initialize prefetch — Evervault + Sift', () => {
+  // Flushes microtasks so the background `void prefetchServiceConfigs()` runs.
+  const settlePrefetch = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+  it('fetches Evervault config + calls configureEvervault with the returned ids', async () => {
+    await initialize({ secretKey: 'sk_1', publishableKey: 'pk_1' });
+    await settlePrefetch();
+    expect(getEvervaultConfigMock).toHaveBeenCalledWith({ usePublishableKey: true });
+    expect(evervaultInitMock).toHaveBeenCalledWith('team_x', 'app_x');
   });
 
-  it('passes null accountId and empty array for capabilities when not provided', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    await presentOnboarding({});
-    expect(mockPresentOnboarding).toHaveBeenCalledWith(null, []);
+  it('fetches Sift config in parallel with Evervault', async () => {
+    await initialize({ secretKey: 'sk_1', publishableKey: 'pk_1' });
+    await settlePrefetch();
+    expect(getSiftConfigMock).toHaveBeenCalledWith({ usePublishableKey: true });
   });
 
-  it('behaves the same on Android — merchant IDs are init-only across both platforms', async () => {
-    mockPlatform.OS = 'android';
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', googlePayMerchantId: 'BCR2DN4T...' });
-    await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'] });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc']);
+  it('does not call configureEvervault when backend returns null team_id', async () => {
+    getEvervaultConfigMock.mockResolvedValueOnce({ team_id: null as never, app_id: 'app_x' });
+    await initialize({ secretKey: 'sk_1', publishableKey: 'pk_1' });
+    await settlePrefetch();
+    expect(evervaultInitMock).not.toHaveBeenCalled();
+  });
+
+  it('does not throw from initialize when prefetch fails', async () => {
+    getEvervaultConfigMock.mockRejectedValueOnce(new Error('network down'));
+    getSiftConfigMock.mockRejectedValueOnce(new Error('network down'));
+    await expect(initialize({ secretKey: 'sk_1', publishableKey: 'pk_1' })).resolves.toBeUndefined();
+    await settlePrefetch();
+    expect(evervaultInitMock).not.toHaveBeenCalled();
+  });
+
+  it('debugMode true → prefetch failures emit console.warn', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    getEvervaultConfigMock.mockRejectedValueOnce(new Error('boom'));
+    await initialize({ secretKey: 'sk_1', publishableKey: 'pk_1', debugMode: true });
+    await settlePrefetch();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Evervault'));
+    warnSpy.mockRestore();
+  });
+
+  it('debugMode false → prefetch failures are silent', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    getEvervaultConfigMock.mockRejectedValueOnce(new Error('boom'));
+    getSiftConfigMock.mockRejectedValueOnce(new Error('boom'));
+    await initialize({ secretKey: 'sk_1', publishableKey: 'pk_1' });
+    await settlePrefetch();
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 });

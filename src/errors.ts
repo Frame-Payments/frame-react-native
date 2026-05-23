@@ -1,7 +1,3 @@
-/**
- * Standard error codes and shape for the Frame React Native SDK.
- */
-
 export const ErrorCodes = {
   NOT_INITIALIZED: 'NOT_INITIALIZED',
   USER_CANCELED: 'USER_CANCELED',
@@ -19,9 +15,18 @@ export const ErrorCodes = {
   INIT_FAILED: 'INIT_FAILED',
   APPLE_PAY_UNAVAILABLE: 'APPLE_PAY_UNAVAILABLE',
   GOOGLE_PAY_UNAVAILABLE: 'GOOGLE_PAY_UNAVAILABLE',
+  PLAID_UNAVAILABLE: 'PLAID_UNAVAILABLE',
+  CAMERA_UNAVAILABLE: 'CAMERA_UNAVAILABLE',
+  PLATFORM_UNSUPPORTED: 'PLATFORM_UNSUPPORTED',
   NOT_ATTESTED: 'NOT_ATTESTED',
+  ATTESTATION_FAILED: 'ATTESTATION_FAILED',
   PAYMENT_METHOD_FAILED: 'PAYMENT_METHOD_FAILED',
   PAYMENT_FAILED: 'PAYMENT_FAILED',
+  API_DECODE: 'API_DECODE',
+  API_VALIDATION: 'API_VALIDATION',
+  API_NETWORK: 'API_NETWORK',
+  MISSING_PUBLISHABLE_KEY: 'MISSING_PUBLISHABLE_KEY',
+  MISSING_SECRET_KEY: 'MISSING_SECRET_KEY',
 } as const;
 
 export type FrameErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
@@ -32,7 +37,18 @@ export interface FrameErrorShape {
   nativeError?: string;
 }
 
+export function frameError(code: string, message: string): Error & { code: string } {
+  const err = new Error(message) as Error & { code: string };
+  err.code = code;
+  return err;
+}
+
 export function isFrameError(error: unknown): error is FrameErrorShape {
+  // Plain Error instances (and subclasses like FrameAPIError) duck-type as
+  // FrameErrorShape via inherited .message and an added .code, but they're
+  // not the consumer-facing shape — exclude them so callers route through
+  // the proper adapter (api-errors.toFrameError).
+  if (error instanceof Error) return false;
   return (
     typeof error === 'object' &&
     error !== null &&

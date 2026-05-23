@@ -1,16 +1,9 @@
-import groovy.json.JsonSlurper
-
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
-apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 
 def safeExtGet(prop, fallback) {
   rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
 }
-
-// Single source of truth for Frame native SDK versions — see package.json:frameNativeVersions.
-def frameNativeVersions = new JsonSlurper().parse(file("$projectDir/../package.json")).frameNativeVersions
-def frameAndroidVersion = frameNativeVersions.android
 
 android {
   namespace "com.framepayments.reactnativeframe"
@@ -18,6 +11,11 @@ android {
   defaultConfig {
     minSdk safeExtGet('minSdkVersion', 26)
     targetSdk safeExtGet('targetSdkVersion', 36)
+    // Apply consumer-rules.pro to host apps so R8 / ProGuard minification
+    // doesn't break the Prove SDK classes the bridge calls directly, the
+    // Frame RN module bridge (RN annotations), or play-services-wallet
+    // reflection.
+    consumerProguardFiles 'consumer-rules.pro'
   }
   compileOptions {
     sourceCompatibility JavaVersion.VERSION_17
@@ -26,29 +24,20 @@ android {
   kotlinOptions {
     jvmTarget = '17'
   }
-  buildFeatures {
-    compose true
-  }
-  composeOptions {
-    kotlinCompilerExtensionVersion = "1.5.14"
-  }
 }
 
 dependencies {
   implementation 'com.facebook.react:react-native:+'
   implementation "org.jetbrains.kotlin:kotlin-stdlib:2.1.0"
-  implementation "com.framepayments:framesdk:${frameAndroidVersion}"
-  implementation "com.framepayments:framesdk_ui:${frameAndroidVersion}"
-  implementation "com.framepayments:framesdk_onboarding:${frameAndroidVersion}"
-  // Required by FrameGooglePayButton (PaymentsClient, WalletConstants).
-  // framesdk_ui declares this as `implementation`, so it is not exposed transitively.
+  // PaymentsClient, WalletConstants, PaymentDataRequest used by GooglePayBridge.
   implementation 'com.google.android.gms:play-services-wallet:19.4.0'
-  // AppCompat is needed because FrameGooglePayButton casts its host to AppCompatActivity.
-  implementation 'androidx.appcompat:appcompat:1.7.0'
-  implementation 'com.google.code.gson:gson:2.10.1'
-  implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-  // Frame SDK UI uses Compose; LocalLifecycleOwner requires lifecycle-runtime-compose 2.8+
-  implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.2'
-  // Compose support for FrameOnboardingActivity
-  implementation 'androidx.activity:activity-compose:1.12.2'
+  // Suspending Prove flow inside ProveAuthBridge.
+  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+  // Prove Android SDK. compileOnly so the bridge can use real types without
+  // forcing host apps that don't ship phone_verification to pull it in. At
+  // runtime, ProveAuthBridge probes for the class and degrades to
+  // PROVE_UNAVAILABLE if missing. Host apps that DO ship phone_verification
+  // must add it to their own app/build.gradle:
+  //   implementation 'com.prove.sdk:proveauth:6.10.3'
+  compileOnly 'com.prove.sdk:proveauth:6.10.3'
 }

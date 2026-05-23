@@ -1,111 +1,123 @@
 # Maintaining frame-react-native
 
-This document covers how to keep the package dependencies up to date across all three layers: Node, Android, and iOS.
+This document covers what to keep current in 4.x. The SDK is standalone — no Frame iOS / Frame Android native dependency to track — so most maintenance is npm packages, the small set of Google / Prove deps still pulled in via Gradle / CocoaPods, and the platform minimums.
 
 ---
 
 ## Node (npm)
 
 ### Check for outdated packages
+
 ```sh
 npm outdated
 ```
 
 ### Update within current semver ranges
+
 ```sh
 npm update
 ```
 
 ### Bump major versions
-Edit `package.json` manually, then run:
-```sh
-npm install
-```
 
-Key packages to watch:
-- `react-native` peer dependency — match the minimum version your SDK supports
-- `typescript` — check for breaking changes in new major versions
-- `@types/react`, `@types/react-native` — keep aligned with the peer dependency versions
+Edit `package.json` manually, then run `npm install`.
 
----
+Packages worth watching:
 
-## Native SDK versions — single source of truth
-
-The Frame iOS and Android SDK versions live in **one place**: the top-level
-`frameNativeVersions` field in `package.json`.
-
-```json
-"frameNativeVersions": {
-  "ios": "2.2.2",
-  "android": "2.0.8"
-}
-```
-
-- **iOS podspec** (`ios/FrameReactNative.podspec`) reads `frameNativeVersions.ios`
-  and passes it to RN's `spm_dependency(...)` Podfile hook. `pod install` then
-  resolves `frame-ios` automatically via Swift Package Manager.
-- **Android build.gradle** parses `package.json` with `JsonSlurper` and uses
-  `frameNativeVersions.android` for `com.framepayments:framesdk*` dependencies.
-- **`Package.swift`** is the one duplicated pin (Swift Package manifests cannot
-  read JSON). Keep the `from: "X.Y.Z"` in `Package.swift` in lock-step with
-  `frameNativeVersions.ios` when you bump.
-
-Bumping a native SDK is therefore a 1- or 2-line edit:
-
-| Bumping… | Files to edit |
+| Package | Notes |
 |---|---|
-| frame-android only | `package.json` (`frameNativeVersions.android`) |
-| frame-ios only     | `package.json` (`frameNativeVersions.ios`) AND `Package.swift` line 26 |
-| Both               | All three places above |
-
-Releases:
-- frame-ios: https://github.com/Frame-Payments/frame-ios
-- frame-android: https://github.com/Frame-Payments/frame-android
-
-## Android
-
-Android dependencies are declared in `android/build.gradle`.
-
-### Supporting dependencies
-Update these as needed, checking for compatibility with the Frame SDK version:
-```groovy
-implementation 'com.google.code.gson:gson:2.10.1'
-implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.2'
-```
-
-> **Note:** `lifecycle-runtime-compose` must be >= 2.8 — the Frame SDK UI uses Jetpack Compose with `LocalLifecycleOwner`, which requires this minimum version.
-
-### Gradle tooling
-Update the build toolchain versions in `android/build.gradle` when needed:
-```groovy
-classpath 'com.android.tools.build:gradle:8.1.0'
-classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.0"
-```
-Also update `compileSdk` / `targetSdk` defaults as new Android API levels are released.
-
-### React Native
-`com.facebook.react:react-native:+` is unpinned and resolves to whatever version the host app provides. No action needed here.
+| `framepayments` | The networking SDK. Pinned to `^2.1.4` (the `defaultHeaders` knob lives there). Any new endpoint the RN SDK calls must first land in `framepayments` (see `/Users/erictownsend/Documents/GitHub/frame-node`). Bump the floor here when you adopt a new method. |
+| `react-native` (peer) | Floor is `>=0.81`. The C++20 / Folly post-install flags in `plugin/withFramePodfile.js` track this version. |
+| `typescript` | Check for breaking changes when major-bumping. |
+| `@types/react` | Keep aligned with the `react` peer your consumers use. |
+| `@evervault/evervault-react-native` | Hard peer. Used for PAN encryption at submit time. |
+| `@fingerprintjs/fingerprintjs-pro-react-native` | Hard peer. Fraud signals on every request. |
+| `sift-react-native` | Hard peer. Sift session is initialized in `Frame.initialize`. |
+| `libphonenumber-js` | Phone parsing. Vendor data file updates ship as patch releases. |
 
 ---
 
-## iOS
+## Adding a new endpoint or response field
 
-### Frame iOS SDK
-Managed via `frameNativeVersions.ios` in `package.json` (see "Native SDK versions —
-single source of truth" above). The podspec calls RN's `spm_dependency(...)`
-helper with that version; host apps using CocoaPods get `Frame-iOS` and
-`Frame-Onboarding` resolved automatically by `pod install` (no Xcode GUI step).
+If the bridge needs to call something `framepayments` doesn't expose yet:
 
-Pure-SPM consumers resolve `frame-ios` transitively through `Package.swift`.
+1. Add it in `frame-node` first (typed method, axios test, CHANGELOG entry).
+2. Cut a `framepayments` release.
+3. Bump the `framepayments` floor in this package's `package.json`.
+4. Consume the new method from `src/client.ts` (or directly from the call site).
 
-### CocoaPods / React-Core
-This package declares only `React-Core` as a pod dependency, which is versioned by the host app's React Native version. No manual update needed here.
+Do **not** reach past `framepayments` to call the REST API yourself from inside this SDK — the publishable-key / secret-key routing and the sanitized `FrameAPIError.raw` envelope are enforced by the interceptor in `framepayments`.
 
-To update CocoaPods itself (in the host app):
-```sh
-bundle exec pod update
-```
+---
+
+## Adding a new screen
+
+Screens live under `src/ui/screens/`. They're pure React Native — no native code required.
+
+1. Add the screen file (`src/ui/screens/foo/FooScreen.tsx`) and, if it needs state, a sibling `useFooViewModel.ts` + pure `fooReducer.ts`.
+2. Reuse primitives from `src/ui/primitives/` (Button, ValidatedTextField, BottomSheet, etc.). Don't introduce a third button variant if `Button` already covers it.
+3. Wire it into the orchestrator that presents it (e.g. `src/ui/screens/onboarding/OnboardingRoot.tsx` or the modal presenter in `src/presenter/`).
+4. Add tests next to the file: reducer transitions in a `.test.ts`, render smoke in a `.test.tsx` if it has non-trivial interaction.
+
+---
+
+## Adding a new public API method
+
+1. Implement the orchestration in `src/native.tsx` (the file ships both `.ts` and `.tsx` because some entrypoints render React).
+2. Re-export it from `src/index.ts` and add the input/result types to `src/types.ts`.
+3. Update the API reference section in [README.md](./README.md).
+4. Add a `__tests__` entry covering happy path + the obvious failure mode.
+
+---
+
+## Adding a new native bridge
+
+Native bridges in 4.x are reserved for things that genuinely need platform primitives — PassKit (Apple Pay), Google Pay's `PaymentsClient`, `DCAppAttestService` (iOS-only; Android has no device-attestation equivalent in this SDK), and the Prove SDK. Most features don't need this. Before adding one, confirm there's no JS-only path.
+
+When a bridge is unavoidable, the existing pairs are the pattern to copy:
+
+| Native module | iOS files | Android files |
+|---|---|---|
+| `FrameApplePay` | `ios/ApplePayBridge.swift`, `ios/ApplePayBridge.m` | n/a |
+| `FrameGooglePay` | n/a | `android/.../GooglePayBridge.kt` |
+| `FrameAttestation` | `ios/AttestationBridge.swift` + `.m` | n/a (iOS-only) |
+| `FrameProveAuth` | `ios/ProveAuthBridge.swift` + `.m` | `android/.../ProveAuthBridge.kt` |
+| View managers (Apple/Google Pay buttons) | `ios/FrameApplePayButtonView.swift` + `.m` | `android/.../FrameGooglePayButtonView.kt` |
+
+Then expose a thin JS wrapper under `src/<feature>/` and route the call site through it — do not call `NativeModules.X` directly from screens.
+
+---
+
+## iOS deps
+
+The podspec (`FrameReactNative.podspec`) only declares `React-Core`. Everything else is autolinked or peer-injected:
+
+- Apple Pay → PassKit (system framework).
+- App Attest → DeviceCheck (system framework).
+- Prove → the host app installs `pod 'ProveAuth'` if it ships the `phone_verification` capability. The cocoapods-art jfrog source is registered in `plugin/withFramePodfile.js`.
+- C++20 / Folly flags → injected by the same plugin (RN 0.81+ requirement).
+
+When raising the iOS deployment target, update:
+
+- `FrameReactNative.podspec` (`s.platform = :ios, '17.0'`)
+- the minimum row in this file's table
+
+---
+
+## Android deps
+
+`android/build.gradle` pulls in:
+
+| Dep | Why |
+|---|---|
+| `com.facebook.react:react-native:+` | RN, unpinned — resolves to whatever the host provides. |
+| `org.jetbrains.kotlin:kotlin-stdlib:2.1.0` | Kotlin runtime. |
+| `com.google.android.gms:play-services-wallet:19.4.0` | Used by `GooglePayBridge`. |
+| `org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1` | Used by `ProveAuthBridge`. |
+
+The Prove Android SDK (`com.prove.sdk:proveauth:6.10.3`) is declared `compileOnly` so the bridge can use real types without forcing host apps that don't ship `phone_verification` to pull it in. Host apps that DO ship `phone_verification` add it as `implementation` in their own `app/build.gradle`; the bridge probes for the class at runtime and degrades to `PROVE_UNAVAILABLE` when missing.
+
+`consumer-rules.pro` ships ProGuard / R8 rules covering RN annotations, the wallet reflection paths, and the reflective Prove lookup. Whenever a new reflective dep is added, add a keep rule there too.
 
 ---
 
@@ -113,57 +125,31 @@ bundle exec pod update
 
 | Platform | Current minimum | Declared in |
 |---|---|---|
-| iOS | 17.0 | `ios/FrameReactNative.podspec`, `Package.swift` |
+| iOS | 17.0 | `FrameReactNative.podspec` |
 | Android minSdk | 26 | `android/build.gradle` |
 | Android compileSdk / targetSdk | 36 | `android/build.gradle` |
-| React Native | >= 0.81.0 | `package.json` |
-| Node | >= 16 | `package.json` |
+| React Native | >= 0.81.0 | `package.json` `peerDependencies` |
+| Node | >= 18 | `package.json` `engines` |
 
-When raising minimums, update both the relevant config file and this table.
-
----
-
-## Adding a new native view
-
-When the Frame iOS or Android SDK ships a new UI view (e.g. a new payment sheet), it is **not** automatically available in React Native. Each new view must be explicitly bridged through all five layers below.
-
-Use the existing `presentCheckout` / `presentCart` implementations as the pattern to follow.
-
-### 1. iOS — `ios/FrameSDKBridge.swift`
-Add a new `present*` private method that wraps the new SwiftUI view in a `UIHostingController` and presents it as a modal sheet. Add a corresponding `@objc public` entry point that calls it.
-
-### 2. iOS — `ios/FrameSDKBridge.m`
-Register the new method with the React Native bridge using `RCT_EXTERN_METHOD(...)`. Without this declaration, React Native cannot see the method.
-
-### 3. Android — new Activity + `FrameSDKModule.kt`
-Create a new Activity (e.g. `FrameNewViewActivity.kt`) that inflates the new view from `framesdk_ui`. Add a corresponding `@ReactMethod` in `FrameSDKModule.kt` that launches it, and register the new Activity in `android/src/main/AndroidManifest.xml`.
-
-### 4. TypeScript — `src/native.ts`
-Add a new exported function that calls `FrameSDK.presentNewView(...)` with the appropriate parameters and return type.
-
-### 5. TypeScript — `src/index.ts` and `src/types.ts`
-Export the new function from `index.ts`, and add any new input/output types to `types.ts`.
-
-### Checklist
-
-| Layer | File(s) to change |
-|---|---|
-| iOS Swift | `ios/FrameSDKBridge.swift` |
-| iOS ObjC bridge | `ios/FrameSDKBridge.m` |
-| Android module | `android/.../FrameSDKModule.kt` + new Activity |
-| TypeScript bridge | `src/native.ts` |
-| TypeScript public API | `src/index.ts`, `src/types.ts` |
+When raising any minimum, update both the config file and the table above. Call it out in `CHANGELOG.md` — these are breaking changes for consumers.
 
 ---
 
 ## After updating dependencies
 
-1. Run the TypeScript build to catch any type errors:
+1. Typecheck:
    ```sh
-   npm run build
+   npm run typecheck
    ```
-2. Run tests:
+2. Tests:
    ```sh
    npm test
    ```
-3. Build and test the example app on both platforms before publishing.
+3. Rebuild both example apps end-to-end on a real device or simulator:
+   - `cd example && npm install && cd ios && pod install && cd .. && npm run ios && npm run android`
+   - `cd expo-example && npm install && npx expo prebuild --clean && npx expo run:ios && npx expo run:android`
+4. Verify `npm pack` produces a clean tarball:
+   ```sh
+   npm pack --dry-run
+   ```
+   Confirm no `Package.swift`, no `.build/`, no `FramePreloader.*`, no `example/` or `expo-example/` content leaks into the archive.

@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] — UNRELEASED
+
+This is a full ground-up rewrite. The SDK no longer wraps the native Frame iOS / Frame Android SDKs. All UI, validation, theming, and orchestration runs in JS / TypeScript. Networking goes through the `framepayments` Node SDK (≥ 2.1.0). Native bridges remain only for things that genuinely require platform primitives: Apple Pay (PassKit), Google Pay (PaymentsClient), App Attest, Prove, and Sift.
+
+### Breaking
+
+- **No more `Frame-iOS` / `Frame-Onboarding` CocoaPods or SPM dependency.** The podspec ships only the React Native bridge code. Host apps no longer need the SPM Frame-iOS package or its transitive Sift / FingerprintPro / Frame-EvervaultCore / Frame-EvervaultInputs / PhoneNumberKit pods.
+- **No more `com.framepayments:framesdk{,_ui,_onboarding}` Gradle dependencies.** The Android library no longer pulls in any Frame Android SDK artifacts. Host apps no longer need to declare them.
+- **`withFrameAppDelegate` Expo config plugin removed.** It existed to inject `FramePreloader.preloadOnMainThread()` into the host AppDelegate so the Frame iOS SDK could warm its singletons. With the Frame iOS SDK gone, there is nothing to preload. Host apps using the 3.x config plugin should drop any AppDelegate customizations they added for it.
+- **`presentCheckout` / `presentCart` / `presentOnboarding` are now JS-driven.** They mount through the new `<FramePresentationHost />` (installed by `<FrameProvider />`) rather than a native modal. Host apps must wrap their app in `<FrameProvider />` at the root or these calls reject with `NO_PROVIDER`.
+- **Onboarding now ships in JS.** Personal info (phone auth + Frame OTP path), confirm payment method (saved cards, add new with optional Apple Pay add-to-owner, 3DS polling), confirm bank account (Plaid Link or manual ACH with ABA checksum + 4–17-digit account numbers), document upload (camera + retake/review), and verification-submitted are all rendered in TypeScript. The 13-capability mapping matches Frame iOS 3.0.0 verbatim. Prove iOS bridge is wired against the Frame iOS reference protocols (verify against the real Prove SDK when linking); Prove Android currently throws status='failed' until SDK headers land — JS gracefully degrades to the Frame OTP path. Geolocation step calls `geoCompliance.getAccountStatus` and advances; VPN-detect + permission UX deferred. `react-native-vision-camera` peer is pinned `>=4.0.0 <6.0.0`; v5+ shows a clear "pin to v4.x" fallback at runtime.
+- **Peer dependencies expanded.** Host apps now declare:
+  - Hard: `@evervault/evervault-react-native`, `@fingerprintjs/fingerprintjs-pro-react-native`, `sift-react-native`.
+  - Optional (only required when the corresponding capability is used): `expo-location`, `react-native-plaid-link-sdk`, `react-native-vision-camera`.
+- **Apple Pay native bridge surface changed.** Apple Pay now lives in a dedicated `FrameApplePay` native module with three methods: `canMakeApplePay`, `presentApplePay`, `finishApplePay`. The legacy `FrameSDK.presentApplePay` selector is gone. Consumers calling the bridge from custom Obj-C code (uncommon) must update.
+- **Google Pay native bridge surface changed.** Google Pay now lives in a dedicated `FrameGooglePay` native module: `isGooglePayReady`, `presentGooglePay`. The legacy `FrameSDK.presentGooglePay` and the hidden `FrameGooglePayActivity` host are gone.
+- **Theme tokens.** `secondaryButtonText`, `toastBackground`, and `toastText` are now respected by the SDK. Host apps that previously set these in the theme map and saw them silently ignored will see their values applied.
+- **Card encryption.** Card details are no longer encrypted as-you-type; encryption happens at submit time via Evervault.
+
+### Added
+
+- New JS orchestrators for Apple Pay (`src/applePay.ts`) and Google Pay (`src/googlePay.ts`) that do the device attestation / payment-method creation / charge dance in TypeScript, leaving the native bridges focused on PassKit / `PaymentsClient` only.
+- App Attest (iOS) bridge at `ios/AttestationBridge.swift`. Keychain key sharing with Frame iOS so a device already attested through the native SDK is recognised by the RN SDK and vice versa.
+- Full TypeScript port of the iOS / Android validators, currency formatter, country tables, and theme tokens (Phases 2 + 3).
+- `FrameProvider` React context that auto-tracks `Appearance.getColorScheme()` for runtime light / dark switching.
+
+### Removed
+
+- `Package.swift`, `Package.resolved` — no more SPM distribution; the package ships as CocoaPods + Gradle.
+- `FRAME_RN_SKIP_SPM` escape hatch — irrelevant after the SPM dep is gone.
+- `ios/FramePreloader.{swift,h,m}`, `ios/ApplePayPresenter.swift`, `ios/FrameRNTheme.swift`.
+- `android/.../FrameCheckoutActivity.kt`, `FrameFlowActivity.kt`, `FrameOnboardingActivity.kt`, `FrameGooglePayActivity.kt`, `FrameRNTheme.kt`.
+- `static_framework = true` from the podspec; it existed to export the now-deleted `FramePreloader.h`.
+- `plugin/withFrameAppDelegate.js`.
+- `frameNativeVersions` field from package.json; no transitive native SDK version is tracked any more.
+
+### Changed
+
+- `framepayments` peer pinned to `^2.1.0` (was `^2.0.0`). 2.1.0 adds the per-call publishable-key routing the standalone SDK relies on.
+- `withFrameAndroidManifest`: `CAMERA` and `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` permissions are now conditionally injected based on the host app's installed peer deps (vision-camera, expo-location / `@react-native-community/geolocation`). Host apps that don't use document upload or geocompliance no longer ship those permissions.
+
 ## [3.0.1] - 2026-05-18
 
 ### Breaking

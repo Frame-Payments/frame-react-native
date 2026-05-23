@@ -37,8 +37,12 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { url "https://jitpack.io" }
-        maven { url "https://maven.fpregistry.io/releases" }
+        // Prove's Artifactory hosts the ProveAuth Android SDK used by
+        // framepayments-react-native's optional phone_verification flow.
         maven { url "https://prove.jfrog.io/artifactory/libs-public-maven/" }
+        // Fingerprint Pro's Artifactory hosts com.fingerprint.android:pro
+        // (the native counterpart to @fingerprintjs/fingerprintjs-pro-react-native).
+        maven { url "https://maven.fpregistry.io/releases" }
     }
 }
 

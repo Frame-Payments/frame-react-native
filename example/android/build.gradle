@@ -21,16 +21,3 @@ buildscript {
     }
 }
 
-// LocalLifecycleOwnerKt lives in lifecycle-runtime-compose 2.8.0+ (moved from Compose UI). 2.7.0 lacks it and causes NoClassDefFoundError.
-// framesdk_onboarding requires activity-compose:1.12.2 — do not force a lower version or setContent$default will not resolve.
-subprojects {
-    afterEvaluate { project ->
-        if (project.hasProperty("android")) {
-            project.configurations.all {
-                resolutionStrategy {
-                    force "androidx.lifecycle:lifecycle-runtime-compose:2.8.2"
-                }
-            }
-        }
-    }
-}
