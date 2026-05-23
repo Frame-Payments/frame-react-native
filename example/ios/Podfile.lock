@@ -1,10 +1,17 @@
 PODS:
   - boost (1.84.0)
   - DoubleConversion (1.1.6)
+  - Evervault (0.3.2):
+    - Evervault/EvervaultCore (= 0.3.2)
+  - evervault-react-native (1.4.2):
+    - Evervault (~> 0.3.2)
+    - React-Core
+  - Evervault/EvervaultCore (0.3.2)
   - fast_float (8.0.0)
   - FBLazyVector (0.83.9)
+  - FingerprintPro (2.15.1)
   - fmt (12.1.0)
-  - FrameReactNative (3.0.0):
+  - FrameReactNative (4.0.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -2529,12 +2536,44 @@ PODS:
     - React-perflogger (= 0.83.9)
     - React-utils (= 0.83.9)
     - SocketRocket
+  - RNFingerprintjsPro (1.0.4):
+    - FingerprintPro (~> 2.15.0)
+    - React-Core
+  - SiftReactNative (1.0.1):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
   - SocketRocket (0.7.1)
   - Yoga (0.0.0)
 
 DEPENDENCIES:
   - boost (from `../node_modules/react-native/third-party-podspecs/boost.podspec`)
   - DoubleConversion (from `../node_modules/react-native/third-party-podspecs/DoubleConversion.podspec`)
+  - "evervault-react-native (from `../node_modules/@evervault/evervault-react-native`)"
   - fast_float (from `../node_modules/react-native/third-party-podspecs/fast_float.podspec`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - fmt (from `../node_modules/react-native/third-party-podspecs/fmt.podspec`)
@@ -2612,11 +2651,15 @@ DEPENDENCIES:
   - ReactAppDependencyProvider (from `build/generated/ios/ReactAppDependencyProvider`)
   - ReactCodegen (from `build/generated/ios/ReactCodegen`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
+  - "RNFingerprintjsPro (from `../node_modules/@fingerprintjs/fingerprintjs-pro-react-native`)"
+  - SiftReactNative (from `../node_modules/sift-react-native`)
   - SocketRocket (~> 0.7.1)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
 SPEC REPOS:
   trunk:
+    - Evervault
+    - FingerprintPro
     - SocketRocket
 
 EXTERNAL SOURCES:
@@ -2624,6 +2667,8 @@ EXTERNAL SOURCES:
     :podspec: "../node_modules/react-native/third-party-podspecs/boost.podspec"
   DoubleConversion:
     :podspec: "../node_modules/react-native/third-party-podspecs/DoubleConversion.podspec"
+  evervault-react-native:
+    :path: "../node_modules/@evervault/evervault-react-native"
   fast_float:
     :podspec: "../node_modules/react-native/third-party-podspecs/fast_float.podspec"
   FBLazyVector:
@@ -2777,16 +2822,23 @@ EXTERNAL SOURCES:
     :path: build/generated/ios/ReactCodegen
   ReactCommon:
     :path: "../node_modules/react-native/ReactCommon"
+  RNFingerprintjsPro:
+    :path: "../node_modules/@fingerprintjs/fingerprintjs-pro-react-native"
+  SiftReactNative:
+    :path: "../node_modules/sift-react-native"
   Yoga:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
   boost: 7e761d76ca2ce687f7cc98e698152abd03a18f90
   DoubleConversion: cb417026b2400c8f53ae97020b2be961b59470cb
+  Evervault: bf3e125098e3a760ee8ebca07034c763d426fbc3
+  evervault-react-native: d75051e8568d1d57a3ef2c5576e603ee52dbff8f
   fast_float: b32c788ed9c6a8c584d114d0047beda9664e7cc6
   FBLazyVector: 3bcb3055086e5d90a12f0fe1668e79f6eceabc17
+  FingerprintPro: 8136b69c3f6c17fdf3f6fb183c38b292c04e4c62
   fmt: 530618a01105dae0fa3a2f27c81ae11fa8f67eac
-  FrameReactNative: 298fa066973584915d6d6d3ea721d2915144050c
+  FrameReactNative: b6cf11c968c1045763d0333f5dc5c10910d3d5db
   glog: 5683914934d5b6e4240e497e0f4a3b42d1854183
   hermes-engine: 27c8fc1e2d46ca1ab496d36d2e12c953231000e2
   RCT-Folly: b29feb752b08042c62badaef7d453f3bb5e6ae23
@@ -2859,6 +2911,8 @@ SPEC CHECKSUMS:
   ReactAppDependencyProvider: 87593e9dfdba8dac1d7b2af1af05f0eff2a05684
   ReactCodegen: 417334350a76a91784cc20f7aff392327e217dc4
   ReactCommon: 5f2db7556b60816bdc5761a359539bacd2d0250d
+  RNFingerprintjsPro: 1f39fb67c1f7613e04973379e9b41e3ca0baba5a
+  SiftReactNative: 7901154765ba6451dac35329e0754bc2ddde1691
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: e6489bbfdab9b98f8d51993484d6bd40216b7834
 
