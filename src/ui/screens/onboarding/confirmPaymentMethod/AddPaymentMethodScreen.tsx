@@ -119,7 +119,7 @@ export function AddPaymentMethodScreen({
             },
           ]}
         >
-          {isAddressOnly ? 'Confirm Billing Address' : 'Add New Payment Method'}
+          Add New Payment Method
         </Text>
 
         {showApplePay ? (
