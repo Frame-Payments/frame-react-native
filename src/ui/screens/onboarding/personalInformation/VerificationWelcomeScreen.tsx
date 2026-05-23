@@ -1,11 +1,13 @@
 import { useMemo } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useFrameTheme } from '../../../theme/ThemeContext';
 import { Button } from '../../../primitives/Button';
+import { Icon } from '../../../assets';
 
-// First screen of the onboarding flow. Shield glyph + "Verify Your Identity"
-// + descriptive copy + Continue button. Button is disabled until the
-// account-prefetch (Phase 8g) reports loaded.
+// Mirror of iOS OnboardingContainerView's `onboardingIntro` (shield-icon +
+// "Verify Your Identity" + bodySmall body copy + Continue). Button is disabled
+// until the account-prefetch reports loaded; iOS simply toggles `enabled` —
+// no inline "loading" label.
 
 export interface VerificationWelcomeScreenProps {
   accountLoaded: boolean;
@@ -21,115 +23,62 @@ export function VerificationWelcomeScreen({
 
   return (
     <View style={styles.container}>
-      <View style={styles.content}>
-        <View
-          style={[
-            styles.iconWrap,
-            {
-              backgroundColor: theme.colors.primaryButton,
-              borderRadius: 999,
-            },
-          ]}
-        >
-          <Text
-            style={[
-              styles.iconGlyph,
-              { color: theme.colors.primaryButtonText },
-            ]}
-          >
-            🛡
-          </Text>
-        </View>
-        <Text
-          style={[
-            styles.title,
-            {
-              color: theme.colors.textPrimary,
-              fontSize: theme.fonts.title.size,
-              fontWeight: theme.fontWeights.title,
-              lineHeight: theme.fontLineHeights.title,
-            },
-          ]}
-        >
-          Verify Your Identity
-        </Text>
-        <Text
-          style={[
-            styles.body,
-            {
-              color: theme.colors.textSecondary,
-              fontSize: theme.fonts.body.size,
-              lineHeight: theme.fontLineHeights.body,
-            },
-          ]}
-        >
-          We need to confirm a few details to comply with regulations and protect your account. This usually takes just a couple of minutes.
-        </Text>
-      </View>
+      <View style={styles.spacer} />
+      <Icon name="shield-icon" size={96} />
+      <Text
+        style={[
+          styles.title,
+          {
+            color: theme.colors.textPrimary,
+            fontSize: theme.fonts.heading.size,
+            fontWeight: theme.fontWeights.heading,
+            lineHeight: theme.fontLineHeights.heading,
+          },
+        ]}
+      >
+        Verify Your Identity
+      </Text>
+      <Text
+        style={[
+          styles.body,
+          {
+            color: theme.colors.textSecondary,
+            fontSize: theme.fonts.bodySmall.size,
+            lineHeight: theme.fontLineHeights.bodySmall,
+          },
+        ]}
+      >
+        We're required by law to verify your identity. This takes about 2 minutes and you'll need a Government ID and a selfie.
+      </Text>
+      <View style={styles.spacer} />
       <View style={styles.footer}>
-        {!accountLoaded ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color={theme.colors.textSecondary} />
-            <Text
-              style={[
-                styles.loadingLabel,
-                {
-                  color: theme.colors.textSecondary,
-                  fontSize: theme.fonts.bodySmall.size,
-                },
-              ]}
-            >
-              Loading your account…
-            </Text>
-          </View>
-        ) : null}
         <Button text="Continue" enabled={accountLoaded} onPress={onContinue} />
       </View>
     </View>
   );
 }
 
-const ICON_SIZE = 96;
-
 function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      paddingHorizontal: 24,
-      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 15,
     },
-    content: {
+    spacer: {
       flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 24,
-    },
-    iconWrap: {
-      width: ICON_SIZE,
-      height: ICON_SIZE,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    iconGlyph: {
-      fontSize: 48,
     },
     title: {
       textAlign: 'center',
     },
     body: {
       textAlign: 'center',
-      paddingHorizontal: 8,
+      paddingHorizontal: 24,
     },
     footer: {
-      paddingVertical: 24,
-      gap: 12,
+      alignSelf: 'stretch',
+      paddingBottom: 16,
+      paddingHorizontal: 16,
     },
-    loadingRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-    },
-    loadingLabel: {},
   });
 }

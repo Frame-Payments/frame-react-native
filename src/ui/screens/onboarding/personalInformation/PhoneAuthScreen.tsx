@@ -40,7 +40,7 @@ export function PhoneAuthScreen({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const showDob = requiresDobInPhoneAuth(capabilities);
   const showTos = requiresTosInPhoneAuth(capabilities);
-  const heading = showDob ? 'Enter your phone number & DOB' : 'Enter your phone number';
+  const heading = showDob ? 'Enter Your Phone Number & DOB' : 'Enter Your Phone Number';
 
   return (
     <ScrollView
@@ -71,7 +71,7 @@ export function PhoneAuthScreen({
           },
         ]}
       >
-        We'll send a verification code so we can confirm it's really you.
+        We'll send you a code — it helps us keep your account secure.
       </Text>
 
       <View style={styles.field}>
@@ -86,7 +86,7 @@ export function PhoneAuthScreen({
 
       {showDob ? (
         <View style={styles.field}>
-          <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Date of birth</Text>
+          <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Date of Birth</Text>
           <DobInputField
             month={state.dobMonth}
             day={state.dobDay}

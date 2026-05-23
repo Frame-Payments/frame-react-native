@@ -30,6 +30,12 @@ export interface ValidatedTextFieldProps {
   /** When true, error text lays out to the right of the field instead of below. */
   inlineError?: boolean;
   errorSpacing?: number;
+  /**
+   * Drop the input's own border. Used when the field sits inside an outer
+   * bordered container with sibling Dividers (the iOS CustomerInformation
+   * pattern), so the chrome lives on the container instead of every field.
+   */
+  borderless?: boolean;
   secureTextEntry?: boolean;
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   autoCorrect?: boolean;
@@ -54,6 +60,7 @@ export function ValidatedTextField({
   compactError = false,
   inlineError = false,
   errorSpacing = DEFAULT_ERROR_SPACING,
+  borderless = false,
   secureTextEntry,
   autoCapitalize,
   autoCorrect,
@@ -93,13 +100,19 @@ export function ValidatedTextField({
       testID={testID}
       style={[
         styles.input,
+        borderless ? styles.inputBorderless : null,
         {
           color: theme.colors.textPrimary,
           fontSize: theme.fonts.body.size,
           lineHeight: theme.fontLineHeights.body,
-          backgroundColor: theme.colors.surface,
-          borderColor: hasError ? theme.colors.error : theme.colors.surfaceStroke,
-          borderRadius: theme.radii.small,
+          backgroundColor: borderless ? 'transparent' : theme.colors.surface,
+          borderColor:
+            borderless && !hasError
+              ? 'transparent'
+              : hasError
+                ? theme.colors.error
+                : theme.colors.surfaceStroke,
+          borderRadius: borderless ? 0 : theme.radii.small,
         },
       ]}
     />
@@ -142,6 +155,9 @@ const styles = StyleSheet.create({
     height: HEIGHT,
     paddingHorizontal: 12,
     borderWidth: 1,
+  },
+  inputBorderless: {
+    borderWidth: 0,
   },
   inlineRow: {
     flexDirection: 'row',

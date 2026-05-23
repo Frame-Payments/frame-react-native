@@ -9,6 +9,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useFrameTheme } from '../theme/ThemeContext';
+import { Icon } from '../assets';
 
 // Visual container for a screen presented via FramePresentationHost. RN's
 // outer <Modal presentationStyle="pageSheet" /> gives us the system swipe-down
@@ -46,9 +47,7 @@ export function BottomSheet({
               style={({ pressed }) => [styles.closeButton, pressed && { opacity: 0.55 }]}
               hitSlop={8}
             >
-              <View style={[styles.closeIcon, { borderColor: theme.colors.textSecondary }]}>
-                <Text style={[styles.closeIconText, { color: theme.colors.textSecondary }]}>×</Text>
-              </View>
+              <Icon name="close-circle" size={CLOSE_SIZE} color={theme.colors.textPrimary} />
             </Pressable>
           ) : null}
         </View>
@@ -76,7 +75,7 @@ export function BottomSheet({
 
 const CLOSE_SIZE = 30;
 
-function createStyles(theme: ReturnType<typeof useFrameTheme>) {
+function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
   return StyleSheet.create({
     container: {
       flex: 1,
@@ -107,21 +106,6 @@ function createStyles(theme: ReturnType<typeof useFrameTheme>) {
       height: CLOSE_SIZE,
       alignItems: 'center',
       justifyContent: 'center',
-    },
-    closeIcon: {
-      width: CLOSE_SIZE,
-      height: CLOSE_SIZE,
-      borderRadius: CLOSE_SIZE / 2,
-      borderWidth: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    closeIconText: {
-      fontSize: 20,
-      fontWeight: '500',
-      // Slightly raise the glyph so it visually centers inside the circle.
-      marginTop: -2,
-      includeFontPadding: false,
     },
     divider: {
       height: StyleSheet.hairlineWidth,

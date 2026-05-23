@@ -7,14 +7,15 @@ import {
   type ToastEntry,
 } from './toastCenter';
 
-// Renders the active toast at the top of the screen. Mounted exactly once
-// inside FrameProvider, layered above the presenter modal so toasts surface
-// over Checkout / Cart / Onboarding.
+// Renders the active toast at the bottom of the screen, mirroring iOS's
+// FrameToast (bottom edge, 16px horizontal margin, 24px from the bottom). Mounted
+// exactly once inside FrameProvider, layered above the presenter modal so
+// toasts surface over Checkout / Cart / Onboarding.
 
 export function ToastHost() {
   const theme = useFrameTheme();
   const [entry, setEntry] = useState<ToastEntry | null>(null);
-  const translateY = useRef(new Animated.Value(-100)).current;
+  const translateY = useRef(new Animated.Value(100)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -39,7 +40,7 @@ export function ToastHost() {
     } else {
       Animated.parallel([
         Animated.timing(translateY, {
-          toValue: -100,
+          toValue: 100,
           duration: 180,
           useNativeDriver: true,
         }),
@@ -71,9 +72,10 @@ export function ToastHost() {
           <Text
             style={{
               color: theme.colors.toastText,
-              fontSize: theme.fonts.body.size,
-              fontWeight: theme.fontWeights.body,
-              lineHeight: theme.fontLineHeights.body,
+              fontSize: theme.fonts.bodySmall.size,
+              fontWeight: theme.fontWeights.bodySmall,
+              lineHeight: theme.fontLineHeights.bodySmall,
+              textAlign: 'center',
             }}
           >
             {entry.message}
@@ -87,7 +89,7 @@ export function ToastHost() {
 const styles = StyleSheet.create({
   overlay: {
     position: 'absolute',
-    top: 60,
+    bottom: 24,
     left: 16,
     right: 16,
     alignItems: 'stretch',

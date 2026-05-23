@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFrameTheme } from '../theme/ThemeContext';
+import { Icon } from '../assets';
 
 // Onboarding screen header: back button (or invisible spacer) + centered title
 // + matching spacer on the right. Sits below the modal's BottomSheet chrome.
@@ -28,7 +29,7 @@ export function PageHeader({ title, onBack, testID }: PageHeaderProps) {
             hitSlop={8}
             style={({ pressed }) => [styles.back, pressed && { opacity: 0.6 }]}
           >
-            <Text style={[styles.backGlyph, { color: theme.colors.textPrimary }]}>‹</Text>
+            <Icon name="left-chevron" size={24} color={theme.colors.textPrimary} />
           </Pressable>
         ) : null}
       </View>

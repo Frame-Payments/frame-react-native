@@ -2,10 +2,11 @@ import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useFrameTheme } from '../../theme/ThemeContext';
 import { Button } from '../../primitives/Button';
+import { Icon } from '../../assets';
 
-// Terminal screen of the onboarding flow. Person-check icon + "Verification
-// Submitted" title + Done button. Resolves the outer Promise<OnboardingResult>
-// when the user taps Done.
+// Mirror of iOS VerificationSubmittedView. Person-check icon + "Verification
+// Submitted" + Done button. Resolves the outer Promise<OnboardingResult> when
+// the user taps Done.
 
 export interface VerificationSubmittedScreenProps {
   onDone: () => void;
@@ -17,44 +18,34 @@ export function VerificationSubmittedScreen({ onDone }: VerificationSubmittedScr
 
   return (
     <View style={styles.container}>
-      <View style={styles.content}>
-        <View
-          style={[
-            styles.iconWrap,
-            {
-              backgroundColor: theme.colors.primaryButton,
-              borderRadius: 999,
-            },
-          ]}
-        >
-          <Text style={[styles.iconGlyph, { color: theme.colors.primaryButtonText }]}>✓</Text>
-        </View>
-        <Text
-          style={[
-            styles.title,
-            {
-              color: theme.colors.textPrimary,
-              fontSize: theme.fonts.title.size,
-              fontWeight: theme.fontWeights.title,
-              lineHeight: theme.fontLineHeights.title,
-            },
-          ]}
-        >
-          Verification submitted
-        </Text>
-        <Text
-          style={[
-            styles.body,
-            {
-              color: theme.colors.textSecondary,
-              fontSize: theme.fonts.body.size,
-              lineHeight: theme.fontLineHeights.body,
-            },
-          ]}
-        >
-          Congratulations! We've received your information. You'll hear back once your account has been reviewed.
-        </Text>
-      </View>
+      <View style={styles.spacer} />
+      <Icon name="person-check" size={96} />
+      <Text
+        style={[
+          styles.title,
+          {
+            color: theme.colors.textPrimary,
+            fontSize: theme.fonts.heading.size,
+            fontWeight: theme.fontWeights.heading,
+            lineHeight: theme.fontLineHeights.heading,
+          },
+        ]}
+      >
+        Verification Submitted
+      </Text>
+      <Text
+        style={[
+          styles.body,
+          {
+            color: theme.colors.textSecondary,
+            fontSize: theme.fonts.bodySmall.size,
+            lineHeight: theme.fontLineHeights.bodySmall,
+          },
+        ]}
+      >
+        Congratulations! You've submitted your identity verification check. You're ready to proceed.
+      </Text>
+      <View style={styles.spacer} />
       <View style={styles.footer}>
         <Button text="Done" onPress={onDone} />
       </View>
@@ -62,40 +53,27 @@ export function VerificationSubmittedScreen({ onDone }: VerificationSubmittedScr
   );
 }
 
-const ICON_SIZE = 96;
-
 function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      paddingHorizontal: 24,
-      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 10,
     },
-    content: {
+    spacer: {
       flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 24,
-    },
-    iconWrap: {
-      width: ICON_SIZE,
-      height: ICON_SIZE,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    iconGlyph: {
-      fontSize: 56,
-      fontWeight: '700',
     },
     title: {
       textAlign: 'center',
     },
     body: {
       textAlign: 'center',
-      paddingHorizontal: 8,
+      paddingHorizontal: 24,
     },
     footer: {
-      paddingVertical: 24,
+      alignSelf: 'stretch',
+      paddingBottom: 16,
+      paddingHorizontal: 16,
     },
   });
 }

@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFrameTheme } from '../../../theme/ThemeContext';
 import { Button } from '../../../primitives/Button';
 import { PaymentMethodRow } from '../../../primitives/PaymentMethodRow';
+import { Icon, type IconName } from '../../../assets';
 import type { OnboardingState } from '../onboardingReducer';
 
 // Select a saved card or add a new one. The Continue handler is owned by the
@@ -60,7 +61,7 @@ export function SelectPaymentMethodScreen({
             },
           ]}
         >
-          Confirm your payment method
+          Select A Payment Method
         </Text>
         <Text
           style={[
@@ -72,25 +73,57 @@ export function SelectPaymentMethodScreen({
             },
           ]}
         >
-          Select a card to use, or add a new one.
+          Choose a saved payment method or add a new one to continue
         </Text>
 
+        {state.savedPaymentMethods.length > 0 ? (
+          <>
+            <Text
+              style={[
+                styles.sectionHeader,
+                {
+                  color: theme.colors.textPrimary,
+                  fontSize: theme.fonts.bodySmall.size,
+                  fontWeight: theme.fontWeights.label,
+                },
+              ]}
+            >
+              Saved Payment Methods
+            </Text>
+            <View style={styles.list}>
+              {state.savedPaymentMethods.map((pm) => (
+                <PaymentMethodRow
+                  key={pm.id}
+                  title={cardTitle(pm)}
+                  subtitle={cardSubtitle(pm) ?? undefined}
+                  selected={state.selectedPaymentMethodId === pm.id}
+                  onPress={() => onSelectMethod(pm.id)}
+                  icon={<Icon name={brandIconName(pm.card?.brand)} width={40} height={28} />}
+                  testID={`onboarding.pm.${pm.id}`}
+                />
+              ))}
+            </View>
+          </>
+        ) : null}
+
+        <Text
+          style={[
+            styles.sectionHeader,
+            {
+              color: theme.colors.textPrimary,
+              fontSize: theme.fonts.bodySmall.size,
+              fontWeight: theme.fontWeights.label,
+            },
+          ]}
+        >
+          Add Payment Method
+        </Text>
         <View style={styles.list}>
-          {state.savedPaymentMethods.map((pm) => (
-            <PaymentMethodRow
-              key={pm.id}
-              title={cardTitle(pm)}
-              subtitle={cardSubtitle(pm) ?? undefined}
-              selected={state.selectedPaymentMethodId === pm.id}
-              onPress={() => onSelectMethod(pm.id)}
-              testID={`onboarding.pm.${pm.id}`}
-            />
-          ))}
           <PaymentMethodRow
-            title="Debit/Credit card"
-            subtitle="Add a new card"
+            title="Debit/Credit Card"
             selected={isAddNewSelected}
             onPress={selectAddNew}
+            icon={<Icon name="empty-card" width={40} height={28} color={theme.colors.textPrimary} />}
             testID={`onboarding.pm.${ADD_NEW_SENTINEL}`}
           />
         </View>
@@ -122,6 +155,21 @@ function cardSubtitle(pm: { card?: { exp_month?: string; exp_year?: string } | u
   return null;
 }
 
+function brandIconName(brand: string | undefined): IconName {
+  switch ((brand ?? '').toLowerCase()) {
+    case 'visa':
+      return 'visa';
+    case 'mastercard':
+      return 'mastercard';
+    case 'amex':
+      return 'amex';
+    case 'discover':
+      return 'discover';
+    default:
+      return 'credit-card';
+  }
+}
+
 function prettyBrand(brand: string): string {
   switch (brand.toLowerCase()) {
     case 'amex': return 'Amex';
@@ -150,6 +198,10 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
     body: {
       marginTop: 8,
       marginBottom: 16,
+    },
+    sectionHeader: {
+      marginTop: 16,
+      marginBottom: 8,
     },
     list: {
       gap: 8,

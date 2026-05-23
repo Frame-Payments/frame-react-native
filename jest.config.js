@@ -20,4 +20,10 @@ module.exports = {
   // framepayments ships ESM; transform it so jest's CJS runtime can require it.
   // react-native + @react-native/* also ship Flow + ESM and need the same.
   transformIgnorePatterns: ['node_modules/(?!(framepayments|react-native|@react-native)/)'],
+  // react-native-svg's source imports `Touchable.Mixin` from react-native which
+  // doesn't exist in the jest node runtime. Map it to a stub so screens that
+  // pull Icon → SvgXml can still be loaded under tests.
+  moduleNameMapper: {
+    '^react-native-svg$': '<rootDir>/src/__mocks__/react-native-svg.ts',
+  },
 };

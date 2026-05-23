@@ -153,7 +153,7 @@ export function VerifyPhoneScreen({
             },
           ]}
         >
-          Enter verification code
+          Enter Verification Code
         </Text>
         <Text
           style={[
@@ -165,7 +165,7 @@ export function VerifyPhoneScreen({
             },
           ]}
         >
-          We sent a 6-digit code to your phone.
+          We've sent a verification code to your phone. Enter it below.
         </Text>
         <OtpInputField
           value={state.otpCode}
@@ -196,7 +196,7 @@ export function VerifyPhoneScreen({
       </View>
       <View style={styles.footer}>
         <Button
-          text="Submit"
+          text="Continue"
           enabled={!submitting && state.otpCode.length === 6}
           isLoading={submitting}
           onPress={onSubmit}

@@ -89,13 +89,13 @@ export function AddPayoutMethodScreen({
             },
           ]}
         >
-          Add a bank account
+          Add Bank Account
         </Text>
 
         {plaidAvailable ? (
           <View style={styles.plaidBlock}>
             <Button
-              text="Connect with Plaid"
+              text="Connect Bank Account"
               enabled={!state.isPerformingAction}
               isLoading={state.isPerformingAction}
               onPress={handlePlaid}
@@ -110,7 +110,7 @@ export function AddPayoutMethodScreen({
 
         {!manual ? (
           <Button
-            text="Enter account manually"
+            text="Enter manually"
             variant="secondary"
             onPress={() => onChangeManualMode(true)}
           />
@@ -128,10 +128,10 @@ export function AddPayoutMethodScreen({
                   },
                 ]}
               >
-                Bank details
+                Bank Details
               </Text>
               <ValidatedTextField
-                prompt="Routing number"
+                prompt="Routing Number"
                 value={state.ach.routingNumber}
                 onChangeText={(v) => onChangeAchField('routingNumber', v)}
                 error={state.fieldErrors['ach.routingNumber']}
@@ -139,7 +139,7 @@ export function AddPayoutMethodScreen({
                 characterLimit={9}
               />
               <ValidatedTextField
-                prompt="Account number"
+                prompt="Account Number"
                 value={state.ach.accountNumber}
                 onChangeText={(v) => onChangeAchField('accountNumber', v)}
                 error={state.fieldErrors['ach.accountNumber']}
@@ -148,7 +148,7 @@ export function AddPayoutMethodScreen({
                 secureTextEntry
               />
               <DropDown
-                prompt="Account type"
+                prompt="Account Type"
                 options={ACCOUNT_TYPE_OPTIONS}
                 selected={state.ach.accountType}
                 onSelect={onChangeAchAccountType}
@@ -168,7 +168,7 @@ export function AddPayoutMethodScreen({
                   },
                 ]}
               >
-                Billing address
+                Billing Address
               </Text>
               <BillingAddressDetailView
                 address={state.address}
@@ -183,7 +183,7 @@ export function AddPayoutMethodScreen({
       {manual ? (
         <View style={styles.footer}>
           <Button
-            text="Continue"
+            text="Add Bank Account"
             enabled={!state.isPerformingAction}
             isLoading={state.isPerformingAction}
             onPress={handleManualSubmit}

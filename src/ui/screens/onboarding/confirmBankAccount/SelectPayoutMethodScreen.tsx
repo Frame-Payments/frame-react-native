@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFrameTheme } from '../../../theme/ThemeContext';
 import { Button } from '../../../primitives/Button';
 import { PaymentMethodRow } from '../../../primitives/PaymentMethodRow';
+import { Icon } from '../../../assets';
 import type { OnboardingState } from '../onboardingReducer';
 
 // Select a saved ACH payout method or add a new bank account. Parent owns the
@@ -44,7 +45,7 @@ export function SelectPayoutMethodScreen({
             },
           ]}
         >
-          Confirm your payout method
+          Select A Payout Method
         </Text>
         <Text
           style={[
@@ -56,25 +57,57 @@ export function SelectPayoutMethodScreen({
             },
           ]}
         >
-          Choose where you'd like to receive payouts.
+          Choose a saved payout method or add a new one to continue
         </Text>
 
+        {state.savedPayoutMethods.length > 0 ? (
+          <>
+            <Text
+              style={[
+                styles.sectionHeader,
+                {
+                  color: theme.colors.textPrimary,
+                  fontSize: theme.fonts.bodySmall.size,
+                  fontWeight: theme.fontWeights.label,
+                },
+              ]}
+            >
+              Saved Payout Methods
+            </Text>
+            <View style={styles.list}>
+              {state.savedPayoutMethods.map((pm) => (
+                <PaymentMethodRow
+                  key={pm.id}
+                  title={achTitle(pm)}
+                  subtitle={achSubtitle(pm) ?? undefined}
+                  selected={state.selectedPayoutMethodId === pm.id}
+                  onPress={() => onSelectMethod(pm.id)}
+                  icon={<Icon name="bank-icon" width={40} height={28} color={theme.colors.textPrimary} />}
+                  testID={`onboarding.payout.${pm.id}`}
+                />
+              ))}
+            </View>
+          </>
+        ) : null}
+
+        <Text
+          style={[
+            styles.sectionHeader,
+            {
+              color: theme.colors.textPrimary,
+              fontSize: theme.fonts.bodySmall.size,
+              fontWeight: theme.fontWeights.label,
+            },
+          ]}
+        >
+          Add Payout Method
+        </Text>
         <View style={styles.list}>
-          {state.savedPayoutMethods.map((pm) => (
-            <PaymentMethodRow
-              key={pm.id}
-              title={achTitle(pm)}
-              subtitle={achSubtitle(pm) ?? undefined}
-              selected={state.selectedPayoutMethodId === pm.id}
-              onPress={() => onSelectMethod(pm.id)}
-              testID={`onboarding.payout.${pm.id}`}
-            />
-          ))}
           <PaymentMethodRow
-            title="Bank account (ACH)"
-            subtitle="Connect via Plaid or enter manually"
+            title="Bank Account (ACH)"
             selected={isAddNewSelected}
             onPress={() => onSelectMethod(null)}
+            icon={<Icon name="empty-card" width={40} height={28} color={theme.colors.textPrimary} />}
             testID="onboarding.payout.add_new"
           />
         </View>
@@ -97,12 +130,10 @@ function achTitle(pm: { ach?: { bank_name?: string; last_four?: string } | undef
   return 'Bank account';
 }
 
-function achSubtitle(pm: { ach?: { bank_name?: string; account_type?: string } | undefined }): string | null {
-  const bank = pm.ach?.bank_name;
+function achSubtitle(pm: { ach?: { account_type?: string } | undefined }): string | null {
+  // Mirrors iOS SelectPayoutMethodView: "{Type} Account" (e.g. "Checking Account").
   const type = pm.ach?.account_type;
-  if (bank && type) return `${bank} · ${prettyAccountType(type)}`;
-  if (bank) return bank;
-  if (type) return prettyAccountType(type);
+  if (type) return `${prettyAccountType(type)} Account`;
   return null;
 }
 
@@ -132,6 +163,10 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
     body: {
       marginTop: 8,
       marginBottom: 16,
+    },
+    sectionHeader: {
+      marginTop: 16,
+      marginBottom: 8,
     },
     list: {
       gap: 8,

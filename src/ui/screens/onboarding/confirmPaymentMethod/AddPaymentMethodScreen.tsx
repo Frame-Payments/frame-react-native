@@ -119,7 +119,7 @@ export function AddPaymentMethodScreen({
             },
           ]}
         >
-          {isAddressOnly ? 'Confirm billing address' : 'Add a card'}
+          {isAddressOnly ? 'Confirm Billing Address' : 'Add New Payment Method'}
         </Text>
 
         {showApplePay ? (
@@ -146,7 +146,7 @@ export function AddPaymentMethodScreen({
                 },
               ]}
             >
-              Card information
+              Card Information
             </Text>
             <PaymentCardField ref={cardFieldRef} />
           </View>
@@ -164,7 +164,7 @@ export function AddPaymentMethodScreen({
               },
             ]}
           >
-            Billing address
+            Billing Address
           </Text>
           <BillingAddressDetailView
             address={state.address}

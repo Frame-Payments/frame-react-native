@@ -8,6 +8,8 @@ import { PaymentMethodRow } from '../../primitives/PaymentMethodRow';
 import { PaymentCardField, type PaymentCardFieldHandle } from '../../primitives/PaymentCardField';
 import { ApplePayButton } from '../../primitives/ApplePayButton';
 import { GooglePayButton } from '../../primitives/GooglePayButton';
+import { CountryPicker } from '../../primitives/CountryPicker';
+import { Icon, type IconName } from '../../assets';
 import { convertCentsToCurrencyString } from '../../../currency';
 import { useCheckoutViewModel } from './useCheckoutViewModel';
 import type { AddressMode } from './checkoutReducer';
@@ -78,8 +80,18 @@ export function CheckoutScreen({
         {/* Saved payment methods */}
         {vm.state.accountPaymentOptions !== null && vm.state.accountPaymentOptions.length > 0 ? (
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-              Saved payment methods
+            <Text
+              style={[
+                styles.sectionTitle,
+                {
+                  color: theme.colors.textSecondary,
+                  fontSize: theme.fonts.headline.size,
+                  fontWeight: theme.fontWeights.headline,
+                  lineHeight: theme.fontLineHeights.headline,
+                },
+              ]}
+            >
+              Saved Payment Methods
             </Text>
             <View style={styles.rowList}>
               {vm.state.accountPaymentOptions.map((pm) => (
@@ -89,12 +101,14 @@ export function CheckoutScreen({
                   subtitle={savedMethodSubtitle(pm) ?? undefined}
                   selected={vm.state.selectedAccountPaymentOptionId === pm.id}
                   onPress={() => vm.dispatch({ type: 'SELECT_SAVED_OPTION', id: pm.id })}
+                  icon={<Icon name={brandIconName(pm.card?.brand)} width={40} height={28} />}
                 />
               ))}
               <PaymentMethodRow
                 title="Enter New Payment Method"
                 selected={vm.state.selectedAccountPaymentOptionId === null}
                 onPress={() => vm.dispatch({ type: 'SELECT_SAVED_OPTION', id: null })}
+                icon={<Icon name="empty-card" width={40} height={28} color={theme.colors.textPrimary} />}
               />
             </View>
           </View>
@@ -103,26 +117,64 @@ export function CheckoutScreen({
         {!vm.isUsingSaved ? (
           <>
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Customer information</Text>
-              <ValidatedTextField
-                prompt="Full name"
-                value={vm.state.customerName}
-                onChangeText={(v) => vm.dispatch({ type: 'SET_CUSTOMER_NAME', value: v })}
-                error={vm.state.fieldErrors.customerName}
-                autoCapitalize="words"
-              />
-              <ValidatedTextField
-                prompt="Email"
-                value={vm.state.customerEmail}
-                onChangeText={(v) => vm.dispatch({ type: 'SET_CUSTOMER_EMAIL', value: v })}
-                error={vm.state.fieldErrors.customerEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  {
+                    color: theme.colors.textSecondary,
+                    fontSize: theme.fonts.headline.size,
+                    fontWeight: theme.fontWeights.headline,
+                    lineHeight: theme.fontLineHeights.headline,
+                  },
+                ]}
+              >
+                Customer Information
+              </Text>
+              <View
+                style={[
+                  styles.fieldContainer,
+                  {
+                    borderColor: theme.colors.surfaceStroke,
+                    borderRadius: theme.radii.medium,
+                    backgroundColor: theme.colors.surface,
+                  },
+                ]}
+              >
+                <ValidatedTextField
+                  prompt="Customer Name"
+                  value={vm.state.customerName}
+                  onChangeText={(v) => vm.dispatch({ type: 'SET_CUSTOMER_NAME', value: v })}
+                  error={vm.state.fieldErrors.customerName}
+                  autoCapitalize="words"
+                  borderless
+                />
+                <View style={[styles.hDivider, { backgroundColor: theme.colors.surfaceStroke }]} />
+                <ValidatedTextField
+                  prompt="Customer Email"
+                  value={vm.state.customerEmail}
+                  onChangeText={(v) => vm.dispatch({ type: 'SET_CUSTOMER_EMAIL', value: v })}
+                  error={vm.state.fieldErrors.customerEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  borderless
+                />
+              </View>
             </View>
 
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Card information</Text>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  {
+                    color: theme.colors.textSecondary,
+                    fontSize: theme.fonts.headline.size,
+                    fontWeight: theme.fontWeights.headline,
+                    lineHeight: theme.fontLineHeights.headline,
+                  },
+                ]}
+              >
+                Card Information
+              </Text>
               <PaymentCardField
                 ref={cardFieldRef}
                 onChange={({ complete }) => vm.dispatch({ type: 'SET_CARD_COMPLETE', value: complete })}
@@ -131,56 +183,114 @@ export function CheckoutScreen({
 
             {vm.shouldShowAddress ? (
               <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Billing address</Text>
-                <ValidatedTextField
-                  prompt="Address line 1"
-                  value={vm.state.address.line1}
-                  onChangeText={(v) => vm.dispatch({ type: 'SET_ADDRESS_FIELD', field: 'line1', value: v })}
-                  error={vm.state.fieldErrors.addressLine1}
-                  autoCapitalize="words"
-                />
-                <ValidatedTextField
-                  prompt="Address line 2 (optional)"
-                  value={vm.state.address.line2}
-                  onChangeText={(v) => vm.dispatch({ type: 'SET_ADDRESS_FIELD', field: 'line2', value: v })}
-                  autoCapitalize="words"
-                />
-                <View style={styles.addressRow}>
-                  <View style={styles.addressCell}>
-                    <ValidatedTextField
-                      prompt="City"
-                      value={vm.state.address.city}
-                      onChangeText={(v) => vm.dispatch({ type: 'SET_ADDRESS_FIELD', field: 'city', value: v })}
-                      error={vm.state.fieldErrors.addressCity}
-                      autoCapitalize="words"
+                <Text
+                  style={[
+                    styles.sectionTitle,
+                    {
+                      color: theme.colors.textSecondary,
+                      fontSize: theme.fonts.headline.size,
+                      fontWeight: theme.fontWeights.headline,
+                      lineHeight: theme.fontLineHeights.headline,
+                    },
+                  ]}
+                >
+                  Billing Address
+                </Text>
+                <View
+                  style={[
+                    styles.fieldContainer,
+                    {
+                      borderColor: theme.colors.surfaceStroke,
+                      borderRadius: theme.radii.medium,
+                      backgroundColor: theme.colors.surface,
+                    },
+                  ]}
+                >
+                  <ValidatedTextField
+                    prompt="Address Line 1"
+                    value={vm.state.address.line1}
+                    onChangeText={(v) => vm.dispatch({ type: 'SET_ADDRESS_FIELD', field: 'line1', value: v })}
+                    error={vm.state.fieldErrors.addressLine1}
+                    autoCapitalize="words"
+                    borderless
+                  />
+                  <View style={[styles.hDivider, { backgroundColor: theme.colors.surfaceStroke }]} />
+                  <ValidatedTextField
+                    prompt="Address Line 2"
+                    value={vm.state.address.line2}
+                    onChangeText={(v) => vm.dispatch({ type: 'SET_ADDRESS_FIELD', field: 'line2', value: v })}
+                    autoCapitalize="words"
+                    borderless
+                  />
+                  <View style={[styles.hDivider, { backgroundColor: theme.colors.surfaceStroke }]} />
+                  <View style={styles.addressRow}>
+                    <View style={styles.addressCell}>
+                      <ValidatedTextField
+                        prompt="City"
+                        value={vm.state.address.city}
+                        onChangeText={(v) =>
+                          vm.dispatch({ type: 'SET_ADDRESS_FIELD', field: 'city', value: v })
+                        }
+                        error={vm.state.fieldErrors.addressCity}
+                        autoCapitalize="words"
+                        borderless
+                      />
+                    </View>
+                    <View style={[styles.vDivider, { backgroundColor: theme.colors.surfaceStroke }]} />
+                    <View style={styles.addressCell}>
+                      <ValidatedTextField
+                        prompt="State"
+                        value={vm.state.address.state}
+                        onChangeText={(v) =>
+                          vm.dispatch({ type: 'SET_ADDRESS_FIELD', field: 'state', value: v })
+                        }
+                        error={vm.state.fieldErrors.addressState}
+                        autoCapitalize="characters"
+                        characterLimit={2}
+                        borderless
+                      />
+                    </View>
+                  </View>
+                  <View style={[styles.hDivider, { backgroundColor: theme.colors.surfaceStroke }]} />
+                  <View style={styles.countryRow}>
+                    <CountryPicker
+                      selectedAlpha2={vm.state.address.country}
+                      onSelect={(c) =>
+                        vm.dispatch({
+                          type: 'SET_ADDRESS_FIELD',
+                          field: 'country',
+                          value: c.alpha2Code,
+                        })
+                      }
                     />
                   </View>
-                  <View style={styles.addressCell}>
-                    <ValidatedTextField
-                      prompt="State"
-                      value={vm.state.address.state}
-                      onChangeText={(v) => vm.dispatch({ type: 'SET_ADDRESS_FIELD', field: 'state', value: v })}
-                      error={vm.state.fieldErrors.addressState}
-                      autoCapitalize="characters"
-                      characterLimit={2}
-                    />
-                  </View>
+                  <View style={[styles.hDivider, { backgroundColor: theme.colors.surfaceStroke }]} />
+                  <ValidatedTextField
+                    prompt={vm.state.address.country === 'US' ? 'Zip Code' : 'Postal Code'}
+                    value={vm.state.address.postalCode}
+                    onChangeText={(v) =>
+                      vm.dispatch({ type: 'SET_ADDRESS_FIELD', field: 'postalCode', value: v })
+                    }
+                    error={vm.state.fieldErrors.addressPostalCode}
+                    keyboardType={vm.state.address.country === 'US' ? 'number-pad' : 'default'}
+                    characterLimit={vm.state.address.country === 'US' ? 5 : undefined}
+                    borderless
+                  />
                 </View>
-                <ValidatedTextField
-                  prompt={vm.state.address.country === 'US' ? 'Zip code' : 'Postal code'}
-                  value={vm.state.address.postalCode}
-                  onChangeText={(v) =>
-                    vm.dispatch({ type: 'SET_ADDRESS_FIELD', field: 'postalCode', value: v })
-                  }
-                  error={vm.state.fieldErrors.addressPostalCode}
-                  keyboardType={vm.state.address.country === 'US' ? 'number-pad' : 'default'}
-                />
               </View>
             ) : null}
 
             <View style={styles.saveCardRow}>
-              <Text style={[styles.saveCardLabel, { color: theme.colors.textPrimary }]}>
-                Save card for future payments
+              <Text
+                style={{
+                  color: theme.colors.textSecondary,
+                  fontSize: theme.fonts.headline.size,
+                  fontWeight: theme.fontWeights.headline,
+                  lineHeight: theme.fontLineHeights.headline,
+                  flex: 1,
+                }}
+              >
+                Save this card for future payments
               </Text>
               <Switch
                 value={vm.state.saveCard}
@@ -216,6 +326,21 @@ function savedMethodSubtitle(pm: { card?: { exp_month?: string; exp_year?: strin
     return `Exp ${pm.card.exp_month}/${pm.card.exp_year}`;
   }
   return null;
+}
+
+function brandIconName(brand: string | undefined): IconName {
+  switch ((brand ?? '').toLowerCase()) {
+    case 'visa':
+      return 'visa';
+    case 'mastercard':
+      return 'mastercard';
+    case 'amex':
+      return 'amex';
+    case 'discover':
+      return 'discover';
+    default:
+      return 'credit-card';
+  }
 }
 
 function prettyBrand(brand: string): string {
@@ -267,28 +392,38 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
       marginBottom: 16,
       gap: 12,
     },
-    sectionTitle: {
-      fontSize: 16,
-      fontWeight: '600',
+    sectionTitle: {},
+    fieldContainer: {
+      borderWidth: 1,
+      overflow: 'hidden',
+    },
+    hDivider: {
+      height: StyleSheet.hairlineWidth,
+      width: '100%',
+    },
+    vDivider: {
+      width: StyleSheet.hairlineWidth,
+      alignSelf: 'stretch',
     },
     rowList: {
       gap: 8,
     },
     addressRow: {
       flexDirection: 'row',
-      gap: 12,
+      alignItems: 'center',
     },
     addressCell: {
       flex: 1,
+    },
+    countryRow: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
     },
     saveCardRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: 16,
-    },
-    saveCardLabel: {
-      fontSize: 14,
+      paddingVertical: 16,
     },
     payButton: {
       marginTop: 8,

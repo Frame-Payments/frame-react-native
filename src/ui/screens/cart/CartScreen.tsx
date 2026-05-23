@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { FlatList, Image, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { FrameCartItem } from '../../../types';
 import { convertCentsToCurrencyString } from '../../../currency';
 import { useFrameTheme } from '../../theme/ThemeContext';
@@ -7,21 +7,24 @@ import { BottomSheet } from '../../primitives/BottomSheet';
 import { Button } from '../../primitives/Button';
 import { useCartViewModel } from './useCartViewModel';
 
-// Cart screen mounted by Frame.presentCart. Lists the items, sums subtotal +
-// shipping = total, and exposes a Checkout button that the caller wires up to
-// transition into the Checkout flow.
+// Mirror of iOS FrameCartView. The default title "Frame Payments" + subtitle
+// "Cart" live INSIDE the sheet body (left-aligned, full width) rather than in
+// the BottomSheet header; the BottomSheet contributes only the swipe-down
+// pageSheet chrome.
 
 export interface CartScreenProps {
   items: ReadonlyArray<FrameCartItem>;
   shippingAmountInCents: number;
   currency?: string;
   title?: string;
+  subtitle?: string;
+  checkoutButtonTitle?: string;
   isCheckingOut?: boolean;
   onCheckout: () => void;
   onClose: () => void;
 }
 
-const ROW_MIN_HEIGHT = 65;
+const ITEM_ROW_HEIGHT = 65;
 const ITEM_IMAGE_SIZE = 40;
 
 export function CartScreen({
@@ -29,6 +32,8 @@ export function CartScreen({
   shippingAmountInCents,
   currency = 'USD',
   title = 'Frame Payments',
+  subtitle = 'Cart',
+  checkoutButtonTitle = 'Checkout',
   isCheckingOut = false,
   onCheckout,
   onClose,
@@ -37,46 +42,38 @@ export function CartScreen({
   const vm = useCartViewModel(items, shippingAmountInCents);
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const renderItem: ListRenderItem<FrameCartItem> = ({ item }) => (
-    <View style={[styles.itemRow, { borderBottomColor: theme.colors.surfaceStroke }]}>
-      {item.imageUrl ? (
-        <Image source={{ uri: item.imageUrl }} style={styles.itemImage} resizeMode="cover" />
-      ) : (
-        <View style={[styles.itemImage, { backgroundColor: theme.colors.surfaceStroke }]} />
-      )}
-      <Text
-        numberOfLines={2}
-        style={{
-          flex: 1,
-          color: theme.colors.textPrimary,
-          fontSize: theme.fonts.body.size,
-          fontWeight: theme.fontWeights.body,
-          lineHeight: theme.fontLineHeights.body,
-        }}
-      >
-        {item.title}
-      </Text>
-      <Text
-        style={{
-          color: theme.colors.textPrimary,
-          fontSize: theme.fonts.body.size,
-          fontWeight: theme.fontWeights.label,
-          lineHeight: theme.fontLineHeights.body,
-        }}
-      >
-        {convertCentsToCurrencyString(item.amountInCents, currency)}
-      </Text>
-    </View>
-  );
-
   return (
-    <BottomSheet title={title} onClose={onClose}>
-      <FlatList
-        data={items as FrameCartItem[]}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
+    <BottomSheet title="" showCloseButton onClose={onClose}>
+      <Text
+        style={[
+          styles.title,
+          {
+            color: theme.colors.textPrimary,
+            fontSize: theme.fonts.title.size,
+            fontWeight: theme.fontWeights.title,
+            lineHeight: theme.fontLineHeights.title,
+          },
+        ]}
+      >
+        {title}
+      </Text>
+      <View style={[styles.titleDivider, { backgroundColor: theme.colors.surfaceStroke }]} />
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Text
+          style={[
+            styles.subtitle,
+            {
+              color: theme.colors.textPrimary,
+              fontSize: theme.fonts.headline.size,
+              fontWeight: theme.fontWeights.headline,
+              lineHeight: theme.fontLineHeights.headline,
+            },
+          ]}
+        >
+          {subtitle}
+        </Text>
+
+        {items.length === 0 ? (
           <View style={styles.empty}>
             <Text
               style={{
@@ -87,18 +84,67 @@ export function CartScreen({
               Your cart is empty.
             </Text>
           </View>
-        }
-      />
-      <View style={[styles.summary, { borderTopColor: theme.colors.surfaceStroke }]}>
-        <SummaryRow label="Subtotal" value={convertCentsToCurrencyString(vm.totals.subtotalCents, currency)} />
-        <SummaryRow label="Shipping" value={convertCentsToCurrencyString(vm.totals.shippingCents, currency)} />
+        ) : (
+          items.map((item) => (
+            <View
+              key={item.id}
+              style={[
+                styles.itemRow,
+                {
+                  borderColor: theme.colors.surfaceStroke,
+                  borderRadius: theme.radii.medium,
+                },
+              ]}
+            >
+              {item.imageUrl ? (
+                <Image source={{ uri: item.imageUrl }} style={styles.itemImage} resizeMode="cover" />
+              ) : (
+                <View style={[styles.itemImage, { backgroundColor: theme.colors.surfaceStroke }]} />
+              )}
+              <Text
+                numberOfLines={2}
+                style={{
+                  flex: 1,
+                  color: theme.colors.textPrimary,
+                  fontSize: theme.fonts.headline.size,
+                  fontWeight: theme.fontWeights.headline,
+                  lineHeight: theme.fontLineHeights.headline,
+                }}
+              >
+                {item.title}
+              </Text>
+              <Text
+                style={{
+                  color: theme.colors.textPrimary,
+                  fontSize: theme.fonts.headline.size,
+                  fontWeight: theme.fontWeights.headline,
+                  lineHeight: theme.fontLineHeights.headline,
+                }}
+              >
+                {convertCentsToCurrencyString(item.amountInCents, currency)}
+              </Text>
+            </View>
+          ))
+        )}
+
+        <SummaryRow
+          label="Subtotal"
+          value={convertCentsToCurrencyString(vm.totals.subtotalCents, currency)}
+        />
+        <SummaryRow
+          label="Shipping"
+          value={convertCentsToCurrencyString(vm.totals.shippingCents, currency)}
+        />
+        <View style={[styles.totalDivider, { backgroundColor: theme.colors.surfaceStroke }]} />
         <SummaryRow
           label="Total"
           value={convertCentsToCurrencyString(vm.totals.totalCents, currency)}
           emphasized
         />
+      </ScrollView>
+      <View style={styles.footer}>
         <Button
-          text={`Checkout · ${convertCentsToCurrencyString(vm.totals.totalCents, currency)}`}
+          text={checkoutButtonTitle}
           variant="primary"
           enabled={vm.isCheckoutEnabled && !isCheckingOut}
           isLoading={isCheckingOut}
@@ -120,22 +166,25 @@ function SummaryRow({
   emphasized?: boolean;
 }) {
   const theme = useFrameTheme();
+  const color = emphasized ? theme.colors.textPrimary : theme.colors.textSecondary;
   return (
-    <View style={styles.summaryRow}>
+    <View style={summaryRowStyles.row}>
       <Text
         style={{
-          color: emphasized ? theme.colors.textPrimary : theme.colors.textSecondary,
-          fontSize: theme.fonts.body.size,
-          fontWeight: emphasized ? theme.fontWeights.label : theme.fontWeights.body,
+          color,
+          fontSize: theme.fonts.headline.size,
+          fontWeight: theme.fontWeights.headline,
+          lineHeight: theme.fontLineHeights.headline,
         }}
       >
         {label}
       </Text>
       <Text
         style={{
-          color: theme.colors.textPrimary,
-          fontSize: theme.fonts.body.size,
-          fontWeight: emphasized ? theme.fontWeights.label : theme.fontWeights.body,
+          color,
+          fontSize: theme.fonts.headline.size,
+          fontWeight: theme.fontWeights.headline,
+          lineHeight: theme.fontLineHeights.headline,
         }}
       >
         {value}
@@ -144,40 +193,60 @@ function SummaryRow({
   );
 }
 
-const styles = StyleSheet.create({
-  summaryRow: {
+const summaryRowStyles = StyleSheet.create({
+  row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
 });
 
 function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
   return StyleSheet.create({
-    listContent: {
+    title: {
       paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 16,
+    },
+    titleDivider: {
+      height: StyleSheet.hairlineWidth,
+    },
+    scrollContent: {
+      paddingBottom: 16,
+    },
+    subtitle: {
+      paddingHorizontal: 16,
+      paddingVertical: 16,
     },
     itemRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      minHeight: ROW_MIN_HEIGHT,
+      minHeight: ITEM_ROW_HEIGHT,
+      marginHorizontal: 16,
+      marginBottom: 8,
+      paddingHorizontal: 16,
       paddingVertical: 10,
-      borderBottomWidth: StyleSheet.hairlineWidth,
       gap: 12,
+      borderWidth: 1,
     },
     itemImage: {
       width: ITEM_IMAGE_SIZE,
       height: ITEM_IMAGE_SIZE,
       borderRadius: 6,
     },
-    summary: {
+    totalDivider: {
+      height: StyleSheet.hairlineWidth,
+      marginHorizontal: 16,
+      marginVertical: 4,
+    },
+    footer: {
       paddingHorizontal: 16,
-      paddingVertical: 16,
-      borderTopWidth: StyleSheet.hairlineWidth,
+      paddingBottom: 16,
     },
     checkoutButton: {
-      marginTop: 12,
+      height: 42,
     },
     empty: {
       paddingVertical: 24,

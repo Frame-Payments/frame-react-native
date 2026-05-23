@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFrameTheme } from '../theme/ThemeContext';
+import { Icon } from '../assets';
 
 // One row in the saved-payment-methods list inside Checkout / Onboarding.
 // Mirrors iOS FramePaymentMethodRow and Android PaymentMethodRow:
@@ -90,14 +91,11 @@ export function PaymentMethodRow({
           </Text>
         ) : null}
       </View>
-      <View
-        style={[
-          styles.radioOuter,
-          { borderColor: selected ? theme.colors.textPrimary : theme.colors.surfaceStroke },
-        ]}
-      >
-        {selected ? <View style={[styles.radioInner, { backgroundColor: theme.colors.textPrimary }]} /> : null}
-      </View>
+      <Icon
+        name={selected ? 'filled-selection' : 'empty-selection'}
+        size={RADIO_SIZE}
+        color={theme.colors.textPrimary}
+      />
     </Pressable>
   );
 }
@@ -119,19 +117,6 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
     textColumn: {
       flex: 1,
       justifyContent: 'center',
-    },
-    radioOuter: {
-      width: RADIO_SIZE,
-      height: RADIO_SIZE,
-      borderRadius: RADIO_SIZE / 2,
-      borderWidth: 1.5,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    radioInner: {
-      width: RADIO_SIZE / 2,
-      height: RADIO_SIZE / 2,
-      borderRadius: RADIO_SIZE / 4,
     },
   });
 }
