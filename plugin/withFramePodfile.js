@@ -35,12 +35,16 @@ const POST_INSTALL_BODY = `
           config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FMT_USE_CONSTEVAL=0'
         end
         # SiftReactNative.mm is Objective-C++ and #imports <Sift/Sift.h>, whose
-        # headers use \`@import Foundation;\`. Clang requires -fcxx-modules to
-        # accept @import inside an ObjC++ translation unit; without this the
-        # build fails with "Use of '@import' when C++ modules are disabled".
+        # headers use \`@import Foundation;\`. Clang requires BOTH -fmodules
+        # AND -fcxx-modules to accept @import inside an ObjC++ translation
+        # unit; without these the build fails with "Use of '@import' when C++
+        # modules are disabled".
         if target.name == 'SiftReactNative'
           flags = config.build_settings['OTHER_CPLUSPLUSFLAGS'] || ['$(inherited)']
           flags = [flags] unless flags.is_a?(Array)
+          unless flags.include?('-fmodules')
+            flags << '-fmodules'
+          end
           unless flags.include?('-fcxx-modules')
             flags << '-fcxx-modules'
           end

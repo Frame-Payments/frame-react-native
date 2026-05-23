@@ -18,7 +18,7 @@ import {
   Image,
   useColorScheme,
 } from 'react-native';
-import Frame from 'framepayments-react-native';
+import Frame, { FrameProvider } from 'framepayments-react-native';
 import { FrameSDK } from 'framepayments';
 
 // Supply via environment variables (e.g. `FRAME_SECRET_KEY=... npm run ios`) — do not commit real keys.
@@ -221,8 +221,9 @@ export default function App() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Frame RN SDK Example</Text>
+    <FrameProvider>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.title}>Frame RN SDK Example</Text>
       <Text style={styles.subtitle}>Set FRAME_SECRET_KEY + FRAME_PUBLISHABLE_KEY in App.tsx or env, then tap below.</Text>
 
       {initError && (
@@ -371,7 +372,8 @@ export default function App() {
           ))}
         </View>
       )}
-    </ScrollView>
+      </ScrollView>
+    </FrameProvider>
   );
 }
 

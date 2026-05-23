@@ -1,63 +1,97 @@
-# Frame React Native SDK — Bare RN Example
+This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
-A minimal React Native 0.83 app that exercises the standalone Frame SDK 4.0:
+# Getting Started
 
-- **Initialize** — `Frame.initialize({ secretKey, publishableKey, applePayMerchantId? })`
-- **Checkout / Cart** — `Frame.presentCheckout(...)` and `Frame.presentCart(...)` render JS-driven modals
-- **Onboarding** — `Frame.presentOnboarding({ accountId?, capabilities })`
-- **Wallets** — `Frame.presentApplePay(...)` and `Frame.presentGooglePay(...)`
-- **Server SDK** — the "View customers" button uses the [`framepayments`](https://www.npmjs.com/package/framepayments) Node SDK over the secret key, just to show that the two SDKs interoperate
+> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
 
-## Prerequisites
+## Step 1: Start Metro
 
-- Node 18+
-- React Native dev environment (Xcode for iOS, Android Studio for Android)
-- A [Frame](https://framepayments.com) account with a secret key and a publishable key
+First, you will need to run **Metro**, the JavaScript build tool for React Native.
 
-## Setup
+To start the Metro dev server, run the following command from the root of your React Native project:
 
-1. **Install dependencies.** The example pulls the SDK from the parent repo via
-   `"framepayments-react-native": "file:.."`. It also installs the SDK's
-   required peer deps (Evervault, FingerprintPro, Sift) so the bridge can
-   load without runtime errors.
+```sh
+# Using npm
+npm start
 
-   ```bash
-   cd example
-   npm install
-   ```
-
-2. **Set your API keys.** Edit `App.tsx` and replace `FRAME_SECRET_KEY` /
-   `FRAME_PUBLISHABLE_KEY` with your own, or export them as env vars before
-   starting Metro. **Never commit real keys.**
-
-3. **iOS:**
-
-   ```bash
-   cd ios && pod install && cd ..
-   ```
-
-   The SDK autolinks; no manual SPM step, no `FramePreloader` call. Apple Pay
-   and App Attest entitlements are already configured under
-   `ios/FrameExampleTemp/FrameExampleTemp.entitlements` — replace the sandbox
-   merchant identifier with your own before shipping.
-
-4. **Android:** autolinking handles everything. If you intend to ship the
-   `phone_verification` onboarding capability, your host app must also add
-   `implementation 'com.prove.sdk:proveauth:6.10.3'` to its `app/build.gradle`
-   (this example's `android/settings.gradle` already wires the Prove
-   Artifactory repository).
-
-## Run
-
-```bash
-npm run ios          # or npm run ios:sim for the iPhone 17 Pro simulator
-npm run android
-npm run start        # Metro, in a separate terminal
+# OR using Yarn
+yarn start
 ```
 
-## Note
+## Step 2: Build and run your app
 
-If you cloned this repo for the first time and `npm install` fails, run
-`npm install` at the repo root first — the example consumes the SDK via a
-local `file:..` reference and needs the SDK's `lib/` directory built. The
-SDK's `prepare` script builds `lib/` automatically on `npm install`.
+With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+
+### Android
+
+```sh
+# Using npm
+npm run android
+
+# OR using Yarn
+yarn android
+```
+
+### iOS
+
+For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+
+The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+
+```sh
+bundle install
+```
+
+Then, and every time you update your native dependencies, run:
+
+```sh
+bundle exec pod install
+```
+
+For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+
+```sh
+# Using npm
+npm run ios
+
+# OR using Yarn
+yarn ios
+```
+
+If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+
+This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+
+## Step 3: Modify your app
+
+Now that you have successfully run the app, let's make changes!
+
+Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+
+When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+
+- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
+- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+
+## Congratulations! :tada:
+
+You've successfully run and modified your React Native App. :partying_face:
+
+### Now what?
+
+- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
+- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+
+# Troubleshooting
+
+If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+
+# Learn More
+
+To learn more about React Native, take a look at the following resources:
+
+- [React Native Website](https://reactnative.dev) - learn more about React Native.
+- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
+- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
+- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
+- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.

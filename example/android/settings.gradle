@@ -1,50 +1,6 @@
-pluginManagement {
-    // Bootstrap: build react-native-gradle-plugin.jar if missing. The root build.gradle's
-    // buildscript classpath references this jar by file path, so it must exist before any
-    // project evaluation. Has to run inside pluginManagement {} since that block must come first.
-    def rnPluginJar = new File(rootDir, "../node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/build/libs/react-native-gradle-plugin.jar")
-    if (!rnPluginJar.exists()) {
-        def pluginDir = new File(rootDir, "../node_modules/@react-native/gradle-plugin")
-        def gradlewName = org.gradle.internal.os.OperatingSystem.current().isWindows() ? "gradlew.bat" : "./gradlew"
-        def proc = new ProcessBuilder(gradlewName, ":react-native-gradle-plugin:jar", ":settings-plugin:jar")
-            .directory(pluginDir)
-            .inheritIO()
-            .start()
-        if (proc.waitFor() != 0) {
-            throw new RuntimeException("Failed to build react-native-gradle-plugin.jar in ${pluginDir}")
-        }
-    }
-    includeBuild('../node_modules/@react-native/gradle-plugin')
-    repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
-}
-
-plugins {
-    id("com.facebook.react.settings")
-    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.10.0'
-}
-
-extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
-    ex.autolinkLibrariesFromCommand()
-}
-
-dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
-    repositories {
-        google()
-        mavenCentral()
-        maven { url "https://jitpack.io" }
-        // Prove's Artifactory hosts the ProveAuth Android SDK used by
-        // framepayments-react-native's optional phone_verification flow.
-        maven { url "https://prove.jfrog.io/artifactory/libs-public-maven/" }
-        // Fingerprint Pro's Artifactory hosts com.fingerprint.android:pro
-        // (the native counterpart to @fingerprintjs/fingerprintjs-pro-react-native).
-        maven { url "https://maven.fpregistry.io/releases" }
-    }
-}
-
-rootProject.name = 'FrameExampleTemp'
+pluginManagement { includeBuild("../node_modules/@react-native/gradle-plugin") }
+plugins { id("com.facebook.react.settings") }
+extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autolinkLibrariesFromCommand() }
+rootProject.name = 'FrameExample'
 include ':app'
+includeBuild('../node_modules/@react-native/gradle-plugin')
