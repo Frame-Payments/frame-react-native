@@ -3,7 +3,7 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   testMatch: ['**/__tests__/**/*.test.{ts,tsx}'],
-  modulePathIgnorePatterns: ['<rootDir>/lib/'],
+  modulePathIgnorePatterns: ['<rootDir>/lib/', '<rootDir>/example/', '<rootDir>/expo-example/'],
   collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.test.{ts,tsx}'],
   transform: {
     '^.+\\.(ts|tsx|js|jsx)$': [

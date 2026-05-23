@@ -172,7 +172,6 @@ describe('presentApplePayFlow — customer owner happy path', () => {
         payment_method: 'pm_123',
         confirm: true,
       }),
-      { usePublishableKey: true },
     );
     expect(transfersCreate).not.toHaveBeenCalled();
     expect(finishApplePay).toHaveBeenCalledWith('success');
@@ -220,7 +219,6 @@ describe('presentApplePayFlow — account owner happy path', () => {
         currency: 'usd',
         source_payment_method_id: 'pm_123',
       },
-      { usePublishableKey: true },
     );
     expect(chargeIntentsCreate).not.toHaveBeenCalled();
     expect(finishApplePay).toHaveBeenCalledWith('success');

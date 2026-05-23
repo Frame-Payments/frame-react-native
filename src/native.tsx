@@ -133,8 +133,8 @@ async function prefetchServiceConfigs(): Promise<void> {
   // Fire both fetches in parallel — they're independent and the round-trips
   // saved matter for time-to-first-encrypt on slow connections.
   const [evResult, siftResult] = await Promise.allSettled([
-    client.sdk.configuration.getEvervaultConfiguration({ usePublishableKey: true }),
-    client.sdk.configuration.getSiftConfiguration({ usePublishableKey: true }),
+    client.sdk.configuration.getEvervaultConfiguration(),
+    client.sdk.configuration.getSiftConfiguration(),
   ]);
 
   if (evResult.status === 'fulfilled') {

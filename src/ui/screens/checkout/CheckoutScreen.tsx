@@ -265,11 +265,11 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
     },
     section: {
       marginBottom: 16,
+      gap: 12,
     },
     sectionTitle: {
       fontSize: 16,
       fontWeight: '600',
-      marginBottom: 8,
     },
     rowList: {
       gap: 8,

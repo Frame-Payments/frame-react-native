@@ -29,9 +29,7 @@ export function GeolocationScreen({ accountId, onAdvance }: GeolocationScreenPro
     (async () => {
       try {
         if (accountId) {
-          await client.sdk.geoCompliance.getAccountStatus(accountId, {
-            usePublishableKey: true,
-          });
+          await client.sdk.geoCompliance.getAccountStatus(accountId);
         }
       } catch (err) {
         if (cancelled) return;

@@ -65,9 +65,7 @@ export function useCheckoutViewModel({
     let cancelled = false;
     (async () => {
       try {
-        const resp = await client.sdk.accounts.getPaymentMethods(accountId, {
-          usePublishableKey: true,
-        });
+        const resp = await client.sdk.accounts.getPaymentMethods(accountId);
         if (cancelled) return;
         dispatch({ type: 'SET_PAYMENT_OPTIONS', options: resp.data ?? [] });
       } catch {
@@ -132,33 +130,27 @@ export function useCheckoutViewModel({
             }
           : undefined;
 
-        const pm = await client.sdk.paymentMethods.createCard(
-          {
-            type: PaymentMethodType.CARD,
-            account: accountIdRef.current,
-            card_number: encryptedPan,
-            exp_month: card.expirationMonth,
-            exp_year: card.expirationYear,
-            cvc: encryptedCvc,
-            billing,
-          },
-          { usePublishableKey: true },
-        );
+        const pm = await client.sdk.paymentMethods.createCard({
+          type: PaymentMethodType.CARD,
+          account: accountIdRef.current,
+          card_number: encryptedPan,
+          exp_month: card.expirationMonth,
+          exp_year: card.expirationYear,
+          cvc: encryptedCvc,
+          billing,
+        });
         if (!pm || typeof pm.id !== 'string') {
           throw frameError(ErrorCodes.PAYMENT_METHOD_FAILED, 'Frame returned no payment method id.');
         }
         paymentMethodId = pm.id;
       }
 
-      const transfer = await client.sdk.transfers.create(
-        {
-          amount,
-          account_id: accountIdRef.current,
-          currency: currency.toLowerCase(),
-          source_payment_method_id: paymentMethodId,
-        },
-        { usePublishableKey: true },
-      );
+      const transfer = await client.sdk.transfers.create({
+        amount,
+        account_id: accountIdRef.current,
+        currency: currency.toLowerCase(),
+        source_payment_method_id: paymentMethodId,
+      });
       if (!transfer || typeof transfer.id !== 'string') {
         throw frameError(ErrorCodes.PAYMENT_FAILED, 'Frame returned no transfer id.');
       }
@@ -189,9 +181,7 @@ async function ensureEvervaultConfigured(): Promise<void> {
     await configureEvervault(cached.teamId, cached.appId);
     return;
   }
-  const config = await client.sdk.configuration.getEvervaultConfiguration({
-    usePublishableKey: true,
-  });
+  const config = await client.sdk.configuration.getEvervaultConfiguration();
   if (!config.team_id || !config.app_id) {
     throw frameError(ErrorCodes.PAYMENT_FAILED, 'Evervault configuration is unavailable.');
   }

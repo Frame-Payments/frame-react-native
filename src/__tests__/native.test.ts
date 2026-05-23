@@ -402,14 +402,14 @@ describe('initialize prefetch — Evervault + Sift', () => {
   it('fetches Evervault config + calls configureEvervault with the returned ids', async () => {
     await initialize({ secretKey: 'sk_1', publishableKey: 'pk_1' });
     await settlePrefetch();
-    expect(getEvervaultConfigMock).toHaveBeenCalledWith({ usePublishableKey: true });
+    expect(getEvervaultConfigMock).toHaveBeenCalledWith();
     expect(evervaultInitMock).toHaveBeenCalledWith('team_x', 'app_x');
   });
 
   it('fetches Sift config in parallel with Evervault', async () => {
     await initialize({ secretKey: 'sk_1', publishableKey: 'pk_1' });
     await settlePrefetch();
-    expect(getSiftConfigMock).toHaveBeenCalledWith({ usePublishableKey: true });
+    expect(getSiftConfigMock).toHaveBeenCalledWith();
   });
 
   it('does not call configureEvervault when backend returns null team_id', async () => {

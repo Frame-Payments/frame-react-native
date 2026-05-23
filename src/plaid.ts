@@ -91,9 +91,7 @@ export async function openPlaidLink(opts: { accountId: string }): Promise<PlaidC
     );
   }
 
-  const tokenResponse = await client.sdk.accounts.getPlaidLinkToken(opts.accountId, {
-    usePublishableKey: true,
-  });
+  const tokenResponse = await client.sdk.accounts.getPlaidLinkToken(opts.accountId);
   const linkToken = tokenResponse.link_token;
   if (!linkToken) {
     throw frameError(ErrorCodes.PAYMENT_FAILED, 'Frame returned no Plaid link token.');

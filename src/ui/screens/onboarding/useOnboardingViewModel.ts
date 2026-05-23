@@ -134,13 +134,13 @@ export function useOnboardingViewModel({
     let cancelled = false;
     (async () => {
       try {
-        // Pull the account profile + saved methods in parallel; both routes
-        // use the publishable key. Failures are non-fatal — the user can
-        // still complete the flow, just without prefill.
+        // Pull the account profile + saved methods in parallel. Failures are
+        // non-fatal — the user can still complete the flow, just without
+        // prefill.
         const [account, methodsResp] = await Promise.all([
-          client.sdk.accounts.get(initialAccountId, { usePublishableKey: true }).catch(() => null),
+          client.sdk.accounts.get(initialAccountId).catch(() => null),
           client.sdk.accounts
-            .getPaymentMethods(initialAccountId, { usePublishableKey: true })
+            .getPaymentMethods(initialAccountId)
             .catch(() => ({ data: [] as Array<unknown> })),
         ]);
         if (cancelled) return;
@@ -283,7 +283,6 @@ export function useOnboardingViewModel({
         };
         const account = await client.sdk.accounts.create(
           createParams as unknown as Parameters<typeof client.sdk.accounts.create>[0],
-          { usePublishableKey: true },
         );
         if (!account?.id) {
           throw frameError(ErrorCodes.PAYMENT_FAILED, 'Frame returned no account id.');
@@ -296,7 +295,6 @@ export function useOnboardingViewModel({
       const verification = await client.sdk.phoneVerifications.create(
         accountId,
         { phone_number: e164 },
-        { usePublishableKey: true },
       );
 
       // When the Prove branch has already failed, force the Frame OTP path
@@ -331,7 +329,6 @@ export function useOnboardingViewModel({
         current.accountId,
         current.pendingVerificationId,
         { code: current.otpCode },
-        { usePublishableKey: true },
       );
       dispatch({ type: 'SET_SUB_STEP', subStep: 'customer_information' });
     });
@@ -374,7 +371,6 @@ export function useOnboardingViewModel({
       await client.sdk.accounts.update(
         current.accountId,
         { profile: { individual } },
-        { usePublishableKey: true },
       );
 
       // Per the flow chart, customer-information is the last sub-step of
@@ -394,9 +390,7 @@ export function useOnboardingViewModel({
       const current = stateRef.current;
       if (!current.accountId) return;
       try {
-        const resp = await client.sdk.accounts.getPaymentMethods(current.accountId, {
-          usePublishableKey: true,
-        });
+        const resp = await client.sdk.accounts.getPaymentMethods(current.accountId);
         // Cards only on this step; ACH lives on the payout step.
         const cards = (resp.data ?? []).filter((m) => m.card != null);
         dispatch({ type: 'SET_SAVED_PAYMENT_METHODS', methods: cards });
@@ -432,18 +426,15 @@ export function useOnboardingViewModel({
           country: current.address.country,
           postal_code: current.address.postalCode,
         };
-        const pm = await client.sdk.paymentMethods.createCard(
-          {
-            type: PaymentMethodType.CARD,
-            account: current.accountId,
-            card_number: encryptedPan,
-            exp_month: card.expirationMonth,
-            exp_year: card.expirationYear,
-            cvc: encryptedCvc,
-            billing,
-          },
-          { usePublishableKey: true },
-        );
+        const pm = await client.sdk.paymentMethods.createCard({
+          type: PaymentMethodType.CARD,
+          account: current.accountId,
+          card_number: encryptedPan,
+          exp_month: card.expirationMonth,
+          exp_year: card.expirationYear,
+          cvc: encryptedCvc,
+          billing,
+        });
         if (!pm?.id) {
           throw frameError(ErrorCodes.PAYMENT_METHOD_FAILED, 'Frame returned no payment method id.');
         }
@@ -564,9 +555,7 @@ export function useOnboardingViewModel({
       const current = stateRef.current;
       if (!current.accountId) return;
       try {
-        const resp = await client.sdk.accounts.getPaymentMethods(current.accountId, {
-          usePublishableKey: true,
-        });
+        const resp = await client.sdk.accounts.getPaymentMethods(current.accountId);
         const achs = (resp.data ?? []).filter((m) => m.ach != null);
         dispatch({ type: 'SET_SAVED_PAYOUT_METHODS', methods: achs });
       } catch {
@@ -595,20 +584,17 @@ export function useOnboardingViewModel({
         country: 'US',
         postal_code: current.address.postalCode,
       };
-      const pm = await client.sdk.paymentMethods.createACH(
-        {
-          type: PaymentMethodType.ACH,
-          account: current.accountId,
-          account_type:
-            current.ach.accountType === 'savings'
-              ? PaymentAccountType.SAVINGS
-              : PaymentAccountType.CHECKING,
-          account_number: current.ach.accountNumber,
-          routing_number: current.ach.routingNumber,
-          billing,
-        },
-        { usePublishableKey: true },
-      );
+      const pm = await client.sdk.paymentMethods.createACH({
+        type: PaymentMethodType.ACH,
+        account: current.accountId,
+        account_type:
+          current.ach.accountType === 'savings'
+            ? PaymentAccountType.SAVINGS
+            : PaymentAccountType.CHECKING,
+        account_number: current.ach.accountNumber,
+        routing_number: current.ach.routingNumber,
+        billing,
+      });
       if (!pm?.id) {
         throw frameError(ErrorCodes.PAYMENT_METHOD_FAILED, 'Frame returned no payment method id.');
       }
@@ -624,16 +610,13 @@ export function useOnboardingViewModel({
         if (!current.accountId) {
           throw frameError(ErrorCodes.PAYMENT_FAILED, 'No account id present.');
         }
-        const pm = await client.sdk.paymentMethods.connectPlaidBankAccount(
-          {
-            account: current.accountId,
-            public_token: params.publicToken,
-            account_id: params.accountId,
-            institution_name: params.institutionName,
-            subtype: params.subtype,
-          },
-          { usePublishableKey: true },
-        );
+        const pm = await client.sdk.paymentMethods.connectPlaidBankAccount({
+          account: current.accountId,
+          public_token: params.publicToken,
+          account_id: params.accountId,
+          institution_name: params.institutionName,
+          subtype: params.subtype,
+        });
         if (!pm?.id) {
           throw frameError(ErrorCodes.PAYMENT_METHOD_FAILED, 'Frame returned no payment method id.');
         }
@@ -655,16 +638,13 @@ export function useOnboardingViewModel({
         throw frameError(ErrorCodes.PAYMENT_FAILED, 'No account id present.');
       }
       const linkResult: PlaidConnectResult = await runPlaidLink({ accountId: current.accountId });
-      const pm = await client.sdk.paymentMethods.connectPlaidBankAccount(
-        {
-          account: current.accountId,
-          public_token: linkResult.publicToken,
-          account_id: linkResult.selectedAccountId,
-          institution_name: linkResult.institutionName,
-          subtype: linkResult.subtype,
-        },
-        { usePublishableKey: true },
-      );
+      const pm = await client.sdk.paymentMethods.connectPlaidBankAccount({
+        account: current.accountId,
+        public_token: linkResult.publicToken,
+        account_id: linkResult.selectedAccountId,
+        institution_name: linkResult.institutionName,
+        subtype: linkResult.subtype,
+      });
       if (!pm?.id) {
         throw frameError(ErrorCodes.PAYMENT_METHOD_FAILED, 'Frame returned no payment method id.');
       }
@@ -722,9 +702,7 @@ export function useOnboardingViewModel({
           'Customer identity is missing required fields. Complete the customer information step before uploading documents.',
         );
       }
-      const identity = await client.sdk.customerIdentityVerifications.create(params, {
-        usePublishableKey: true,
-      });
+      const identity = await client.sdk.customerIdentityVerifications.create(params);
       if (!identity?.id) {
         throw frameError(ErrorCodes.PAYMENT_FAILED, 'Frame returned no customer-identity id.');
       }
@@ -769,11 +747,8 @@ export function useOnboardingViewModel({
       await client.sdk.customerIdentityVerifications.uploadIdentityDocuments(
         identityId,
         files,
-        { usePublishableKey: true },
       );
-      await client.sdk.customerIdentityVerifications.submitForVerification(identityId, {
-        usePublishableKey: true,
-      });
+      await client.sdk.customerIdentityVerifications.submitForVerification(identityId);
     });
   }, [guardedAction]);
 
@@ -923,9 +898,7 @@ async function ensureEvervaultConfigured(): Promise<void> {
     await configureEvervault(cached.teamId, cached.appId);
     return;
   }
-  const config = await client.sdk.configuration.getEvervaultConfiguration({
-    usePublishableKey: true,
-  });
+  const config = await client.sdk.configuration.getEvervaultConfiguration();
   if (!config.team_id || !config.app_id) {
     throw frameError(ErrorCodes.PAYMENT_FAILED, 'Evervault configuration is unavailable.');
   }

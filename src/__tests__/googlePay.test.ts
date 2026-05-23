@@ -165,7 +165,6 @@ describe('presentGooglePayFlow — customer owner happy path', () => {
         payment_method: 'pm_g_1',
         confirm: true,
       }),
-      { usePublishableKey: true },
     );
     expect(transfersCreate).not.toHaveBeenCalled();
   });
@@ -214,7 +213,6 @@ describe('presentGooglePayFlow — account owner happy path', () => {
         currency: 'usd',
         source_payment_method_id: 'pm_g_1',
       },
-      { usePublishableKey: true },
     );
     expect(chargeIntentsCreate).not.toHaveBeenCalled();
   });

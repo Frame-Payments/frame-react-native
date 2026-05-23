@@ -111,16 +111,13 @@ async function createPaymentMethodAndCharge(
       { type: 'card', customer: owner.id, _wallet: wallet },
       { usePublishableKey: true },
     );
-    const intent = await client.sdk.chargeIntents.create(
-      {
-        amount: options.amountCents,
-        currency: currency.toLowerCase(),
-        customer: owner.id,
-        payment_method: pm.id,
-        confirm: true,
-      },
-      { usePublishableKey: true },
-    );
+    const intent = await client.sdk.chargeIntents.create({
+      amount: options.amountCents,
+      currency: currency.toLowerCase(),
+      customer: owner.id,
+      payment_method: pm.id,
+      confirm: true,
+    });
     if (!intent || typeof intent.id !== 'string') {
       throw frameError(ErrorCodes.PAYMENT_FAILED, 'Frame returned no ChargeIntent id.');
     }
@@ -131,15 +128,12 @@ async function createPaymentMethodAndCharge(
     { type: 'card', account: owner.id, _wallet: wallet },
     { usePublishableKey: true },
   );
-  const transfer = await client.sdk.transfers.create(
-    {
-      amount: options.amountCents,
-      account_id: owner.id,
-      currency: currency.toLowerCase(),
-      source_payment_method_id: pm.id,
-    },
-    { usePublishableKey: true },
-  );
+  const transfer = await client.sdk.transfers.create({
+    amount: options.amountCents,
+    account_id: owner.id,
+    currency: currency.toLowerCase(),
+    source_payment_method_id: pm.id,
+  });
   if (!transfer || typeof transfer.id !== 'string') {
     throw frameError(ErrorCodes.PAYMENT_FAILED, 'Frame returned no Transfer id.');
   }
