@@ -1,6 +1,7 @@
 import Foundation
 import DeviceCheck
 import Security
+import React
 
 // Keychain key strings are deliberately identical to Frame iOS' DeviceAttestationManager
 // so a device that already attested via the native iOS SDK is recognised by the RN SDK

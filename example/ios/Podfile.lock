@@ -2539,6 +2539,7 @@ PODS:
   - RNFingerprintjsPro (1.0.4):
     - FingerprintPro (~> 2.15.0)
     - React-Core
+  - Sift (2.2.5)
   - SiftReactNative (1.0.1):
     - boost
     - DoubleConversion
@@ -2652,6 +2653,7 @@ DEPENDENCIES:
   - ReactCodegen (from `build/generated/ios/ReactCodegen`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - "RNFingerprintjsPro (from `../node_modules/@fingerprintjs/fingerprintjs-pro-react-native`)"
+  - Sift
   - SiftReactNative (from `../node_modules/sift-react-native`)
   - SocketRocket (~> 0.7.1)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
@@ -2660,6 +2662,7 @@ SPEC REPOS:
   trunk:
     - Evervault
     - FingerprintPro
+    - Sift
     - SocketRocket
 
 EXTERNAL SOURCES:
@@ -2912,10 +2915,11 @@ SPEC CHECKSUMS:
   ReactCodegen: 417334350a76a91784cc20f7aff392327e217dc4
   ReactCommon: 5f2db7556b60816bdc5761a359539bacd2d0250d
   RNFingerprintjsPro: 1f39fb67c1f7613e04973379e9b41e3ca0baba5a
+  Sift: 376455214f1df4cb1a51f84ebffe219f3a449241
   SiftReactNative: 7901154765ba6451dac35329e0754bc2ddde1691
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: e6489bbfdab9b98f8d51993484d6bd40216b7834
 
-PODFILE CHECKSUM: 3fa735a38099b110353be6e06271bae7b930b7b7
+PODFILE CHECKSUM: 7c79082929754b97effc020e8b979bcbac705e05
 
 COCOAPODS: 1.16.2

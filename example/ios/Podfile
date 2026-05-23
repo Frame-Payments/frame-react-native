@@ -15,6 +15,12 @@ if linkage != nil
 end
 
 target 'FrameExampleTemp' do
+  # sift-react-native 1.0.1 imports <Sift/Sift.h> but does not declare
+  # `s.dependency 'Sift'` in its podspec, so the host must pull the native
+  # Sift SDK in directly. The Expo config plugin auto-injects this; bare RN
+  # apps add it by hand.
+  pod 'Sift'
+
   config = use_native_modules!
 
   use_react_native!(
@@ -56,6 +62,19 @@ target 'FrameExampleTemp' do
         # type-check.
         unless config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'].include?('FMT_USE_CONSTEVAL=0')
           config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FMT_USE_CONSTEVAL=0'
+        end
+        # SiftReactNative.mm is Objective-C++ and #imports <Sift/Sift.h>, whose
+        # headers (e.g. SiftEvent.h) use `@import Foundation;`. The .mm file is
+        # compiled as C++, so Clang requires -fcxx-modules to accept @import
+        # there. Without this, the build fails with "Use of '@import' when C++
+        # modules are disabled".
+        if target.name == 'SiftReactNative'
+          flags = config.build_settings['OTHER_CPLUSPLUSFLAGS'] || ['$(inherited)']
+          flags = [flags] unless flags.is_a?(Array)
+          unless flags.include?('-fcxx-modules')
+            flags << '-fcxx-modules'
+          end
+          config.build_settings['OTHER_CPLUSPLUSFLAGS'] = flags
         end
       end
     end

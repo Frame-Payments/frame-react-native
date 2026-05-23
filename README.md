@@ -23,23 +23,28 @@ These three packages are **hard peer deps** — the bridge initializer prefetche
 
 ### iOS setup
 
+Add one line to your `ios/Podfile`, inside your app target, then install pods:
+
+```ruby
+target 'YourApp' do
+  pod 'Sift'   # required: see note below
+  # ...
+end
+```
+
 ```bash
 cd ios && pod install && cd ..
 ```
 
-That's it. The SDK autolinks; there is no Swift Package Manager step, no `FramePreloader` to install, and no entitlement to add by hand (the config plugin handles entitlements for Expo users; bare RN users add the Apple Pay + App Attest entitlements once in Xcode — see [Required iOS setup](#required-ios-setup) under `presentApplePay`).
+> **Why the `pod 'Sift'` line?** `sift-react-native` is a hard peer dep, but its 1.0.1 podspec imports `<Sift/Sift.h>` without declaring `s.dependency 'Sift'`. Without this line you'll see a "Sift/Sift.h file not found" build error. The Expo config plugin auto-injects this for you; bare RN apps add it once.
+
+The SDK autolinks otherwise; there is no Swift Package Manager step, no `FramePreloader` to install, and no entitlement to add by hand (the config plugin handles entitlements for Expo users; bare RN users add the Apple Pay + App Attest entitlements once in Xcode — see [Required iOS setup](#required-ios-setup) under `presentApplePay`).
 
 ### Android setup
 
 No manual steps. Autolinking wires up the native module, and Google Pay's wallet meta-data is injected automatically by the Expo plugin (or, for bare RN apps, add it once to `AndroidManifest.xml` — see [Required Android setup](#required-android-setup) under `presentGooglePay`).
 
-If you ship the `phone_verification` onboarding capability, also add the Prove Android SDK to your host app's `app/build.gradle`:
-
-```gradle
-implementation 'com.prove.sdk:proveauth:6.10.3'
-```
-
-The bridge declares Prove as `compileOnly`, so it stays optional for apps that don't use phone verification — the bridge probes for the class at runtime and degrades cleanly to the Frame OTP path if it's missing.
+If you ship the `phone_verification` onboarding capability, see [Enabling phone verification (Prove)](#enabling-phone-verification-prove) below. The bridge declares Prove as `compileOnly` on Android and gates the iOS code behind `#if canImport(ProveAuth)`, so it stays optional for apps that don't use phone verification — the bridge probes for the SDK at runtime and degrades cleanly to the Frame OTP path if it's missing.
 
 ### Expo
 
@@ -61,10 +66,11 @@ Expo SDK 54+ is supported via a development build (Expo Go is **not** supported 
 
 Then run `npx expo prebuild --clean` to regenerate `ios/` and `android/`. The plugin:
 
+- Injects `pod 'Sift'` into the iOS target (working around the missing dep in the upstream sift-react-native podspec).
 - When `applePayMerchantId` is provided: adds it to the `com.apple.developer.in-app-payments` entitlement and sets `com.apple.developer.devicecheck.appattest-environment` to `production` (App Attest is required for every Apple Pay charge — sandbox vs live is keyed off your Frame API keys, not this entitlement).
 - When `enableGooglePay !== false` (default `true`): adds the `com.google.android.gms.wallet.api.enabled` meta-data to `AndroidManifest.xml`.
-- Registers the cocoapods-art Artifactory source needed by the Prove iOS SDK (only fetched if your host app pulls in `pod 'ProveAuth'`).
-- Adds the Prove Artifactory Maven repository to the Android project so the SDK's `compileOnly` Prove dependency resolves.
+- When `enableProveAuth: true`: registers the cocoapods-art Artifactory source, injects `pod 'ProveAuth'` into the host target, and adds `implementation 'com.prove.sdk:proveauth:6.10.3'` to `android/app/build.gradle`. See [Enabling phone verification (Prove)](#enabling-phone-verification-prove).
+- Adds the Prove Artifactory Maven repository to the Android project so the SDK's `compileOnly` Prove dependency always resolves at SDK compile time (the binary is only pulled into your app when `enableProveAuth` is set).
 - Adds the C++20 / Folly post-install flags required by React Native 0.81+.
 
 Also list `@fingerprintjs/fingerprintjs-pro-react-native` as a plugin — Fingerprint Pro is a hard peer dep and ships its own config plugin to register its Maven repo.
@@ -80,6 +86,57 @@ Both plugin options are optional. The plugin is a no-op for bare React Native us
 | `geo_compliance` | `expo-location` *or* `@react-native-community/geolocation` |
 
 These are listed under `peerDependenciesMeta` as optional — install them only if you use the corresponding capability. The bridge surfaces a clear error if a capability is requested without its peer installed.
+
+### Enabling phone verification (Prove)
+
+The `phone_verification` onboarding capability uses Prove's ProveAuth SDK. The native bridges on both platforms are gated so the SDK is optional — without ProveAuth linked, `phone_verification` falls back to Frame's OTP path.
+
+Prove is distributed outside the public CocoaPods/Maven Central registries, so enabling it has a one-time machine-level setup step on top of the build-config changes.
+
+**Expo (`app.json` / `app.config.js`)**
+
+Add `enableProveAuth: true` to the plugin props:
+
+```json
+["framepayments-react-native", {
+  "applePayMerchantId": "merchant.com.yourcompany.app",
+  "enableGooglePay": true,
+  "enableProveAuth": true
+}]
+```
+
+Then on each dev machine and CI worker that runs `pod install`, install Prove's CocoaPods Artifactory plugin once:
+
+```bash
+gem install cocoapods-art
+pod repo-art add prove.jfrog.io https://prove.jfrog.io/artifactory/api/pods/libs-public-cocoapods
+```
+
+Run `npx expo prebuild --clean && npx expo run:ios` (and `run:android`). The plugin injects `pod 'ProveAuth'`, the cocoapods-art source declaration, and the Android `implementation 'com.prove.sdk:proveauth:6.10.3'` line for you.
+
+**Bare React Native**
+
+The plugin only runs under Expo prebuild. For bare RN, do the equivalent edits by hand:
+
+1. Install cocoapods-art (same one-time step as above):
+   ```bash
+   gem install cocoapods-art
+   pod repo-art add prove.jfrog.io https://prove.jfrog.io/artifactory/api/pods/libs-public-cocoapods
+   ```
+2. Add to the top of your `ios/Podfile`:
+   ```ruby
+   source 'https://cdn.cocoapods.org/'
+   plugin 'cocoapods-art', :sources => ['prove.jfrog.io']
+   ```
+3. Inside your app's `target ... do` block, add:
+   ```ruby
+   pod 'ProveAuth'
+   ```
+4. In `android/app/build.gradle`, inside `dependencies { ... }`, add:
+   ```gradle
+   implementation 'com.prove.sdk:proveauth:6.10.3'
+   ```
+5. Run `cd ios && pod install` and rebuild Android.
 
 ---
 

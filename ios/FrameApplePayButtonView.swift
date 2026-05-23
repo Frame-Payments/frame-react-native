@@ -1,6 +1,7 @@
 import Foundation
 import PassKit
 import UIKit
+import React
 
 // Native wrapper around PKPaymentButton. Exposed to RN as
 // `requireNativeComponent('FrameApplePayButton')`. Apple Pay HIG mandates

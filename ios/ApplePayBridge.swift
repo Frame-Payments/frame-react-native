@@ -1,5 +1,6 @@
 import Foundation
 import PassKit
+import React
 
 // Two-step Apple Pay bridge.
 //

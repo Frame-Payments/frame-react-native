@@ -22,7 +22,8 @@
         "framepayments-react-native",
         {
           "applePayMerchantId": "merchant.com.framepayments.example",
-          "enableGooglePay": true
+          "enableGooglePay": true,
+          "enableProveAuth": true
         }
       ],
       "@fingerprintjs/fingerprintjs-pro-react-native",
