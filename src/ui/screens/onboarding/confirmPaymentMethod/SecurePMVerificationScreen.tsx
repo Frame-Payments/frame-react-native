@@ -4,6 +4,7 @@ import { useFrameTheme } from '../../../theme/ThemeContext';
 import { Button } from '../../../primitives/Button';
 import { showToast } from '../../../primitives/toastCenter';
 import type { OnboardingState } from '../onboardingReducer';
+import { FORM_SPACING } from '../formSpacing';
 
 // 3DS challenge polling screen. We don't host the bank's challenge UI ourselves
 // (3DS challenge sheets are displayed by the bank's app or in-browser) — this
@@ -133,23 +134,23 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      paddingHorizontal: 24,
+      paddingHorizontal: FORM_SPACING.contentHorizontal,
     },
     content: {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 16,
+      gap: FORM_SPACING.sectionBottom,
     },
     title: {
-      marginTop: 8,
+      marginTop: FORM_SPACING.headingTop,
       textAlign: 'center',
     },
     body: {
       textAlign: 'center',
     },
     footer: {
-      paddingVertical: 24,
+      paddingVertical: FORM_SPACING.footerVertical,
     },
   });
 }

@@ -217,7 +217,7 @@ export function OnboardingRoot({
               onChangePhoneCountry={vm.setPhoneCountry}
               onChangePhoneNumber={vm.setPhoneNumber}
               onChangeDob={vm.setDob}
-              onChangeAcceptedTos={vm.setAcceptedTos}
+              onMount={() => void vm.generateTermsOfServiceToken()}
               onSubmit={() => vm.sendOtp().catch(surfaceError)}
             />
           );

@@ -4,6 +4,7 @@ import { useFrameTheme } from '../../../theme/ThemeContext';
 import { Button } from '../../../primitives/Button';
 import { client } from '../../../../client';
 import { showToast } from '../../../primitives/toastCenter';
+import { FORM_SPACING } from '../formSpacing';
 
 // Stub geolocation screen. Real VPN-detect + permission UX is deferred (per
 // the Phase 8 plan). On mount we fire geoCompliance.getAccountStatus once and
@@ -79,12 +80,12 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      paddingHorizontal: 24,
-      paddingVertical: 24,
+      paddingHorizontal: FORM_SPACING.contentHorizontal,
+      paddingVertical: FORM_SPACING.footerVertical,
       alignItems: 'center',
     },
     title: {
-      marginTop: 16,
+      marginTop: FORM_SPACING.sectionBottom,
       textAlign: 'center',
     },
     spacer: {

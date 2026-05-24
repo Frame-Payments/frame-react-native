@@ -9,6 +9,7 @@ import { canMakeApplePay } from '../../../../applePay';
 import { getApplePayMerchantId } from '../../../../config';
 import { showToast } from '../../../primitives/toastCenter';
 import type { OnboardingAddress, OnboardingState } from '../onboardingReducer';
+import { FORM_SPACING } from '../formSpacing';
 
 // AddPaymentMethod — two modes:
 //   1. Full card-entry (default): card field + US billing address. iOS shows
@@ -192,12 +193,12 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
       flex: 1,
     },
     scrollContent: {
-      paddingHorizontal: 24,
-      paddingBottom: 24,
+      paddingHorizontal: FORM_SPACING.contentHorizontal,
+      paddingBottom: FORM_SPACING.contentBottom,
     },
     heading: {
-      marginTop: 8,
-      marginBottom: 16,
+      marginTop: FORM_SPACING.headingTop,
+      marginBottom: FORM_SPACING.headingBottom,
     },
     applePayBlock: {
       marginBottom: 8,
@@ -205,7 +206,7 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
     orRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginVertical: 16,
+      marginVertical: FORM_SPACING.sectionBottom,
       gap: 8,
     },
     orLine: {
@@ -217,14 +218,16 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
       textTransform: 'uppercase',
     },
     section: {
-      marginBottom: 16,
+      marginBottom: FORM_SPACING.sectionBottom,
+      gap: FORM_SPACING.fieldGap,
     },
     sectionTitle: {
-      marginBottom: 8,
+      // Title-to-field spacing comes from `section.gap` — keep this empty
+      // so the rhythm matches every other onboarding form.
     },
     footer: {
-      paddingHorizontal: 24,
-      paddingVertical: 24,
+      paddingHorizontal: FORM_SPACING.footerHorizontal,
+      paddingVertical: FORM_SPACING.footerVertical,
     },
   });
 }

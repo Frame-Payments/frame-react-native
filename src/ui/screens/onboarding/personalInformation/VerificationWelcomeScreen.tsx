@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useFrameTheme } from '../../../theme/ThemeContext';
 import { Button } from '../../../primitives/Button';
 import { Icon } from '../../../assets';
+import { FORM_SPACING } from '../formSpacing';
 
 // Mirror of iOS OnboardingContainerView's `onboardingIntro` (shield-icon +
 // "Verify Your Identity" + bodySmall body copy + Continue). Button is disabled
@@ -73,12 +74,12 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
     },
     body: {
       textAlign: 'center',
-      paddingHorizontal: 24,
+      paddingHorizontal: FORM_SPACING.contentHorizontal,
     },
     footer: {
       alignSelf: 'stretch',
-      paddingBottom: 16,
-      paddingHorizontal: 16,
+      paddingBottom: FORM_SPACING.sectionBottom,
+      paddingHorizontal: FORM_SPACING.sectionBottom,
     },
   });
 }

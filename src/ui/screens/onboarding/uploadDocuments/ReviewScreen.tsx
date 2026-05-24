@@ -3,6 +3,7 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import { useFrameTheme } from '../../../theme/ThemeContext';
 import { Button } from '../../../primitives/Button';
 import type { CapturedPhoto } from '../../../../camera';
+import { FORM_SPACING } from '../formSpacing';
 
 // Review the captured photo. User taps "Use this photo" to accept or
 // "Retake" to capture again. Used for Front / Back / Selfie.
@@ -69,17 +70,17 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      paddingHorizontal: 24,
+      paddingHorizontal: FORM_SPACING.contentHorizontal,
     },
     header: {
-      marginTop: 8,
+      marginTop: FORM_SPACING.headingTop,
     },
     body: {
-      marginTop: 8,
+      marginTop: FORM_SPACING.headingTop,
     },
     imageWrap: {
       flex: 1,
-      marginVertical: 16,
+      marginVertical: FORM_SPACING.sectionBottom,
       backgroundColor: '#000',
       borderRadius: 12,
       overflow: 'hidden',
@@ -91,10 +92,10 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
       height: '100%',
     },
     footer: {
-      paddingBottom: 24,
+      paddingBottom: FORM_SPACING.footerVertical,
     },
     retake: {
-      marginTop: 12,
+      marginTop: FORM_SPACING.fieldGap,
     },
   });
 }

@@ -90,12 +90,16 @@ describe('font tokens (Material 3 sizes + Frame weight overrides)', () => {
     expect(fontWeights.caption).toBe('400');
   });
 
-  it('sizes follow Material 3 type scale', () => {
-    expect(defaultFonts.title.size).toBe(32);
-    expect(defaultFonts.heading.size).toBe(28);
-    expect(defaultFonts.headline.size).toBe(22);
-    expect(defaultFonts.body.size).toBe(16);
-    expect(defaultFonts.bodySmall.size).toBe(14);
+  it('sizes match the shipping defaults', () => {
+    // Frame iOS uses dynamic system tokens (.title, .headline, etc.); RN
+    // ships concrete pt sizes that visually align with those defaults on
+    // the iPhone reference size class. Keep these in sync with
+    // src/ui/theme/defaults.ts.
+    expect(defaultFonts.title.size).toBe(24);
+    expect(defaultFonts.heading.size).toBe(24);
+    expect(defaultFonts.headline.size).toBe(18);
+    expect(defaultFonts.body.size).toBe(14);
+    expect(defaultFonts.bodySmall.size).toBe(12);
     expect(defaultFonts.label.size).toBe(14);
     expect(defaultFonts.caption.size).toBe(11);
     expect(defaultFonts.button.size).toBe(14);

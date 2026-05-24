@@ -11,6 +11,7 @@ import {
   submitProveOtp,
 } from '../../../../prove';
 import type { OnboardingState, VerifyPhoneUi } from '../onboardingReducer';
+import { FORM_SPACING } from '../formSpacing';
 
 // Three UI branches off `state.verifyPhoneUi`:
 //
@@ -210,17 +211,17 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      paddingHorizontal: 24,
+      paddingHorizontal: FORM_SPACING.contentHorizontal,
     },
     centeredContainer: {
       flex: 1,
-      paddingHorizontal: 24,
+      paddingHorizontal: FORM_SPACING.contentHorizontal,
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 16,
+      gap: FORM_SPACING.sectionBottom,
     },
     loadingTitle: {
-      marginTop: 8,
+      marginTop: FORM_SPACING.headingTop,
       textAlign: 'center',
     },
     loadingBody: {
@@ -228,8 +229,8 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
     },
     content: {
       flex: 1,
-      paddingTop: 16,
-      gap: 12,
+      paddingTop: FORM_SPACING.headingBottom,
+      gap: FORM_SPACING.fieldGap,
     },
     heading: {},
     body: {
@@ -239,10 +240,10 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
       marginTop: 4,
     },
     resend: {
-      marginTop: 16,
+      marginTop: FORM_SPACING.sectionBottom,
     },
     footer: {
-      paddingVertical: 24,
+      paddingVertical: FORM_SPACING.footerVertical,
     },
   });
 }

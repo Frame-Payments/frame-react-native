@@ -15,7 +15,11 @@ const SENSITIVE_HEADERS = new Set(['authorization', 'x-frame-use-publishable-key
 let attached = false;
 
 export function attachNetworkLogger(sdk: FrameSDK): void {
-  if (!__DEV__ || attached) return;
+  // `__DEV__` is a Metro-injected global at runtime; in Jest's node runtime it's
+  // undefined. Guard with `typeof` so the logger no-ops cleanly under tests
+  // (mirrors the same pattern in src/plaid.ts:129).
+  const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
+  if (!isDev || attached) return;
   const axiosClient = (sdk.accounts as unknown as { client?: AxiosLike }).client;
   if (!axiosClient?.interceptors) return;
 

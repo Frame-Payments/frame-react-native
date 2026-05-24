@@ -39,10 +39,12 @@ describe('computeFlow — capability → step mapping', () => {
   });
 
   it('adds personal_information for KYC capabilities', () => {
+    // iOS-parity (OnboardingContainerView.swift:32-40 + commented-out
+    // .uploadDocuments case at line 101-104): `kyc` maps to
+    // `.personalInformation`, NOT to a separate document-upload step.
     expect(computeFlow(['kyc'])).toEqual([
       'verification_welcome',
       'personal_information',
-      'upload_documents',
       'verification_submitted',
     ]);
   });
@@ -59,8 +61,12 @@ describe('computeFlow — capability → step mapping', () => {
     expect(computeFlow(['bank_account_receive'])).toContain('confirm_bank_account');
   });
 
-  it('kyc adds upload_documents; kyc_prefill alone does NOT', () => {
-    expect(computeFlow(['kyc'])).toContain('upload_documents');
+  it('neither kyc nor kyc_prefill adds upload_documents (iOS parity)', () => {
+    // iOS UserIdentificationView handles `kyc` inside personal_information.
+    // The `.uploadDocuments` step exists in the enum but is commented out
+    // in OnboardingContainerView.swift; do not activate it on RN until iOS
+    // activates it.
+    expect(computeFlow(['kyc'])).not.toContain('upload_documents');
     expect(computeFlow(['kyc_prefill'])).not.toContain('upload_documents');
   });
 
@@ -92,7 +98,6 @@ describe('computeFlow — capability → step mapping', () => {
       'personal_information',
       'confirm_payment_method',
       'confirm_bank_account',
-      'upload_documents',
       'verification_submitted',
     ]);
   });
@@ -147,8 +152,6 @@ describe('nextStep / previousStep', () => {
     let s = setupFlow(['kyc']);
     expect(selectorNextStep(s)).toBe('personal_information');
     s = { ...s, currentStep: 'personal_information' };
-    expect(selectorNextStep(s)).toBe('upload_documents');
-    s = { ...s, currentStep: 'upload_documents' };
     expect(selectorNextStep(s)).toBe('verification_submitted');
     s = { ...s, currentStep: 'verification_submitted' };
     expect(selectorNextStep(s)).toBeNull();
@@ -193,11 +196,14 @@ describe('validatePhoneAuth', () => {
     expect(validatePhoneAuth(s).dob).toBeUndefined();
   });
 
-  it('geo_compliance requires acceptedTos', () => {
+  it('geo_compliance does NOT add an acceptedTos validation error (iOS parity)', () => {
+    // iOS UserIdentificationView shows the TermsOfServiceView text when
+    // geo_compliance is requested, but `validateAllPhoneAuth`
+    // (OnboardingContainerViewModel.swift:583-600) only checks phone + DOB.
+    // Acceptance is implicit on Continue tap; the TOS payload is attached
+    // to the account create/update call regardless.
     let s = initialOnboardingState(['geo_compliance'], null);
     s = onboardingReducer(s, { type: 'SET_PHONE_NUMBER', value: '4155551212' });
-    expect(validatePhoneAuth(s).acceptedTos).toBeDefined();
-    s = onboardingReducer(s, { type: 'SET_ACCEPTED_TOS', value: true });
     expect(validatePhoneAuth(s).acceptedTos).toBeUndefined();
   });
 });

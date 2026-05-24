@@ -4,6 +4,7 @@ import { useFrameTheme } from '../../../theme/ThemeContext';
 import { Button } from '../../../primitives/Button';
 import { DropDown } from '../../../primitives/DropDown';
 import type { IdDocumentType, OnboardingState } from '../onboardingReducer';
+import { FORM_SPACING } from '../formSpacing';
 
 // Document upload checklist. The user picks an ID type, then taps each row
 // (Front / Back / Selfie) to capture. Back is hidden for passport — single
@@ -182,34 +183,34 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
       flex: 1,
     },
     scrollContent: {
-      paddingHorizontal: 24,
-      paddingBottom: 24,
+      paddingHorizontal: FORM_SPACING.contentHorizontal,
+      paddingBottom: FORM_SPACING.contentBottom,
     },
     heading: {
-      marginTop: 8,
+      marginTop: FORM_SPACING.headingTop,
+      marginBottom: FORM_SPACING.headingBottom,
     },
     body: {
-      marginTop: 8,
-      marginBottom: 16,
+      marginBottom: FORM_SPACING.subheadBottom,
     },
     rows: {
-      marginTop: 16,
-      gap: 8,
+      marginTop: FORM_SPACING.sectionBottom,
+      gap: FORM_SPACING.fieldGap,
     },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
       borderWidth: StyleSheet.hairlineWidth,
-      paddingVertical: 12,
-      paddingHorizontal: 12,
-      gap: 12,
+      paddingVertical: FORM_SPACING.fieldGap,
+      paddingHorizontal: FORM_SPACING.fieldGap,
+      gap: FORM_SPACING.fieldGap,
     },
     rowText: {
       flex: 1,
     },
     footer: {
-      paddingHorizontal: 24,
-      paddingVertical: 24,
+      paddingHorizontal: FORM_SPACING.footerHorizontal,
+      paddingVertical: FORM_SPACING.footerVertical,
     },
   });
 }

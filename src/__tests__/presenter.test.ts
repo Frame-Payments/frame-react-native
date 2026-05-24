@@ -1,4 +1,17 @@
-jest.mock('react-native', () => ({}));
+// The presenter module itself doesn't need any RN APIs, but its sibling
+// FramePresentationHost imports Toast which calls `StyleSheet.create(...)` at
+// module-load. Provide just enough surface that those loads don't crash.
+jest.mock('react-native', () => ({
+  StyleSheet: { create: (s: unknown) => s, hairlineWidth: 1, absoluteFillObject: {} },
+  Platform: { OS: 'ios', select: (m: Record<string, unknown>) => m.ios },
+  View: 'View',
+  Text: 'Text',
+  Animated: { View: 'Animated.View', timing: () => ({ start: () => {} }), Value: class { constructor() {} } },
+  Easing: { out: () => () => 0, ease: () => 0 },
+  PanResponder: { create: () => ({ panHandlers: {} }) },
+  Dimensions: { get: () => ({ width: 375, height: 812 }) },
+  Modal: 'Modal',
+}));
 
 import {
   presentScreen,

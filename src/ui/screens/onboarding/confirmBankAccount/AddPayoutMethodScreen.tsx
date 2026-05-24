@@ -7,6 +7,7 @@ import { DropDown } from '../../../primitives/DropDown';
 import { BillingAddressDetailView } from '../../../primitives/BillingAddressDetailView';
 import { isPlaidAvailable } from '../../../../plaid';
 import { showToast } from '../../../primitives/toastCenter';
+import { FORM_SPACING } from '../formSpacing';
 import type {
   AchAccountType,
   OnboardingAch,
@@ -200,12 +201,12 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
       flex: 1,
     },
     scrollContent: {
-      paddingHorizontal: 24,
-      paddingBottom: 24,
+      paddingHorizontal: FORM_SPACING.contentHorizontal,
+      paddingBottom: FORM_SPACING.contentBottom,
     },
     heading: {
-      marginTop: 8,
-      marginBottom: 16,
+      marginTop: FORM_SPACING.headingTop,
+      marginBottom: FORM_SPACING.headingBottom,
     },
     plaidBlock: {
       marginBottom: 8,
@@ -225,14 +226,16 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
       textTransform: 'uppercase',
     },
     section: {
-      marginBottom: 16,
+      marginBottom: FORM_SPACING.sectionBottom,
+      gap: FORM_SPACING.fieldGap,
     },
     sectionTitle: {
-      marginBottom: 8,
+      // No marginBottom — `section.gap` handles spacing between title and
+      // first field. Every section in every form gets the same rhythm.
     },
     footer: {
-      paddingHorizontal: 24,
-      paddingVertical: 24,
+      paddingHorizontal: FORM_SPACING.footerHorizontal,
+      paddingVertical: FORM_SPACING.footerVertical,
     },
   });
 }

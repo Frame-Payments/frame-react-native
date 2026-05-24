@@ -6,6 +6,7 @@ import { ValidatedTextField } from '../../../primitives/ValidatedTextField';
 import { DobInputField } from '../../../primitives/DobInputField';
 import { BillingAddressDetailView } from '../../../primitives/BillingAddressDetailView';
 import { requiresDobInPhoneAuth } from '../onboardingSelectors';
+import { FORM_SPACING } from '../formSpacing';
 import type { OnboardingCapability } from '../../../../types';
 import type { OnboardingAddress, OnboardingState } from '../onboardingReducer';
 
@@ -207,15 +208,15 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
       flex: 1,
     },
     content: {
-      paddingHorizontal: 24,
-      paddingBottom: 24,
+      paddingHorizontal: FORM_SPACING.contentHorizontal,
+      paddingBottom: FORM_SPACING.contentBottom,
     },
     heading: {
-      marginTop: 8,
-      marginBottom: 16,
+      marginTop: FORM_SPACING.headingTop,
+      marginBottom: FORM_SPACING.headingBottom,
     },
     sectionLabel: {
-      marginTop: 12,
+      marginTop: FORM_SPACING.fieldGap,
       marginBottom: 6,
     },
     container: {
@@ -253,7 +254,7 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
       flex: 1,
     },
     footer: {
-      marginTop: 24,
+      marginTop: FORM_SPACING.sectionBottom,
     },
   });
 }

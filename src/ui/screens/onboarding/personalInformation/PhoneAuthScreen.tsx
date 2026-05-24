@@ -1,21 +1,30 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFrameTheme } from '../../../theme/ThemeContext';
 import { Button } from '../../../primitives/Button';
 import { PhoneNumberField } from '../../../primitives/PhoneNumberField';
 import { DobInputField } from '../../../primitives/DobInputField';
-import { Checkbox } from '../../../primitives/Checkbox';
 import { TermsOfServiceView } from '../../../primitives/TermsOfServiceView';
 import {
   requiresDobInPhoneAuth,
   requiresTosInPhoneAuth,
 } from '../onboardingSelectors';
+import { FORM_SPACING } from '../formSpacing';
 import type { OnboardingCapability } from '../../../../types';
 import type { OnboardingState } from '../onboardingReducer';
 
 // PhoneAuth screen — first sub-step of PersonalInformation when any phone-
-// touching capability is requested. Header copy + DOB visibility + TOS view
-// are all driven by capability flags per Phase 8a's selectors.
+// touching capability is requested. Mirrors iOS
+// UserIdentificationView.authenticationView (Identity/Identification/
+// UserIdentificationView.swift:143-275):
+//   • Heading copy switches on kyc_prefill.
+//   • DOB MM/DD/YYYY block appears when kyc_prefill is required.
+//   • TermsOfServiceView (plain text, no checkbox) appears when
+//     geo_compliance is required. Acceptance is implicit on Continue tap —
+//     the VM attaches the TOS payload (token + ip + accepted_at) to the
+//     resulting account create/update call.
+//   • Mount fires generateTermsOfServiceToken so the token is ready when
+//     Continue submits.
 
 export interface PhoneAuthScreenProps {
   capabilities: ReadonlyArray<OnboardingCapability>;
@@ -23,7 +32,7 @@ export interface PhoneAuthScreenProps {
   onChangePhoneCountry: (alpha2: string, callingCode: string) => void;
   onChangePhoneNumber: (value: string) => void;
   onChangeDob: (next: { month: string; day: string; year: string }) => void;
-  onChangeAcceptedTos: (value: boolean) => void;
+  onMount: () => void;
   onSubmit: () => void;
 }
 
@@ -33,7 +42,7 @@ export function PhoneAuthScreen({
   onChangePhoneCountry,
   onChangePhoneNumber,
   onChangeDob,
-  onChangeAcceptedTos,
+  onMount,
   onSubmit,
 }: PhoneAuthScreenProps) {
   const theme = useFrameTheme();
@@ -41,6 +50,13 @@ export function PhoneAuthScreen({
   const showDob = requiresDobInPhoneAuth(capabilities);
   const showTos = requiresTosInPhoneAuth(capabilities);
   const heading = showDob ? 'Enter Your Phone Number & DOB' : 'Enter Your Phone Number';
+
+  // iOS UserIdentificationView.authenticationView fires
+  // generateTermsOfServiceToken() once in .onAppear (line 148-153). Mirror it
+  // here — onMount is the VM's generateTermsOfServiceToken passthrough.
+  useEffect(() => {
+    onMount();
+  }, [onMount]);
 
   return (
     <ScrollView
@@ -99,25 +115,7 @@ export function PhoneAuthScreen({
 
       {showTos ? (
         <View style={styles.tosBlock}>
-          <Checkbox
-            value={state.acceptedTos}
-            onValueChange={onChangeAcceptedTos}
-            label={<TermsOfServiceView />}
-            accessibilityLabel="Accept terms of service"
-          />
-          {state.fieldErrors.acceptedTos ? (
-            <Text
-              style={[
-                styles.error,
-                {
-                  color: theme.colors.error,
-                  fontSize: theme.fonts.bodySmall.size,
-                },
-              ]}
-            >
-              {state.fieldErrors.acceptedTos}
-            </Text>
-          ) : null}
+          <TermsOfServiceView />
         </View>
       ) : null}
 
@@ -139,31 +137,28 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
       flex: 1,
     },
     content: {
-      paddingHorizontal: 24,
-      paddingBottom: 24,
+      paddingHorizontal: FORM_SPACING.contentHorizontal,
+      paddingBottom: FORM_SPACING.contentBottom,
     },
     heading: {
-      marginTop: 8,
+      marginTop: FORM_SPACING.headingTop,
+      marginBottom: FORM_SPACING.headingBottom,
     },
     body: {
-      marginTop: 8,
-      marginBottom: 16,
+      marginBottom: FORM_SPACING.subheadBottom,
     },
     field: {
-      marginBottom: 16,
+      marginBottom: FORM_SPACING.fieldGap,
     },
     label: {
       fontSize: 12,
       marginBottom: 4,
     },
     tosBlock: {
-      marginVertical: 16,
-    },
-    error: {
-      marginTop: 8,
+      marginVertical: FORM_SPACING.sectionBottom,
     },
     footer: {
-      marginTop: 8,
+      marginTop: FORM_SPACING.headingTop,
     },
   });
 }

@@ -64,11 +64,12 @@ export function computeFlow(
   if (capabilities.some((c) => CONFIRM_BANK_ACCOUNT_CAPABILITIES.has(c))) {
     steps.push('confirm_bank_account');
   }
-  // `kyc` (and only `kyc`) triggers the document upload step. `kyc_prefill`
-  // by itself is metadata-only — no documents required.
-  if (capabilities.includes('kyc')) {
-    steps.push('upload_documents');
-  }
+  // iOS-parity (OnboardingContainerView.swift:32-40 + the commented-out
+  // `.uploadDocuments` case at line 101-104): `kyc` maps to
+  // `.personalInformation`, NOT to a separate document-upload step. The
+  // UploadDocuments screens still exist in this codebase but are not part of
+  // the active flow until iOS activates its equivalent. Do NOT add
+  // 'upload_documents' here without mirroring an iOS activation.
   steps.push('verification_submitted');
   return steps;
 }
@@ -142,9 +143,11 @@ export function validatePhoneAuth(state: OnboardingState): Record<string, string
     if (dobError) errors.dob = dobError;
   }
 
-  if (state.requiredCapabilities.includes('geo_compliance') && !state.acceptedTos) {
-    errors.acceptedTos = 'Accept the terms to continue';
-  }
+  // iOS UserIdentificationView shows the TermsOfServiceView text when
+  // geo_compliance is requested, but tapping Continue is implicit acceptance —
+  // validateAllPhoneAuth (OnboardingContainerViewModel.swift:583-600) only
+  // checks phone + DOB. The TOS payload (with `acceptedAt: now`) is attached
+  // to the account create/update call regardless.
   return errors;
 }
 

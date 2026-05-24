@@ -5,6 +5,7 @@ import { Button } from '../../../primitives/Button';
 import { PaymentMethodRow } from '../../../primitives/PaymentMethodRow';
 import { Icon, type IconName } from '../../../assets';
 import type { OnboardingState } from '../onboardingReducer';
+import { FORM_SPACING } from '../formSpacing';
 
 // Select a saved card or add a new one. The Continue handler is owned by the
 // parent (OnboardingRoot) and mirrors iOS SelectPaymentMethodView's
@@ -191,26 +192,26 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
       flex: 1,
     },
     scrollContent: {
-      paddingHorizontal: 24,
-      paddingBottom: 24,
+      paddingHorizontal: FORM_SPACING.contentHorizontal,
+      paddingBottom: FORM_SPACING.contentBottom,
     },
     heading: {
-      marginTop: 8,
+      marginTop: FORM_SPACING.headingTop,
     },
     body: {
-      marginTop: 8,
-      marginBottom: 16,
+      marginTop: FORM_SPACING.headingTop,
+      marginBottom: FORM_SPACING.subheadBottom,
     },
     sectionHeader: {
-      marginTop: 16,
+      marginTop: FORM_SPACING.sectionBottom,
       marginBottom: 8,
     },
     list: {
       gap: 8,
     },
     footer: {
-      paddingHorizontal: 24,
-      paddingVertical: 24,
+      paddingHorizontal: FORM_SPACING.footerHorizontal,
+      paddingVertical: FORM_SPACING.footerVertical,
     },
   });
 }

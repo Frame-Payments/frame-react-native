@@ -102,6 +102,15 @@ export interface OnboardingState {
   // ─── Account ───
   accountId: string | null;
   accountLoaded: boolean;
+  // Mirrors iOS OnboardingContainerViewModel.termsOfServiceToken — fetched
+  // once via TermsOfServiceAPI.createToken on phone-auth screen mount, then
+  // attached to every account create/update payload that needs it.
+  termsOfServiceToken: string | null;
+  // Mirrors iOS OnboardingContainerViewModel.existingAccountHasTOS — set from
+  // `account.terms_of_service.accepted_at != null` during mount-time prefill.
+  // When true, updateAccount omits the termsOfService payload (matches iOS
+  // updateExistingIndividualAccount, OnboardingContainerViewModel.swift:210).
+  existingAccountHasTOS: boolean;
 
   // ─── PersonalInformation: phone-auth ───
   phoneCountry: PhoneCountry;
@@ -109,7 +118,6 @@ export interface OnboardingState {
   dobMonth: string;
   dobDay: string;
   dobYear: string;
-  acceptedTos: boolean;
 
   // ─── PersonalInformation: verify-phone ───
   pendingVerificationId: string | null;
@@ -157,13 +165,14 @@ export type OnboardingAction =
   // Account
   | { type: 'SET_ACCOUNT_ID'; id: string | null }
   | { type: 'SET_ACCOUNT_LOADED'; loaded: boolean }
+  | { type: 'SET_TERMS_OF_SERVICE_TOKEN'; token: string | null }
+  | { type: 'SET_EXISTING_ACCOUNT_HAS_TOS'; value: boolean }
   // Prefill (used by 8g prefetch — only writes fields the user hasn't touched)
   | { type: 'PREFILL'; values: Partial<OnboardingState> }
   // Phone-auth
   | { type: 'SET_PHONE_COUNTRY'; country: PhoneCountry }
   | { type: 'SET_PHONE_NUMBER'; value: string }
   | { type: 'SET_DOB'; month: string; day: string; year: string }
-  | { type: 'SET_ACCEPTED_TOS'; value: boolean }
   // Verify-phone
   | { type: 'SET_VERIFY_PHONE'; verificationId: string | null; proveAuthToken: string | null; ui: VerifyPhoneUi | null }
   | { type: 'SET_VERIFY_PHONE_UI'; ui: VerifyPhoneUi | null }
@@ -231,12 +240,13 @@ export function initialOnboardingState(
     subStep: null,
     accountId,
     accountLoaded: false,
+    termsOfServiceToken: null,
+    existingAccountHasTOS: false,
     phoneCountry: DEFAULT_PHONE_COUNTRY,
     phoneNumber: '',
     dobMonth: '',
     dobDay: '',
     dobYear: '',
-    acceptedTos: false,
     pendingVerificationId: null,
     pendingProveAuthToken: null,
     verifyPhoneUi: null,
@@ -283,6 +293,10 @@ export function onboardingReducer(state: OnboardingState, action: OnboardingActi
       return { ...state, accountId: action.id };
     case 'SET_ACCOUNT_LOADED':
       return { ...state, accountLoaded: action.loaded };
+    case 'SET_TERMS_OF_SERVICE_TOKEN':
+      return { ...state, termsOfServiceToken: action.token };
+    case 'SET_EXISTING_ACCOUNT_HAS_TOS':
+      return { ...state, existingAccountHasTOS: action.value };
     case 'PREFILL':
       // Only writes fields the user has not touched. Empty-string fields and
       // null cross-step ids are considered untouched; anything else stays.
@@ -308,8 +322,6 @@ export function onboardingReducer(state: OnboardingState, action: OnboardingActi
         dobYear: action.year,
         fieldErrors: clearError(state.fieldErrors, 'dob'),
       };
-    case 'SET_ACCEPTED_TOS':
-      return { ...state, acceptedTos: action.value, fieldErrors: clearError(state.fieldErrors, 'acceptedTos') };
     case 'SET_VERIFY_PHONE':
       return {
         ...state,

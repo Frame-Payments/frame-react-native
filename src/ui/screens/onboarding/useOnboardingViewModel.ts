@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { client } from '../../../client';
 import { configureEvervault, encryptWithEvervault } from '../../../evervault';
-import { __internal as configInternal } from '../../../config';
+import { __internal as configInternal, getIpAddress } from '../../../config';
 import { ErrorCodes, frameError } from '../../../errors';
 import { addApplePayToOwnerFlow } from '../../../applePay';
 import { openPlaidLink as runPlaidLink, type PlaidConnectResult } from '../../../plaid';
@@ -57,8 +57,14 @@ export interface OnboardingViewModelResult {
   setPhoneCountry: (alpha2: string, callingCode: string) => void;
   setPhoneNumber: (value: string) => void;
   setDob: (next: { month: string; day: string; year: string }) => void;
-  setAcceptedTos: (value: boolean) => void;
   setOtpCode: (value: string) => void;
+  /** Fetch a TOS token from TermsOfServiceAPI.createToken and store it on the
+   *  reducer. Mirrors iOS OnboardingContainerViewModel.generateTermsOfServiceToken
+   *  (called from UserIdentificationView.authenticationView.onAppear when
+   *  termsOfServiceToken == nil). Idempotent — no-op if a token is already
+   *  cached. Non-fatal on failure: account create/update still proceeds with
+   *  a null token, mirroring iOS's silent print-and-continue. */
+  generateTermsOfServiceToken: () => Promise<void>;
   setCustomerFirstName: (value: string) => void;
   setCustomerLastName: (value: string) => void;
   setCustomerEmail: (value: string) => void;
@@ -280,25 +286,29 @@ export function useOnboardingViewModel({
       const forceFrameOtp = opts?.forceFrameOtp === true;
 
       // Account creation: empty-individual account if none exists, then OTP.
+      // Mirrors iOS OnboardingContainerViewModel.createEmptyIndividualAccount
+      // (lines 169-188): empty name + email, phone {number, country_code},
+      // birthdate when present, plus termsOfService + capabilities on the
+      // CreateAccountRequest. The SDK's CreateAccountProfile type requires
+      // name + email at the type level, but the backend treats them as
+      // optional on initial create — we use a runtime-safe cast here and
+      // assert the response shape ourselves.
       let accountId = current.accountId;
       if (!accountId) {
         const e164 = `+${current.phoneCountry.callingCode}${current.phoneNumber.replace(/\D+/g, '')}`;
-        // Empty-account creation for phone-auth: the backend accepts a draft
-        // individual profile with only phone (and DOB when kyc_prefill).
-        // Names + email + address are filled in via accounts.update on the
-        // CustomerInformation step. The SDK's CreateAccountProfile type
-        // requires name + email at the type level, but the backend treats
-        // them as optional on initial create — so we use a runtime-safe
-        // cast here and assert the response shape ourselves.
         const dob =
           current.dobYear && current.dobMonth && current.dobDay
             ? `${current.dobYear}-${current.dobMonth.padStart(2, '0')}-${current.dobDay.padStart(2, '0')}`
             : undefined;
         const createParams = {
           type: 'individual',
+          terms_of_service: buildTosPayload(current.termsOfServiceToken),
+          capabilities: [...current.requiredCapabilities],
           profile: {
             individual: {
-              phone: { number: e164 },
+              name: { first_name: '', last_name: '' },
+              email: '',
+              phone: { number: e164, country_code: current.phoneCountry.callingCode },
               ...(dob ? { birthdate: dob } : {}),
             },
           },
@@ -395,7 +405,7 @@ export function useOnboardingViewModel({
           last_name: current.customerLastName,
         },
         email: current.customerEmail,
-        phone: { number: phoneE164 },
+        phone: { number: phoneE164, country_code: current.phoneCountry.callingCode },
         birthdate: `${current.dobYear}-${current.dobMonth.padStart(2, '0')}-${current.dobDay.padStart(2, '0')}`,
         ssn_last_four: current.ssnLast4 || undefined,
         address: {
@@ -407,10 +417,28 @@ export function useOnboardingViewModel({
           postal_code: current.address.postalCode,
         },
       };
+      // Mirrors iOS updateExistingIndividualAccount
+      // (OnboardingContainerViewModel.swift:210):
+      //   termsOfService: existingAccountHasTOS ? nil : termsOfService
+      // The JS SDK's UpdateAccountParams type doesn't declare terms_of_service,
+      // but the backend accepts it (iOS sends it on every update where TOS
+      // hasn't been accepted yet). Runtime cast preserves type-safety on the
+      // rest of the payload.
+      const updateBody: Record<string, unknown> = { profile: { individual } };
+      if (!current.existingAccountHasTOS) {
+        const tos = buildTosPayload(current.termsOfServiceToken);
+        if (tos) updateBody.terms_of_service = tos;
+      }
       await client.sdk.accounts.update(
         current.accountId,
-        { profile: { individual } },
+        updateBody as Parameters<typeof client.sdk.accounts.update>[1],
       );
+      // Subsequent updates within this session should not re-send the TOS
+      // payload (mirrors iOS behavior — `existingAccountHasTOS` flips after
+      // first acceptance).
+      if (!current.existingAccountHasTOS) {
+        dispatch({ type: 'SET_EXISTING_ACCOUNT_HAS_TOS', value: true });
+      }
 
       // Per the flow chart, customer-information is the last sub-step of
       // PersonalInformation unless geo_compliance is requested.
@@ -810,11 +838,24 @@ export function useOnboardingViewModel({
   const setDob = useCallback((next: { month: string; day: string; year: string }) => {
     dispatch({ type: 'SET_DOB', month: next.month, day: next.day, year: next.year });
   }, []);
-  const setAcceptedTos = useCallback((value: boolean) => {
-    dispatch({ type: 'SET_ACCEPTED_TOS', value });
-  }, []);
   const setOtpCode = useCallback((value: string) => {
     dispatch({ type: 'SET_OTP_CODE', value });
+  }, []);
+
+  // Mirrors iOS generateTermsOfServiceToken (OnboardingContainerViewModel.swift
+  // line 217-224): fire once on phone-auth screen mount to obtain a TOS token
+  // we can later attach to account.create / account.update payloads.
+  const generateTermsOfServiceToken = useCallback(async () => {
+    if (stateRef.current.termsOfServiceToken) return;
+    try {
+      const response = await client.sdk.termsOfService.createToken();
+      if (response?.token) {
+        dispatch({ type: 'SET_TERMS_OF_SERVICE_TOKEN', token: response.token });
+      }
+    } catch {
+      // iOS silently `print(error)` and proceeds — the account create/update
+      // still goes through, just without the token. Match that behavior.
+    }
   }, []);
   const setCustomerFirstName = useCallback((value: string) => {
     dispatch({ type: 'SET_CUSTOMER_FIRST_NAME', value });
@@ -863,8 +904,8 @@ export function useOnboardingViewModel({
     setPhoneCountry,
     setPhoneNumber,
     setDob,
-    setAcceptedTos,
     setOtpCode,
+    generateTermsOfServiceToken,
     setCustomerFirstName,
     setCustomerLastName,
     setCustomerEmail,
@@ -963,8 +1004,18 @@ function trimCompletedCapabilities(
 // Map Frame's Account.profile (a Record<string, unknown>) into the reducer's
 // PREFILL partial. Best-effort — every field stays empty when the profile is
 // missing or shaped differently than expected.
-function prefillFromAccount(account: { id: string; profile?: Record<string, unknown> | null; email?: unknown }): Partial<OnboardingState> {
+function prefillFromAccount(account: {
+  id: string;
+  profile?: Record<string, unknown> | null;
+  email?: unknown;
+  terms_of_service?: { accepted_at?: string | null } | null;
+}): Partial<OnboardingState> {
   const out: Partial<OnboardingState> = { accountId: account.id };
+  // Mirrors iOS OnboardingContainerViewModel.checkExistingAccount:102 —
+  // `existingAccountHasTOS = account?.termsOfService?.acceptedAt != nil`.
+  // updateExistingIndividualAccount uses this to skip re-attaching the TOS
+  // payload on subsequent updates.
+  out.existingAccountHasTOS = account.terms_of_service?.accepted_at != null;
   const profile = (account.profile ?? {}) as Record<string, unknown>;
   const individual = (profile.individual ?? profile) as Record<string, unknown> | undefined;
   if (!individual) return out;
@@ -1015,6 +1066,22 @@ function prefillFromAccount(account: { id: string; profile?: Record<string, unkn
     };
   }
   return out;
+}
+
+// Mirrors iOS `FrameObjects.AccountTermsOfService(token:, ipAddress:, acceptedAt:)`
+// (used in OnboardingContainerViewModel.swift:156, 177, 209). iOS sends the
+// struct on every account create / update where TOS hasn't been accepted yet,
+// even when individual fields are nil. We do the same — the backend's
+// `TermsOfService` schema lets every field be optional, and `accepted_at` is
+// always present because we set it at call-time.
+function buildTosPayload(token: string | null): { token?: string; ip_address?: string; accepted_at: string } {
+  const acceptedAt = new Date().toISOString();
+  const ipAddress = getIpAddress();
+  return {
+    ...(token ? { token } : {}),
+    ...(ipAddress ? { ip_address: ipAddress } : {}),
+    accepted_at: acceptedAt,
+  };
 }
 
 async function ensureEvervaultConfigured(): Promise<void> {

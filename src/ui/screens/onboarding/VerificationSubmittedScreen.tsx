@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useFrameTheme } from '../../theme/ThemeContext';
 import { Button } from '../../primitives/Button';
 import { Icon } from '../../assets';
+import { FORM_SPACING } from './formSpacing';
 
 // Mirror of iOS VerificationSubmittedView. Person-check icon + "Verification
 // Submitted" + Done button. Resolves the outer Promise<OnboardingResult> when
@@ -68,12 +69,12 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
     },
     body: {
       textAlign: 'center',
-      paddingHorizontal: 24,
+      paddingHorizontal: FORM_SPACING.contentHorizontal,
     },
     footer: {
       alignSelf: 'stretch',
-      paddingBottom: 16,
-      paddingHorizontal: 16,
+      paddingBottom: FORM_SPACING.sectionBottom,
+      paddingHorizontal: FORM_SPACING.sectionBottom,
     },
   });
 }
