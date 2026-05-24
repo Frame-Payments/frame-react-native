@@ -29,8 +29,6 @@ const FRAME_PUBLISHABLE_KEY = process.env.FRAME_PUBLISHABLE_KEY ?? 'pk_sandbox_Y
 const APPLE_PAY_MERCHANT_ID = 'merchant.com.framepayments.example';
 
 // Demo owners. Swap which one the wallet buttons use to exercise either flow:
-// customer → ChargeIntent, account → Transfer.
-const DEMO_CUSTOMER_ID = 'SANDBOX_CUSTOMER_ID';
 const DEMO_ACCOUNT_ID = '83f5c9f7-7dfe-4962-8ccd-92a0fbc1909e';
 
 const frameSDK = new FrameSDK({ apiKey: FRAME_SECRET_KEY });
@@ -166,7 +164,6 @@ export default function App() {
     setLoading('onboarding');
     try {
       const result = await Frame.presentOnboarding({
-        accountId: '572c840d-d7c6-49ed-a92a-08ea8e61a8cf',
         capabilities: ['kyc', 'kyc_prefill', 'age_verification', 'phone_verification', 'card_verification', 'bank_account_verification'],
       });
       Alert.alert(

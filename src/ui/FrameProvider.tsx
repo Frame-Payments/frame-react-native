@@ -4,7 +4,6 @@ import type { FrameTheme } from '../types';
 import { resolveTheme, type ColorScheme } from './theme/defaults';
 import { ThemeContext } from './theme/ThemeContext';
 import { FramePresentationHost } from '../presenter';
-import { ToastHost } from './primitives/Toast';
 
 function readScheme(): ColorScheme {
   return Appearance.getColorScheme() === 'dark' ? 'dark' : 'light';
@@ -36,7 +35,6 @@ export function FrameProvider({ theme, children }: FrameProviderProps) {
     <ThemeContext.Provider value={resolved}>
       {children}
       <FramePresentationHost />
-      <ToastHost />
     </ThemeContext.Provider>
   );
 }

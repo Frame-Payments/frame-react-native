@@ -137,7 +137,7 @@ export function useOnboardingViewModel({
         // Pull the account profile + saved methods in parallel. Failures are
         // non-fatal — the user can still complete the flow, just without
         // prefill.
-        const [account, methodsResp] = await Promise.all([
+        const [accountInitial, methodsResp] = await Promise.all([
           client.sdk.accounts.get(initialAccountId).catch(() => null),
           client.sdk.accounts
             .getPaymentMethods(initialAccountId)
@@ -145,8 +145,26 @@ export function useOnboardingViewModel({
         ]);
         if (cancelled) return;
 
+        // Reconcile the merchant-requested capabilities with the account's
+        // existing capabilities. Mirrors iOS OnboardingContainerViewModel.
+        // checkExistingAccount(updateCapabilies: true):
+        //   • If the account is missing any required capability, POST
+        //     /capabilities to add them, then re-fetch.
+        //   • For every required capability whose `currently_due` is empty,
+        //     drop it from requiredCapabilities so the flow skips that step.
+        const account = await reconcileCapabilities(
+          accountInitial,
+          initialAccountId,
+          capabilities,
+        );
+        if (cancelled) return;
+
         if (account) {
           dispatch({ type: 'PREFILL', values: prefillFromAccount(account) });
+          const trimmed = trimCompletedCapabilities(capabilities, account);
+          if (trimmed.length !== capabilities.length) {
+            dispatch({ type: 'SET_REQUIRED_CAPABILITIES', capabilities: trimmed });
+          }
         }
         // Split saved methods by kind: cards on the payment list, ACHs on
         // the payout list. The reducer's selectors filter again on render
@@ -852,6 +870,67 @@ export function useOnboardingViewModel({
 export { isCapabilitySatisfied };
 
 // ─── Evervault helper (mirrors useCheckoutViewModel) ───
+
+// Shape of one entry in `account.capabilities` as returned by the framepayments
+// API. The JS SDK types it as `unknown[]`; iOS uses `name` + `currently_due`.
+// We rely on the same fields here.
+interface AccountCapabilityRow {
+  name: string;
+  currently_due?: ReadonlyArray<string> | null;
+}
+
+function readAccountCapabilities(
+  account: { capabilities?: unknown[] } | null | undefined,
+): ReadonlyArray<AccountCapabilityRow> {
+  const raw = account?.capabilities;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((c): c is AccountCapabilityRow => {
+    return typeof c === 'object' && c !== null && typeof (c as { name?: unknown }).name === 'string';
+  });
+}
+
+// Mirrors iOS OnboardingContainerViewModel.checkExistingAccount(updateCapabilies:
+// true): if the account's capabilities aren't a superset of what the merchant
+// asked for, POST the missing ones via the Capabilities API and re-fetch the
+// account so we see the resulting `currently_due` state. Idempotent — returns
+// the (possibly refreshed) account or the original if nothing was missing.
+async function reconcileCapabilities(
+  account: Awaited<ReturnType<typeof client.sdk.accounts.get>> | null,
+  accountId: string,
+  required: ReadonlyArray<OnboardingCapability>,
+): Promise<typeof account> {
+  if (!account) return account;
+  const present = new Set(readAccountCapabilities(account).map((c) => c.name));
+  const missing = required.filter((r) => !present.has(r));
+  if (missing.length === 0) return account;
+  try {
+    await client.sdk.capabilities.request(accountId, { capabilities: [...missing] });
+    const refreshed = await client.sdk.accounts.get(accountId).catch(() => null);
+    return refreshed ?? account;
+  } catch {
+    // Non-fatal — fall back to the original account so the user can still
+    // attempt the flow. Server-side validation will catch any unmet caps.
+    return account;
+  }
+}
+
+// For each required capability the account already has with an empty
+// `currently_due`, remove it from the merchant's requested list. The mount
+// effect's downstream `SET_REQUIRED_CAPABILITIES` dispatch triggers the
+// existing `state.requiredCapabilities` effect (see ~line 182) which
+// recomputes the flow.
+function trimCompletedCapabilities(
+  required: ReadonlyArray<OnboardingCapability>,
+  account: { capabilities?: unknown[] } | null | undefined,
+): ReadonlyArray<OnboardingCapability> {
+  const rows = readAccountCapabilities(account);
+  const completed = new Set(
+    rows
+      .filter((c) => Array.isArray(c.currently_due) && c.currently_due.length === 0)
+      .map((c) => c.name),
+  );
+  return required.filter((r) => !completed.has(r));
+}
 
 // Map Frame's Account.profile (a Record<string, unknown>) into the reducer's
 // PREFILL partial. Best-effort — every field stays empty when the profile is

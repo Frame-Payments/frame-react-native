@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import type { OnboardingCapability, OnboardingResult } from '../../../types';
 import { showToast } from '../../primitives/toastCenter';
+import { toToastMessage } from '../../../api-errors';
 import { useOnboardingViewModel } from './useOnboardingViewModel';
 import { OnboardingChrome } from './OnboardingChrome';
 import { VerificationWelcomeScreen } from './personalInformation/VerificationWelcomeScreen';
@@ -148,10 +149,13 @@ export function OnboardingRoot({
 
   const surfaceError = useCallback(
     (err: unknown) => {
-      const message = err instanceof Error ? err.message : 'Something went wrong.';
       const code = (err as { code?: string }).code;
       if (code === 'USER_CANCELED') return;
-      showToast(message);
+      // Use toToastMessage so we surface the server's `error_details.message`
+      // from FrameAPIError.raw instead of the top-level generic message
+      // (framepayments returns a useless "An error occured" / "An error
+      // occurred" envelope; the details below it carry the real reason).
+      showToast(toToastMessage(err));
     },
     [],
   );

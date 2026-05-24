@@ -51,7 +51,7 @@ export function BillingAddressDetailView({
   const stateLabel = !international || isUS ? 'State' : 'State / province / region';
 
   return (
-    <View testID={testID}>
+    <View testID={testID} style={styles.stack}>
       <ValidatedTextField
         prompt="Address line 1"
         value={address.line1}
@@ -94,12 +94,10 @@ export function BillingAddressDetailView({
         keyboardType={!international || isUS ? 'number-pad' : 'default'}
       />
       {international ? (
-        <View style={styles.country}>
-          <CountryPicker
-            selectedAlpha2={address.country}
-            onSelect={(c) => onChangeField('country', c.alpha2Code)}
-          />
-        </View>
+        <CountryPicker
+          selectedAlpha2={address.country}
+          onSelect={(c) => onChangeField('country', c.alpha2Code)}
+        />
       ) : null}
     </View>
   );
@@ -107,15 +105,15 @@ export function BillingAddressDetailView({
 
 function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
   return StyleSheet.create({
+    stack: {
+      gap: 12,
+    },
     row: {
       flexDirection: 'row',
       gap: 12,
     },
     cell: {
       flex: 1,
-    },
-    country: {
-      marginTop: 8,
     },
   });
 }

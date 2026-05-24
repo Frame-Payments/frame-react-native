@@ -2654,6 +2654,63 @@ PODS:
   - RNFingerprintjsPro (1.0.4):
     - FingerprintPro (~> 2.15.0)
     - React-Core
+  - RNSVG (15.15.5):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - RNSVG/common (= 15.15.5)
+    - SocketRocket
+    - Yoga
+  - RNSVG/common (15.15.5):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
   - Sift (2.2.5)
   - SiftReactNative (1.0.1):
     - boost
@@ -2770,6 +2827,7 @@ DEPENDENCIES:
   - ReactCodegen (from `build/generated/ios/ReactCodegen`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - "RNFingerprintjsPro (from `../node_modules/@fingerprintjs/fingerprintjs-pro-react-native`)"
+  - RNSVG (from `../node_modules/react-native-svg`)
   - Sift
   - SiftReactNative (from `../node_modules/sift-react-native`)
   - SocketRocket (~> 0.7.1)
@@ -2948,6 +3006,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   RNFingerprintjsPro:
     :path: "../node_modules/@fingerprintjs/fingerprintjs-pro-react-native"
+  RNSVG:
+    :path: "../node_modules/react-native-svg"
   SiftReactNative:
     :path: "../node_modules/sift-react-native"
   Yoga:
@@ -3038,6 +3098,7 @@ SPEC CHECKSUMS:
   ReactCodegen: 417334350a76a91784cc20f7aff392327e217dc4
   ReactCommon: 5f2db7556b60816bdc5761a359539bacd2d0250d
   RNFingerprintjsPro: 1f39fb67c1f7613e04973379e9b41e3ca0baba5a
+  RNSVG: 6470d6f2636d71bd4bbc44a4f27fb7444e437b2f
   Sift: 376455214f1df4cb1a51f84ebffe219f3a449241
   SiftReactNative: 7901154765ba6451dac35329e0754bc2ddde1691
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748

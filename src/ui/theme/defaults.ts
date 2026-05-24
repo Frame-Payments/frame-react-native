@@ -47,18 +47,12 @@ export const darkColors: Required<FrameThemeColors> = {
   onboardingProgressEmptyOnBrand: '#FFFFFF66',
 };
 
-// Material 3 type slots mapped to Frame's token names:
-//   title   → headlineLarge      heading → headlineMedium    headline → titleLarge
-//   body    → bodyLarge          bodySmall → bodyMedium      label   → labelLarge
-//   caption → labelSmall         button  → labelLarge
-// Frame applies weight overrides on top of M3 defaults so the visual hierarchy
-// matches iOS SwiftUI's implicit semibold/bold on title/heading/headline/label/button.
 export const defaultFonts: Required<FrameThemeFonts> = {
-  title: { name: 'system', size: 32 },
-  heading: { name: 'system', size: 28 },
-  headline: { name: 'system', size: 22 },
-  body: { name: 'system', size: 16 },
-  bodySmall: { name: 'system', size: 14 },
+  title: { name: 'system', size: 24 },
+  heading: { name: 'system', size: 24 },
+  headline: { name: 'system', size: 18 },
+  body: { name: 'system', size: 14 },
+  bodySmall: { name: 'system', size: 12 },
   label: { name: 'system', size: 14 },
   caption: { name: 'system', size: 11 },
   button: { name: 'system', size: 14 },

@@ -1,6 +1,7 @@
 import { FrameSDK } from 'framepayments';
 import { getIpAddress, getPublishableKey, getSecretKey } from './config';
 import { frameError, ErrorCodes } from './errors';
+import { attachNetworkLogger, resetNetworkLogger } from './debug/networkLogger';
 
 let sdk: FrameSDK | undefined;
 
@@ -21,11 +22,13 @@ function getClient(): FrameSDK {
   const ip = getIpAddress();
   const defaultHeaders = ip ? { ip_address: ip } : undefined;
   sdk = new FrameSDK({ apiKey, publishableKey, defaultHeaders });
+  attachNetworkLogger(sdk);
   return sdk;
 }
 
 export function resetClients(): void {
   sdk = undefined;
+  resetNetworkLogger();
 }
 
 export function warmClients(): boolean {

@@ -6,6 +6,7 @@ import {
   requestActiveCancel,
   type ActivePresentation,
 } from './presenter';
+import { ToastHost } from '../ui/primitives/Toast';
 
 // Subscribes to the presenter singleton and renders whichever screen is
 // currently active inside an RN <Modal>. Mounted exactly once by FrameProvider.
@@ -36,6 +37,10 @@ export function FramePresentationHost() {
       }}
     >
       {active?.element ?? null}
+      {/* Toasts must render INSIDE the modal — on iOS pageSheet the modal is a
+          separate native window, so a ToastHost mounted outside it would be
+          invisible while onboarding/checkout is up. */}
+      <ToastHost />
     </Modal>
   );
 }
