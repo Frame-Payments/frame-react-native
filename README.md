@@ -775,20 +775,23 @@ Two parallel example apps live in this repo, sharing the same `App.tsx`:
 
 Both cover `initialize`, `presentCheckout`, `presentCart`, `presentOnboarding`, the Apple Pay / Google Pay flows, and server-side API calls via `framepayments`.
 
-**Run the bare RN example:**
+See **[docs/RUNNING_EXAMPLES.md](./docs/RUNNING_EXAMPLES.md)** for the full setup walkthrough (prereqs, Prove SDK install, common iteration loop, which `App.tsx` constants you can change to test different capabilities / accounts / cart items, and a troubleshooting reference).
+
+Quick reference:
+
+**Bare RN:**
 ```bash
 cd example
-npm install
-cd ios && pod install && cd ..   # iOS only
-npm run ios                       # or: npm run android
+npm install && cd ios && pod install && cd ..
+FRAME_SECRET_KEY=sk_sandbox_... FRAME_PUBLISHABLE_KEY=pk_sandbox_... npm run ios
 ```
 
-**Run the Expo example:**
+**Expo:**
 ```bash
 cd expo-example
 npm install
 npx expo prebuild --clean
-npx expo run:ios                  # or: npx expo run:android
+FRAME_SECRET_KEY=sk_sandbox_... FRAME_PUBLISHABLE_KEY=pk_sandbox_... npx expo run:ios
 ```
 
 ---
