@@ -104,7 +104,6 @@ export function ValidatedTextField({
         {
           color: theme.colors.textPrimary,
           fontSize: theme.fonts.body.size,
-          lineHeight: theme.fontLineHeights.body,
           backgroundColor: borderless ? 'transparent' : theme.colors.surface,
           borderColor:
             borderless && !hasError

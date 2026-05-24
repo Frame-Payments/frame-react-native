@@ -477,6 +477,12 @@ export function useOnboardingViewModel({
         if (!pm?.id) {
           throw frameError(ErrorCodes.PAYMENT_METHOD_FAILED, 'Frame returned no payment method id.');
         }
+        // Mirror iOS OnboardingContainerViewModel.addNewPaymentMethod():
+        //   selectedPaymentMethod = paymentMethod
+        //   paymentMethods.append(paymentMethod)
+        // so the SelectPaymentMethod screen sees the new card without a
+        // round-trip back to the server.
+        dispatch({ type: 'APPEND_SAVED_PAYMENT_METHOD', method: pm });
         dispatch({ type: 'SELECT_PAYMENT_METHOD', id: pm.id });
         return pm.id;
       });

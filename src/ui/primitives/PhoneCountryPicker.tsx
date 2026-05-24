@@ -196,7 +196,6 @@ function PhoneCountrySheet({ visible, countries, selectedAlpha2, onClose, onSele
               {
                 color: theme.colors.textPrimary,
                 fontSize: theme.fonts.body.size,
-                lineHeight: theme.fontLineHeights.body,
               },
             ]}
             accessibilityLabel="Search phone country"

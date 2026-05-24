@@ -176,6 +176,7 @@ export type OnboardingAction =
   | { type: 'SET_ADDRESS_FIELD'; field: keyof OnboardingAddress; value: string }
   // Payment method
   | { type: 'SET_SAVED_PAYMENT_METHODS'; methods: ReadonlyArray<FramePaymentMethod> }
+  | { type: 'APPEND_SAVED_PAYMENT_METHOD'; method: FramePaymentMethod }
   | { type: 'SELECT_PAYMENT_METHOD'; id: string | null }
   | { type: 'SET_ADDRESS_VERIFICATION_ONLY'; value: boolean }
   | { type: 'SET_CARD_COMPLETE'; value: boolean }
@@ -351,6 +352,11 @@ export function onboardingReducer(state: OnboardingState, action: OnboardingActi
     }
     case 'SET_SAVED_PAYMENT_METHODS':
       return { ...state, savedPaymentMethods: action.methods };
+    case 'APPEND_SAVED_PAYMENT_METHOD':
+      return {
+        ...state,
+        savedPaymentMethods: [...state.savedPaymentMethods, action.method],
+      };
     case 'SELECT_PAYMENT_METHOD':
       return { ...state, selectedPaymentMethodId: action.id };
     case 'SET_ADDRESS_VERIFICATION_ONLY':

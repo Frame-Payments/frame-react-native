@@ -51,19 +51,32 @@ target 'FrameExample' do
         unless config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'].include?('FMT_USE_CONSTEVAL=0')
           config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FMT_USE_CONSTEVAL=0'
         end
-        # SiftReactNative.mm is Objective-C++ and #imports <Sift/Sift.h>, whose
-        # headers use `@import Foundation;`. Clang requires BOTH -fmodules AND
-        # -fcxx-modules to accept @import inside an ObjC++ translation unit.
-        if target.name == 'SiftReactNative'
-          flags = config.build_settings['OTHER_CPLUSPLUSFLAGS'] || ['$(inherited)']
-          flags = [flags] unless flags.is_a?(Array)
-          unless flags.include?('-fmodules')
-            flags << '-fmodules'
+      end
+    end
+
+    # SiftReactNative.mm is Objective-C++ and #imports <Sift/Sift.h>, whose
+    # headers use `@import Foundation;`. Clang requires BOTH -fmodules AND
+    # -fcxx-modules to accept @import inside an ObjC++ translation unit.
+    # Setting `build_settings` on the target alone doesn't survive — CocoaPods
+    # regenerates the per-pod xcconfig from the pod's static settings, so the
+    # flags must be appended directly to the xcconfig files on disk.
+    sift_xcconfig_dir = File.join(installer.sandbox.root, 'Target Support Files', 'SiftReactNative')
+    if File.directory?(sift_xcconfig_dir)
+      Dir.glob(File.join(sift_xcconfig_dir, 'SiftReactNative.*.xcconfig')).each do |xcconfig_path|
+        contents = File.read(xcconfig_path)
+        if contents =~ /^OTHER_CPLUSPLUSFLAGS\s*=\s*(.*)$/
+          existing = Regexp.last_match(1)
+          additions = []
+          additions << '-fmodules' unless existing.include?('-fmodules')
+          additions << '-fcxx-modules' unless existing.include?('-fcxx-modules')
+          unless additions.empty?
+            updated = contents.sub(/^OTHER_CPLUSPLUSFLAGS\s*=\s*.*$/, "OTHER_CPLUSPLUSFLAGS = #{existing} #{additions.join(' ')}")
+            File.write(xcconfig_path, updated)
           end
-          unless flags.include?('-fcxx-modules')
-            flags << '-fcxx-modules'
+        else
+          File.open(xcconfig_path, 'a') do |f|
+            f.puts 'OTHER_CPLUSPLUSFLAGS = $(inherited) -fmodules -fcxx-modules'
           end
-          config.build_settings['OTHER_CPLUSPLUSFLAGS'] = flags
         end
       end
     end

@@ -48,11 +48,16 @@ export function OnboardingRoot({
 
   // ─── Routing helpers ───
 
-  // Continue handler for SelectPaymentMethod. Decides where to advance based
-  // on capabilities + the selected card's billing state.
+  // Continue handler for SelectPaymentMethod. Mirrors iOS
+  // SelectPaymentMethodView.selectPaymentView's ContinueButton action:
+  //   • If address_verification is requested AND the selected card has no
+  //     billing line1, route into AddPaymentMethod in address-only mode.
+  //   • Otherwise advance.
+  // The iOS `card_verification → start 3DS` branch is commented out in iOS
+  // (see SelectPaymentMethodView.swift:85-91), so RN must not run 3DS here
+  // either — that would diverge from iOS behavior.
   const onSelectPaymentMethodContinue = useCallback(() => {
     const selectedId = vm.state.selectedPaymentMethodId;
-    const requiresCardVerification = capabilities.includes('card_verification');
     const requiresAddressVerification = capabilities.includes('address_verification');
     if (selectedId === null) {
       vm.goTo('confirm_payment_method', 'add');
@@ -67,48 +72,40 @@ export function OnboardingRoot({
         return;
       }
     }
-    if (requiresCardVerification) {
-      void vm.start3DS(selectedId).catch((err) => surfaceError(err));
-      return;
-    }
     vm.advance();
   }, [vm, capabilities]);
 
+  // Mirrors iOS AddPaymentMethodView's ContinueButton → addNewPaymentMethod()
+  // → self.dismiss(): create the card, append to saved methods, then pop back
+  // to SelectPaymentMethod so the user can review and tap Continue again.
+  // iOS does NOT advance the onboarding step or run 3DS here.
   const onAddPaymentMethodSubmit = useCallback(
     async (card: { pan: string; expirationMonth: string; expirationYear: string; cvc: string }) => {
       const pmId = await vm.submitNewCard(card);
-      const requiresCardVerification = capabilities.includes('card_verification');
-      if (requiresCardVerification) {
-        await vm.start3DS(pmId);
-      } else {
-        vm.advance();
-      }
+      vm.goTo('confirm_payment_method', 'select');
       return pmId;
     },
-    [vm, capabilities],
+    [vm],
   );
 
+  // Mirrors iOS AddPaymentMethodView in `onlyAddressVerification` mode:
+  // updatePaymentMethod() then self.dismiss(). Returns to select; no 3DS.
   const onAddPaymentMethodAddressOnly = useCallback(
     async (paymentMethodId: string) => {
       await vm.updateSavedPaymentMethodBilling(paymentMethodId);
       vm.dispatch({ type: 'SET_ADDRESS_VERIFICATION_ONLY', value: false });
-      // After patching billing onto a saved card, the 3DS verification still
-      // applies whenever card_verification is requested. Skipping it here
-      // would let an unverified card through.
-      if (capabilities.includes('card_verification')) {
-        await vm.start3DS(paymentMethodId);
-        return;
-      }
-      vm.advance();
+      vm.goTo('confirm_payment_method', 'select');
     },
-    [vm, capabilities],
+    [vm],
   );
 
   const onAddApplePayInOnboarding = useCallback(async () => {
     const pmId = await vm.addApplePayToOwner();
-    // Apple Pay tokens are persistent payment methods for the account; treat
-    // them as fully-billed (Apple Pay supplies its own billing) and skip 3DS.
-    vm.advance();
+    // Mirrors iOS AddPaymentMethodView.walletButton's success callback:
+    // appendNewlyAddedPaymentMethod(pm) + self.dismiss() — return to the
+    // SelectPaymentMethod screen so the user reviews and taps Continue,
+    // matching the manual-card flow above.
+    vm.goTo('confirm_payment_method', 'select');
     return pmId;
   }, [vm]);
 

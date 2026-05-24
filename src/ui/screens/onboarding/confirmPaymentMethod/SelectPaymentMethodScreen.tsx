@@ -7,11 +7,13 @@ import { Icon, type IconName } from '../../../assets';
 import type { OnboardingState } from '../onboardingReducer';
 
 // Select a saved card or add a new one. The Continue handler is owned by the
-// parent (OnboardingRoot in 8h) because the routing depends on capabilities:
-//   - card_verification requested → start 3DS
-//   - address_verification requested + selected card lacks billing → add
-//     billing via AddPaymentMethod in addressVerificationOnly mode
+// parent (OnboardingRoot) and mirrors iOS SelectPaymentMethodView's
+// ContinueButton action:
+//   - address_verification requested + selected card lacks billing → push
+//     AddPaymentMethod in onlyAddressVerification mode
 //   - else → advance to the next onboarding step
+// Note: iOS has a TODO-commented card_verification → 3DS branch but it's not
+// active; we mirror the active iOS behavior, not the commented-out future.
 
 const ADD_NEW_SENTINEL = '__add_new__';
 

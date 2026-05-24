@@ -115,7 +115,6 @@ export function OtpInputField({
               color: theme.colors.textPrimary,
               fontSize: theme.fonts.heading.size,
               fontWeight: theme.fontWeights.heading,
-              lineHeight: theme.fontLineHeights.heading,
             },
           ]}
           accessibilityLabel={`Code digit ${index + 1}`}

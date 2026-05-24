@@ -159,7 +159,6 @@ export const PaymentCardField = forwardRef<PaymentCardFieldHandle, PaymentCardFi
                   {
                     color: theme.colors.textPrimary,
                     fontSize: theme.fonts.body.size,
-                    lineHeight: theme.fontLineHeights.body,
                   },
                 ]}
                 accessibilityLabel="Card number"
@@ -191,7 +190,6 @@ export const PaymentCardField = forwardRef<PaymentCardFieldHandle, PaymentCardFi
                 {
                   color: theme.colors.textPrimary,
                   fontSize: theme.fonts.body.size,
-                  lineHeight: theme.fontLineHeights.body,
                 },
               ]}
               accessibilityLabel="Card expiration"
@@ -216,7 +214,6 @@ export const PaymentCardField = forwardRef<PaymentCardFieldHandle, PaymentCardFi
                 {
                   color: theme.colors.textPrimary,
                   fontSize: theme.fonts.body.size,
-                  lineHeight: theme.fontLineHeights.body,
                 },
               ]}
               accessibilityLabel="Card security code"

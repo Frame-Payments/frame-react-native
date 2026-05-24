@@ -178,7 +178,6 @@ function CountryPickerSheet({ visible, countries, selectedAlpha2, onClose, onSel
               {
                 color: theme.colors.textPrimary,
                 fontSize: theme.fonts.body.size,
-                lineHeight: theme.fontLineHeights.body,
               },
             ]}
             accessibilityLabel="Search countries"
