@@ -10,8 +10,8 @@
     "prebuild": "expo prebuild --clean"
   },
   "dependencies": {
-    "@evervault/evervault-react-native": "^1.4.2",
-    "@fingerprintjs/fingerprintjs-pro-react-native": "^3.14.0",
+    "@evervault/evervault-react-native": "^0.2.3",
+    "@fingerprintjs/fingerprintjs-pro-react-native": "^3.5.0",
     "expo": "~54.0.0",
     "expo-build-properties": "~0.14.0",
     "framepayments": "^2.1.5",
