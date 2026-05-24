@@ -51,7 +51,7 @@ export interface OnboardingViewModelResult {
   back: () => void;
   goTo: (step: OnboardingStep, subStep: OnboardingSubStep | null) => void;
   cancel: () => void;
-  complete: (paymentMethodId?: string) => void;
+  complete: () => void;
   // Personal-info simple field setters (thin wrappers around dispatch so the
   // screens don't import the reducer directly).
   setPhoneCountry: (alpha2: string, callingCode: string) => void;
@@ -246,14 +246,15 @@ export function useOnboardingViewModel({
     onCancel();
   }, [onCancel]);
 
-  const complete = useCallback(
-    (paymentMethodId?: string) => {
-      if (completedRef.current) return;
-      completedRef.current = true;
-      onComplete({ status: 'completed', paymentMethodId });
-    },
-    [onComplete],
-  );
+  // The completed result returns the accountId, not the payment-method id.
+  // Reads from stateRef so the value reflects auto-created accounts (the
+  // empty-account-create path in sendOtp dispatches SET_ACCOUNT_ID before the
+  // user reaches the final step).
+  const complete = useCallback(() => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    onComplete({ status: 'completed', accountId: stateRef.current.accountId ?? undefined });
+  }, [onComplete]);
 
   // ─── Helper for guarded async actions ───
   const guardedAction = useCallback(

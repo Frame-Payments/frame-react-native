@@ -63,7 +63,13 @@ export type OnboardingResultStatus = 'completed' | 'cancelled';
 
 export interface OnboardingResult {
   status: OnboardingResultStatus;
-  paymentMethodId?: string;
+  /**
+   * The account the user onboarded against. Populated on `status: 'completed'`
+   * for both the host-supplied accountId path and the empty-account
+   * auto-create path. Use this to fetch payment methods, capabilities, or
+   * profile data server-side after onboarding.
+   */
+  accountId?: string;
 }
 
 // presentApplePay/presentGooglePay resolve with a ChargeIntent id when

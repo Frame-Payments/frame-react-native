@@ -299,7 +299,7 @@ const result = await Frame.presentOnboarding({
 });
 
 if (result.status === 'completed') {
-  console.log('Payment method created:', result.paymentMethodId);
+  console.log('Account onboarded:', result.accountId);
 }
 ```
 
@@ -333,7 +333,7 @@ The Apple Pay / Google Pay wallet attach steps are rendered automatically when t
 | Field | Type | Description |
 |---|---|---|
 | `status` | `'completed' \| 'cancelled'` | Whether the user finished or dismissed the flow |
-| `paymentMethodId` | `string \| undefined` | Set when a payment method was created or verified during the flow |
+| `accountId` | `string \| undefined` | The Frame account that was onboarded. Populated on `status: 'completed'` for both the host-supplied-accountId path and the empty-account auto-create path. Use it to fetch payment methods / capabilities / profile server-side. |
 
 ---
 

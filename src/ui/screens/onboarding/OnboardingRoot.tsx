@@ -417,7 +417,7 @@ export function OnboardingRoot({
     if (currentStep === 'verification_submitted') {
       return (
         <VerificationSubmittedScreen
-          onDone={() => vm.complete(vm.state.selectedPaymentMethodId ?? undefined)}
+          onDone={() => vm.complete()}
         />
       );
     }
