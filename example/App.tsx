@@ -22,8 +22,8 @@ import Frame, { FrameProvider } from 'framepayments-react-native';
 import { FrameSDK } from 'framepayments';
 
 // Supply via environment variables (e.g. `FRAME_SECRET_KEY=... npm run ios`) — do not commit real keys.
-const FRAME_SECRET_KEY = process.env.FRAME_SECRET_KEY ?? 'sk_sandbox_UgLVWB47FrscWdjEvtGvZkm3';
-const FRAME_PUBLISHABLE_KEY = process.env.FRAME_PUBLISHABLE_KEY ?? 'pk_sandbox_YLkjssgv9FMYKnfs3sfuTLQa';
+const FRAME_SECRET_KEY = process.env.FRAME_SECRET_KEY;
+const FRAME_PUBLISHABLE_KEY = process.env.FRAME_PUBLISHABLE_KEY;
 
 // Apple Pay merchant ID registered in the example app's entitlements. Mirrors the native iOS example.
 const APPLE_PAY_MERCHANT_ID = 'merchant.com.framepayments.example';
@@ -164,7 +164,6 @@ export default function App() {
     setLoading('onboarding');
     try {
       const result = await Frame.presentOnboarding({
-        accountId: 'decf4e7d-1584-490e-9278-e9f19278286a',
         capabilities: ['kyc', 'kyc_prefill', 'age_verification', 'phone_verification', 'card_verification', 'bank_account_verification'],
       });
       Alert.alert(
