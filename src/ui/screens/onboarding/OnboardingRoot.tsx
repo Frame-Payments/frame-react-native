@@ -232,7 +232,15 @@ export function OnboardingRoot({
               onConfirmFrameOtp={() => vm.confirmFrameOtp().catch(surfaceError)}
               onProveResult={(result) => {
                 if (result.status === 'success') {
-                  vm.goTo('personal_information', 'customer_information');
+                  // Re-fetch account so Prove's server-side identity prefill
+                  // lands in the customer-information screen. Mirrors iOS
+                  // OnboardingContainerViewModel.sendOTPVerification.
+                  void vm
+                    .refreshAccountAfterPhoneVerify()
+                    .catch(() => {})
+                    .finally(() => {
+                      vm.goTo('personal_information', 'customer_information');
+                    });
                   return;
                 }
                 // Prove failed → re-issue a Frame phone verification so the

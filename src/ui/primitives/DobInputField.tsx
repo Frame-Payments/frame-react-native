@@ -158,7 +158,6 @@ const Cell = forwardRef(function Cell(
         paddingHorizontal: 12,
         color: theme.colors.textPrimary,
         fontSize: theme.fonts.body.size,
-        lineHeight: theme.fontLineHeights.body,
         textAlign: 'center',
       }}
     />

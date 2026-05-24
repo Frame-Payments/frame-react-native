@@ -69,7 +69,6 @@ export function PhoneNumberField({
               {
                 color: theme.colors.textPrimary,
                 fontSize: theme.fonts.body.size,
-                lineHeight: theme.fontLineHeights.body,
               },
             ]}
             accessibilityLabel="Phone number"

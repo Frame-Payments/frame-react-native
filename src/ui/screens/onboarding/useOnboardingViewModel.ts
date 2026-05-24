@@ -74,6 +74,10 @@ export interface OnboardingViewModelResult {
    *  the backend returns a prove_auth_token (used after Prove falls back). */
   sendOtp: (opts?: { forceFrameOtp?: boolean }) => Promise<void>;
   confirmFrameOtp: () => Promise<void>;
+  /** Re-fetch the account + re-run prefill after phone verification (Prove or
+   *  Twilio). Mirrors iOS OnboardingContainerViewModel.checkExistingAccount()
+   *  called from sendOTPVerification / confirmTwilioOTP. */
+  refreshAccountAfterPhoneVerify: () => Promise<void>;
   submitCustomerInformation: () => Promise<void>;
   // Payment-method actions
   loadSavedPaymentMethods: () => Promise<void>;
@@ -295,7 +299,7 @@ export function useOnboardingViewModel({
           profile: {
             individual: {
               phone: { number: e164 },
-              ...(dob ? { dob } : {}),
+              ...(dob ? { birthdate: dob } : {}),
             },
           },
         };
@@ -332,6 +336,20 @@ export function useOnboardingViewModel({
     });
   }, [guardedAction]);
 
+  // Re-fetch the account after phone OTP succeeds so any server-side
+  // enrichment (Prove identity prefill, capability state shifts) is reflected
+  // in the customer-information screen the user is about to see. Matches the
+  // iOS SDK's checkExistingAccount() call from sendOTPVerification (Prove
+  // success) and confirmTwilioOTP (Twilio success). Non-fatal on failure —
+  // the user can still complete the flow with mount-time prefill.
+  const refreshAccountAfterPhoneVerify = useCallback(async () => {
+    const accountId = stateRef.current.accountId;
+    if (!accountId) return;
+    const account = await client.sdk.accounts.get(accountId).catch(() => null);
+    if (!account) return;
+    dispatch({ type: 'PREFILL', values: prefillFromAccount(account) });
+  }, []);
+
   const confirmFrameOtp = useCallback(async () => {
     return guardedAction(async () => {
       const current = stateRef.current;
@@ -348,9 +366,10 @@ export function useOnboardingViewModel({
         current.pendingVerificationId,
         { code: current.otpCode },
       );
+      await refreshAccountAfterPhoneVerify();
       dispatch({ type: 'SET_SUB_STEP', subStep: 'customer_information' });
     });
-  }, [guardedAction]);
+  }, [guardedAction, refreshAccountAfterPhoneVerify]);
 
   const submitCustomerInformation = useCallback(async () => {
     return guardedAction(async () => {
@@ -364,9 +383,11 @@ export function useOnboardingViewModel({
         throw frameError(ErrorCodes.PAYMENT_FAILED, 'No account id present. Restart onboarding.');
       }
 
-      // Field names mirror frame-node's AccountProfileIndividual shape:
+      // Field names match the backend's AccountProfileIndividual shape as
+      // observed on the wire (also matches iOS UpdateIndividualAccount):
       //   name.{first_name,last_name}, email, phone.{number,country_code},
-      //   address.{line1,line2,city,state,country,postal_code}, dob, ssn.
+      //   address.{line_1,line_2,city,state,country,postal_code},
+      //   birthdate ('YYYY-MM-DD'), ssn_last_four (4-digit string).
       const phoneE164 = `+${current.phoneCountry.callingCode}${current.phoneNumber.replace(/\D+/g, '')}`;
       const individual = {
         name: {
@@ -375,11 +396,11 @@ export function useOnboardingViewModel({
         },
         email: current.customerEmail,
         phone: { number: phoneE164 },
-        dob: `${current.dobYear}-${current.dobMonth.padStart(2, '0')}-${current.dobDay.padStart(2, '0')}`,
-        ssn: current.ssnLast4 || undefined,
+        birthdate: `${current.dobYear}-${current.dobMonth.padStart(2, '0')}-${current.dobDay.padStart(2, '0')}`,
+        ssn_last_four: current.ssnLast4 || undefined,
         address: {
-          line1: current.address.line1,
-          line2: current.address.line2 || undefined,
+          line_1: current.address.line1,
+          line_2: current.address.line2 || undefined,
           city: current.address.city,
           state: current.address.state,
           country: current.address.country,
@@ -849,6 +870,7 @@ export function useOnboardingViewModel({
     setAchManualMode,
     sendOtp,
     confirmFrameOtp,
+    refreshAccountAfterPhoneVerify,
     submitCustomerInformation,
     loadSavedPaymentMethods,
     submitNewCard,
@@ -935,9 +957,10 @@ function trimCompletedCapabilities(
 // Map Frame's Account.profile (a Record<string, unknown>) into the reducer's
 // PREFILL partial. Best-effort — every field stays empty when the profile is
 // missing or shaped differently than expected.
-function prefillFromAccount(account: { id: string; profile?: Record<string, unknown> | null }): Partial<OnboardingState> {
+function prefillFromAccount(account: { id: string; profile?: Record<string, unknown> | null; email?: unknown }): Partial<OnboardingState> {
   const out: Partial<OnboardingState> = { accountId: account.id };
-  const individual = (account.profile?.individual ?? account.profile) as Record<string, unknown> | undefined;
+  const profile = (account.profile ?? {}) as Record<string, unknown>;
+  const individual = (profile.individual ?? profile) as Record<string, unknown> | undefined;
   if (!individual) return out;
 
   const name = individual.name as Record<string, unknown> | undefined;
@@ -945,12 +968,29 @@ function prefillFromAccount(account: { id: string; profile?: Record<string, unkn
     if (typeof name.first_name === 'string') out.customerFirstName = name.first_name;
     if (typeof name.last_name === 'string') out.customerLastName = name.last_name;
   }
-  if (typeof individual.email === 'string') out.customerEmail = individual.email;
+  // Email can land in several places depending on enrichment source (Prove vs.
+  // manual). Try individual.email first (matches iOS IndividualAccount.email
+  // path), then fall back to profile.email and top-level account.email.
+  const emailCandidate =
+    (typeof individual.email === 'string' && individual.email) ||
+    (typeof profile.email === 'string' && (profile.email as string)) ||
+    (typeof account.email === 'string' && (account.email as string)) ||
+    null;
+  if (emailCandidate) out.customerEmail = emailCandidate;
   if (typeof individual.ssn_last_four === 'string') out.ssnLast4 = individual.ssn_last_four;
-  if (typeof individual.date_of_birth === 'string') {
+  // Backend returns `birthdate` (verified empirically + matches iOS
+  // IndividualAccount.birthdate). Earlier code read `date_of_birth`, which
+  // never matched — DOB only appeared prefilled because the user typed it on
+  // the auth-phone step. Accept `date_of_birth` too just in case a future
+  // schema migration renames it.
+  const birthdate =
+    (typeof individual.birthdate === 'string' && (individual.birthdate as string)) ||
+    (typeof individual.date_of_birth === 'string' && (individual.date_of_birth as string)) ||
+    null;
+  if (birthdate) {
     // Stored as 'YYYY-MM-DD' per the backend convention; split into the
     // three reducer fields.
-    const [y, m, d] = individual.date_of_birth.split('-');
+    const [y, m, d] = birthdate.split('-');
     if (y && m && d) {
       out.dobYear = y;
       out.dobMonth = m;
