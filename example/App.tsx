@@ -29,7 +29,7 @@ const FRAME_PUBLISHABLE_KEY = process.env.FRAME_PUBLISHABLE_KEY ?? 'pk_sandbox_Y
 const APPLE_PAY_MERCHANT_ID = 'merchant.com.framepayments.example';
 
 // Demo owners. Swap which one the wallet buttons use to exercise either flow:
-const DEMO_ACCOUNT_ID = '83f5c9f7-7dfe-4962-8ccd-92a0fbc1909e';
+const DEMO_ACCOUNT_ID = 'DEMO_ACCOUNT_ID';
 
 const frameSDK = new FrameSDK({ apiKey: FRAME_SECRET_KEY });
 
@@ -164,11 +164,12 @@ export default function App() {
     setLoading('onboarding');
     try {
       const result = await Frame.presentOnboarding({
+        accountId: 'decf4e7d-1584-490e-9278-e9f19278286a',
         capabilities: ['kyc', 'kyc_prefill', 'age_verification', 'phone_verification', 'card_verification', 'bank_account_verification'],
       });
       Alert.alert(
         result.status === 'completed' ? 'Onboarding complete' : 'Onboarding cancelled',
-        result.paymentMethodId ? `Payment method: ${result.paymentMethodId}` : undefined,
+        result.accountId ? `Account: ${result.accountId}` : undefined,
       );
     } catch (e: any) {
       if (e.code === 'USER_CANCELED') return;
