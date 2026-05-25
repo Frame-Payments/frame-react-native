@@ -1,7 +1,7 @@
 /**
  * Frame React Native SDK – Example App
  *
- * 1. Set your API key in FRAME_API_KEY below or via env.
+ * 1. Set FRAME_SECRET_KEY and FRAME_PUBLISHABLE_KEY below or via env.
  * 2. Run: npm install, then cd ios && pod install (iOS), then npm run ios or npm run android.
  */
 
@@ -18,20 +18,18 @@ import {
   Image,
   useColorScheme,
 } from 'react-native';
-import Frame from 'framepayments-react-native';
+import Frame, { FrameProvider } from 'framepayments-react-native';
 import { FrameSDK } from 'framepayments';
 
 // Supply via environment variables (e.g. `FRAME_SECRET_KEY=... npm run ios`) — do not commit real keys.
-const FRAME_SECRET_KEY = process.env.FRAME_SECRET_KEY ?? '';
-const FRAME_PUBLISHABLE_KEY = process.env.FRAME_PUBLISHABLE_KEY ?? '';
+const FRAME_SECRET_KEY = process.env.FRAME_SECRET_KEY;
+const FRAME_PUBLISHABLE_KEY = process.env.FRAME_PUBLISHABLE_KEY;
 
 // Apple Pay merchant ID registered in the example app's entitlements. Mirrors the native iOS example.
 const APPLE_PAY_MERCHANT_ID = 'merchant.com.framepayments.example';
 
 // Demo owners. Swap which one the wallet buttons use to exercise either flow:
-// customer → ChargeIntent, account → Transfer.
-const DEMO_CUSTOMER_ID = 'SANDBOX_CUSTOMER_ID';
-const DEMO_ACCOUNT_ID = 'SANDBOX_ACCOUNT_ID';
+const DEMO_ACCOUNT_ID = 'DEMO_ACCOUNT_ID';
 
 const frameSDK = new FrameSDK({ apiKey: FRAME_SECRET_KEY });
 
@@ -69,6 +67,7 @@ export default function App() {
       secretKey: FRAME_SECRET_KEY,
       publishableKey: FRAME_PUBLISHABLE_KEY,
       debugMode: __DEV__,
+      applePayMerchantId: APPLE_PAY_MERCHANT_ID,
       // Uncomment to exercise the FrameTheme tokens (iOS + Android).
       // theme: {
       //   colors: {
@@ -132,7 +131,6 @@ export default function App() {
         amount: 100,
         currency: 'usd',
         owner: { type: 'account', id: DEMO_ACCOUNT_ID },
-        merchantId: APPLE_PAY_MERCHANT_ID,
       });
       Alert.alert('Apple Pay', `Charge id: ${chargeId}`);
     } catch (e: any) {
@@ -166,12 +164,11 @@ export default function App() {
     setLoading('onboarding');
     try {
       const result = await Frame.presentOnboarding({
-        accountId: '572c840d-d7c6-49ed-a92a-08ea8e61a8cf',
         capabilities: ['kyc', 'kyc_prefill', 'age_verification', 'phone_verification', 'card_verification', 'bank_account_verification'],
       });
       Alert.alert(
         result.status === 'completed' ? 'Onboarding complete' : 'Onboarding cancelled',
-        result.paymentMethodId ? `Payment method: ${result.paymentMethodId}` : undefined,
+        result.accountId ? `Account: ${result.accountId}` : undefined,
       );
     } catch (e: any) {
       if (e.code === 'USER_CANCELED') return;
@@ -221,16 +218,21 @@ export default function App() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Frame RN SDK Example</Text>
-      <Text style={styles.subtitle}>Set FRAME_API_KEY in App.tsx or env, then tap below.</Text>
+    <FrameProvider>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.title}>Frame RN SDK Example</Text>
+      <Text style={styles.subtitle}>Set FRAME_SECRET_KEY + FRAME_PUBLISHABLE_KEY in App.tsx or env, then tap below.</Text>
 
       {initError && (
         <View style={styles.errorBox}>
           <Text style={styles.errorTitle}>SDK init failed</Text>
           <Text style={styles.errorText}>{initError}</Text>
           <Text style={styles.errorHint}>
-            If you see &quot;Helpers are not supported by the default hub&quot;, call [FramePreloader preloadOnMainThread] in AppDelegate before [super application:didFinishLaunchingWithOptions:], and ensure Frame-iOS is added via Xcode (File → Add Package Dependencies → https://github.com/Frame-Payments/frame-ios).
+            Make sure the required peer dependencies are installed
+            (@evervault/evervault-react-native,
+            @fingerprintjs/fingerprintjs-pro-react-native, sift-react-native),
+            then rebuild the native shell (cd ios &amp;&amp; pod install for bare RN,
+            or expo prebuild --clean for Expo).
           </Text>
         </View>
       )}
@@ -367,7 +369,8 @@ export default function App() {
           ))}
         </View>
       )}
-    </ScrollView>
+      </ScrollView>
+    </FrameProvider>
   );
 }
 

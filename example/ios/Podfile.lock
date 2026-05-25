@@ -1,10 +1,17 @@
 PODS:
   - boost (1.84.0)
   - DoubleConversion (1.1.6)
+  - Evervault (0.3.2):
+    - Evervault/EvervaultCore (= 0.3.2)
+  - evervault-react-native (1.4.2):
+    - Evervault (~> 0.3.2)
+    - React-Core
+  - Evervault/EvervaultCore (0.3.2)
   - fast_float (8.0.0)
   - FBLazyVector (0.83.9)
+  - FingerprintPro (2.15.1)
   - fmt (12.1.0)
-  - FrameReactNative (3.0.0):
+  - FrameReactNative (4.0.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -1972,6 +1979,121 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
+  - react-native-safe-area-context (5.8.0):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - react-native-safe-area-context/common (= 5.8.0)
+    - react-native-safe-area-context/fabric (= 5.8.0)
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
+  - react-native-safe-area-context/common (5.8.0):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
+  - react-native-safe-area-context/fabric (5.8.0):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - react-native-safe-area-context/common
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
+  - react-native-webview (13.16.1):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
   - React-NativeModulesApple (0.83.9):
     - boost
     - DoubleConversion
@@ -2529,12 +2651,102 @@ PODS:
     - React-perflogger (= 0.83.9)
     - React-utils (= 0.83.9)
     - SocketRocket
+  - RNFingerprintjsPro (1.0.4):
+    - FingerprintPro (~> 2.15.0)
+    - React-Core
+  - RNSVG (15.15.5):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - RNSVG/common (= 15.15.5)
+    - SocketRocket
+    - Yoga
+  - RNSVG/common (15.15.5):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
+  - Sift (2.2.5)
+  - SiftReactNative (1.0.1):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
   - SocketRocket (0.7.1)
   - Yoga (0.0.0)
 
 DEPENDENCIES:
   - boost (from `../node_modules/react-native/third-party-podspecs/boost.podspec`)
   - DoubleConversion (from `../node_modules/react-native/third-party-podspecs/DoubleConversion.podspec`)
+  - "evervault-react-native (from `../node_modules/@evervault/evervault-react-native`)"
   - fast_float (from `../node_modules/react-native/third-party-podspecs/fast_float.podspec`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - fmt (from `../node_modules/react-native/third-party-podspecs/fmt.podspec`)
@@ -2579,6 +2791,8 @@ DEPENDENCIES:
   - React-Mapbuffer (from `../node_modules/react-native/ReactCommon`)
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
   - React-mutationobservernativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/mutationobserver`)
+  - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
+  - react-native-webview (from `../node_modules/react-native-webview`)
   - React-NativeModulesApple (from `../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-networking (from `../node_modules/react-native/ReactCommon/react/networking`)
   - React-oscompat (from `../node_modules/react-native/ReactCommon/oscompat`)
@@ -2612,11 +2826,18 @@ DEPENDENCIES:
   - ReactAppDependencyProvider (from `build/generated/ios/ReactAppDependencyProvider`)
   - ReactCodegen (from `build/generated/ios/ReactCodegen`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
+  - "RNFingerprintjsPro (from `../node_modules/@fingerprintjs/fingerprintjs-pro-react-native`)"
+  - RNSVG (from `../node_modules/react-native-svg`)
+  - Sift
+  - SiftReactNative (from `../node_modules/sift-react-native`)
   - SocketRocket (~> 0.7.1)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
 SPEC REPOS:
   trunk:
+    - Evervault
+    - FingerprintPro
+    - Sift
     - SocketRocket
 
 EXTERNAL SOURCES:
@@ -2624,6 +2845,8 @@ EXTERNAL SOURCES:
     :podspec: "../node_modules/react-native/third-party-podspecs/boost.podspec"
   DoubleConversion:
     :podspec: "../node_modules/react-native/third-party-podspecs/DoubleConversion.podspec"
+  evervault-react-native:
+    :path: "../node_modules/@evervault/evervault-react-native"
   fast_float:
     :podspec: "../node_modules/react-native/third-party-podspecs/fast_float.podspec"
   FBLazyVector:
@@ -2711,6 +2934,10 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/microtasks"
   React-mutationobservernativemodule:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/mutationobserver"
+  react-native-safe-area-context:
+    :path: "../node_modules/react-native-safe-area-context"
+  react-native-webview:
+    :path: "../node_modules/react-native-webview"
   React-NativeModulesApple:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios"
   React-networking:
@@ -2777,16 +3004,25 @@ EXTERNAL SOURCES:
     :path: build/generated/ios/ReactCodegen
   ReactCommon:
     :path: "../node_modules/react-native/ReactCommon"
+  RNFingerprintjsPro:
+    :path: "../node_modules/@fingerprintjs/fingerprintjs-pro-react-native"
+  RNSVG:
+    :path: "../node_modules/react-native-svg"
+  SiftReactNative:
+    :path: "../node_modules/sift-react-native"
   Yoga:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
   boost: 7e761d76ca2ce687f7cc98e698152abd03a18f90
   DoubleConversion: cb417026b2400c8f53ae97020b2be961b59470cb
+  Evervault: bf3e125098e3a760ee8ebca07034c763d426fbc3
+  evervault-react-native: d75051e8568d1d57a3ef2c5576e603ee52dbff8f
   fast_float: b32c788ed9c6a8c584d114d0047beda9664e7cc6
   FBLazyVector: 3bcb3055086e5d90a12f0fe1668e79f6eceabc17
+  FingerprintPro: 8136b69c3f6c17fdf3f6fb183c38b292c04e4c62
   fmt: 530618a01105dae0fa3a2f27c81ae11fa8f67eac
-  FrameReactNative: 298fa066973584915d6d6d3ea721d2915144050c
+  FrameReactNative: b6cf11c968c1045763d0333f5dc5c10910d3d5db
   glog: 5683914934d5b6e4240e497e0f4a3b42d1854183
   hermes-engine: 27c8fc1e2d46ca1ab496d36d2e12c953231000e2
   RCT-Folly: b29feb752b08042c62badaef7d453f3bb5e6ae23
@@ -2826,6 +3062,8 @@ SPEC CHECKSUMS:
   React-Mapbuffer: c546207c9ac05ba26b90ba26f1288f84c8867f2e
   React-microtasksnativemodule: ad2becc1076529952b6db26d0a1476ec489b9067
   React-mutationobservernativemodule: 867e9c215f21b4308fa98473f3c38585b5897e44
+  react-native-safe-area-context: ebd2c2ece5e6e650a6963184039ec8cfd8960d86
+  react-native-webview: 8407aaaf6b539b1e38b72fabb55d6885de03beaf
   React-NativeModulesApple: 519f9f98375db6458a7220becd25db81b3860b76
   React-networking: 2318cba8288ec5df38e899feed3baaac0629b4bd
   React-oscompat: 4524d8ccb12b7f07beb12e2ea9c5ea55b55d604b
@@ -2859,9 +3097,13 @@ SPEC CHECKSUMS:
   ReactAppDependencyProvider: 87593e9dfdba8dac1d7b2af1af05f0eff2a05684
   ReactCodegen: 417334350a76a91784cc20f7aff392327e217dc4
   ReactCommon: 5f2db7556b60816bdc5761a359539bacd2d0250d
+  RNFingerprintjsPro: 1f39fb67c1f7613e04973379e9b41e3ca0baba5a
+  RNSVG: 6470d6f2636d71bd4bbc44a4f27fb7444e437b2f
+  Sift: 376455214f1df4cb1a51f84ebffe219f3a449241
+  SiftReactNative: 7901154765ba6451dac35329e0754bc2ddde1691
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: e6489bbfdab9b98f8d51993484d6bd40216b7834
 
-PODFILE CHECKSUM: 3fa735a38099b110353be6e06271bae7b930b7b7
+PODFILE CHECKSUM: 9648b5d3558f6927fae9adb2270476ea7567c6ee
 
 COCOAPODS: 1.16.2

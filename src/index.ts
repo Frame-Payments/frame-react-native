@@ -1,13 +1,3 @@
-/**
- * framepayments-react-native
- *
- * React Native SDK for Frame Payments.
- * - Initialize the SDK, then use presentCheckout / presentCart for payment UI.
- * - Use presentOnboarding for KYC, identity verification, and payment method onboarding flows.
- * - Use presentApplePay / presentGooglePay to launch the platform wallet sheet from your own button UI.
- * - For API calls (customers, charge intents, refunds), use the framepayments (frame-node) package from JS.
- */
-
 import {
   initialize,
   presentCheckout,
@@ -27,7 +17,6 @@ export {
 } from './native';
 export type {
   FrameCartItem,
-  FrameError,
   BillingAddress,
   PaymentCard,
   BankAccount,
@@ -49,7 +38,74 @@ export type {
 export { ErrorCodes } from './errors';
 export type { FrameErrorShape, FrameErrorCode } from './errors';
 
-/** Default export for Frame.initialize(), Frame.presentCheckout(), Frame.presentCart(), Frame.presentOnboarding(), Frame.presentApplePay(), Frame.presentGooglePay() */
+export { FrameProvider, type FrameProviderProps } from './ui/FrameProvider';
+export { useFrameTheme } from './ui/theme/ThemeContext';
+export { resolveTheme, type ColorScheme, type ResolvedFrameTheme } from './ui/theme/defaults';
+export { Button, type ButtonProps, type ButtonVariant } from './ui/primitives/Button';
+export { ValidatedTextField, type ValidatedTextFieldProps } from './ui/primitives/ValidatedTextField';
+export {
+  ApplePayButton,
+  type ApplePayButtonProps,
+  type ApplePayButtonStyle,
+  type ApplePayButtonType,
+} from './ui/primitives/ApplePayButton';
+export {
+  GooglePayButton,
+  type GooglePayButtonProps,
+  type GooglePayButtonTheme,
+  type GooglePayButtonType,
+} from './ui/primitives/GooglePayButton';
+
+export {
+  validateNonEmpty,
+  validateFullName,
+  validateEmail,
+  validateZipUS,
+  validateCard,
+  validateCardExpiry,
+  validateSSNLast4,
+  validateRoutingNumberUS,
+  validateAccountNumberUS,
+  validateDateOfBirth,
+  validatePostalCode,
+  validatePhoneE164,
+  detectCardBrand,
+  getSupportedPostalCodeCountries,
+  POSTAL_CODE_COUNTRIES,
+  type PostalCountryCode,
+} from './validation';
+import * as Validators from './validation';
+import { convertCentsToCurrencyString } from './currency';
+export { Validators };
+
+export {
+  DEFAULT_COUNTRY,
+  RESTRICTED_ALPHA2_CODES,
+  RESTRICTED_COUNTRY_NAMES,
+  alpha2ToFlag,
+  getAllCountries,
+  getAvailableCountries,
+  getPhoneCountries,
+  type AvailableCountry,
+  type PhoneCountry,
+} from './countries';
+
+export { convertCentsToCurrencyString } from './currency';
+
+export {
+  configureEvervault,
+  encryptWithEvervault,
+  isEvervaultConfigured,
+} from './evervault';
+
+export {
+  ensureAttested,
+  generateAssertionForPayment,
+  getAttestedKeyId,
+  isAttestationSupported,
+  resetAttestation,
+} from './attestation';
+
 export default {
   initialize,
   presentCheckout,
@@ -57,4 +113,6 @@ export default {
   presentOnboarding,
   presentApplePay,
   presentGooglePay,
+  Validators,
+  convertCentsToCurrencyString,
 };

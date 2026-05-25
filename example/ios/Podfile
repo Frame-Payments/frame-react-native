@@ -5,7 +5,7 @@ require Pod::Executable.execute_command('node', ['-p',
     {paths: [process.argv[1]]},
   )', __dir__]).strip
 
-platform :ios, '17.0'  # Frame-iOS and FrameReactNative require iOS 17
+platform :ios, '17.0'  # Frame SDK requires iOS 17
 prepare_react_native_project!
 
 linkage = ENV['USE_FRAMEWORKS']
@@ -14,22 +14,20 @@ if linkage != nil
   use_frameworks! :linkage => linkage.to_sym
 end
 
-target 'FrameExampleTemp' do
+target 'FrameExample' do
+  # sift-react-native 1.0.1 imports <Sift/Sift.h> but does not declare
+  # `s.dependency 'Sift'` in its podspec, so the host must pull the native
+  # Sift SDK in directly.
+  pod 'Sift'
+
   config = use_native_modules!
 
   use_react_native!(
     :path => config[:reactNativePath],
-    # An absolute path to your application root.
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
 
-  target 'FrameExampleTempTests' do
-    inherit! :complete
-    # Pods for testing
-  end
-
   post_install do |installer|
-    # https://github.com/facebook/react-native/blob/main/packages/react-native/scripts/react_native_pods.rb#L197-L202
     react_native_post_install(
       installer,
       config[:reactNativePath],
@@ -50,12 +48,35 @@ target 'FrameExampleTemp' do
         unless config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'].include?('FOLLY_CFG_NO_COROUTINES=1')
           config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FOLLY_CFG_NO_COROUTINES=1'
         end
-        # fmt 11+ uses `consteval` for basic_format_string, which Apple Clang on
-        # Xcode 15/16 rejects when consumers (RCT-Folly, ReactCommon) compile under
-        # C++20. Force fmt to fall back to `constexpr` so the existing call sites
-        # type-check.
         unless config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'].include?('FMT_USE_CONSTEVAL=0')
           config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FMT_USE_CONSTEVAL=0'
+        end
+      end
+    end
+
+    # SiftReactNative.mm is Objective-C++ and #imports <Sift/Sift.h>, whose
+    # headers use `@import Foundation;`. Clang requires BOTH -fmodules AND
+    # -fcxx-modules to accept @import inside an ObjC++ translation unit.
+    # Setting `build_settings` on the target alone doesn't survive — CocoaPods
+    # regenerates the per-pod xcconfig from the pod's static settings, so the
+    # flags must be appended directly to the xcconfig files on disk.
+    sift_xcconfig_dir = File.join(installer.sandbox.root, 'Target Support Files', 'SiftReactNative')
+    if File.directory?(sift_xcconfig_dir)
+      Dir.glob(File.join(sift_xcconfig_dir, 'SiftReactNative.*.xcconfig')).each do |xcconfig_path|
+        contents = File.read(xcconfig_path)
+        if contents =~ /^OTHER_CPLUSPLUSFLAGS\s*=\s*(.*)$/
+          existing = Regexp.last_match(1)
+          additions = []
+          additions << '-fmodules' unless existing.include?('-fmodules')
+          additions << '-fcxx-modules' unless existing.include?('-fcxx-modules')
+          unless additions.empty?
+            updated = contents.sub(/^OTHER_CPLUSPLUSFLAGS\s*=\s*.*$/, "OTHER_CPLUSPLUSFLAGS = #{existing} #{additions.join(' ')}")
+            File.write(xcconfig_path, updated)
+          end
+        else
+          File.open(xcconfig_path, 'a') do |f|
+            f.puts 'OTHER_CPLUSPLUSFLAGS = $(inherited) -fmodules -fcxx-modules'
+          end
         end
       end
     end

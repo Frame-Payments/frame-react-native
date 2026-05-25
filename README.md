@@ -1,83 +1,195 @@
 # Frame React Native SDK
 
-React Native SDK for [Frame Payments](https://framepayments.com). Bridges the native Frame iOS and Android SDKs to provide payment UI (checkout, cart, and onboarding modals) directly in your React Native app. For server-side API operations (customers, charge intents, refunds, etc.), use the [framepayments](https://www.npmjs.com/package/framepayments) Node.js package.
+React Native SDK for [Frame Payments](https://framepayments.com). Ships checkout, cart, onboarding, and wallet UI as pure React Native — networking runs through the [framepayments](https://www.npmjs.com/package/framepayments) Node SDK; native bridges are only used for Apple Pay, Google Pay, App Attest (iOS), and the Prove SDK.
+
+> **4.0.0 is a full rewrite** of the 3.x bridge SDK. The Frame iOS / Frame Android SDKs are no longer dependencies. See [CHANGELOG.md](CHANGELOG.md) for the migration guide.
 
 ## Requirements
 
-- React Native >= 0.81 (autolinking on iOS depends on RN's `spm_dependency` Podfile hook, which stabilized in 0.81)
+- React Native >= 0.81
 - iOS 17+ / Android 8.0+ (API 26+)
-- A [Frame](https://framepayments.com) account and API key
+- A [Frame](https://framepayments.com) account with a publishable key (and, server-side, a secret key)
 
 ## Installation
 
 ```bash
-npm install framepayments-react-native
-# or
-yarn add framepayments-react-native
+npm install framepayments-react-native framepayments \
+  @evervault/evervault-react-native \
+  @fingerprintjs/fingerprintjs-pro-react-native \
+  sift-react-native
 ```
 
+These three packages are **hard peer deps** — the bridge initializer prefetches Evervault, FingerprintPro, and Sift configuration on every `Frame.initialize` call. Some onboarding capabilities pull in additional optional peers; see [Optional peer dependencies](#optional-peer-dependencies).
+
 ### iOS setup
+
+Add one line to your `ios/Podfile`, inside your app target, then install pods:
+
+```ruby
+target 'YourApp' do
+  pod 'Sift'   # required: see note below
+  # ...
+end
+```
 
 ```bash
 cd ios && pod install && cd ..
 ```
 
-That's it. `pod install` autolinks the React Native bridge **and** resolves the underlying Frame iOS SDK (Frame-iOS + Frame-Onboarding) via Swift Package Manager — no Xcode "Add Package Dependencies" step required.
+> **Why the `pod 'Sift'` line?** `sift-react-native` is a hard peer dep, but its 1.0.1 podspec imports `<Sift/Sift.h>` without declaring `s.dependency 'Sift'`. Without this line you'll see a "Sift/Sift.h file not found" build error. The Expo config plugin auto-injects this for you; bare RN apps add it once.
 
-#### Preload Frame on the main thread
-
-Add this to your `AppDelegate.m` or `AppDelegate.mm` **before** `[super application:didFinishLaunchingWithOptions:]`:
-
-```objc
-#import "YourAppName-Swift.h"   // use your app's module name
-
-- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
-{
-  [FramePreloader preloadOnMainThread];  // must be first
-  return [super application:application didFinishLaunchingWithOptions:launchOptions];
-}
-```
-
-This prevents the **"Helpers are not supported by the default hub"** crash, which occurs when Frame/Evervault initializes on a background thread during React Native bridge startup.
-
-> If your app module name isn't the default (i.e., not matching the generated `-Swift.h` header), set `FRAME_SWIFT_HEADER=YourApp-Swift.h` in your target's **Preprocessor Macros** in Xcode build settings.
-
-> Using Swift Package Manager directly instead of CocoaPods? The package's `Package.swift` resolves `frame-ios` transitively, so just add `framepayments-react-native` via **File → Add Package Dependencies** in Xcode.
+The SDK autolinks otherwise; there is no Swift Package Manager step, no `FramePreloader` to install, and no entitlement to add by hand (the config plugin handles entitlements for Expo users; bare RN users add the Apple Pay + App Attest entitlements once in Xcode — see [Required iOS setup](#required-ios-setup) under `presentApplePay`).
 
 ### Android setup
 
-No extra steps required. Autolinking handles the native module automatically and pulls in `com.framepayments:framesdk*` from Maven Central.
+No manual steps. Autolinking wires up the native module, and Google Pay's wallet meta-data is injected automatically by the Expo plugin (or, for bare RN apps, add it once to `AndroidManifest.xml` — see [Required Android setup](#required-android-setup) under `presentGooglePay`).
+
+If you ship the `phone_verification` onboarding capability, see [Enabling phone verification (Prove)](#enabling-phone-verification-prove) below. The bridge declares Prove as `compileOnly` on Android and gates the iOS code behind `#if canImport(ProveAuth)`, so it stays optional for apps that don't use phone verification — the bridge probes for the SDK at runtime and degrades cleanly to the Frame OTP path if it's missing.
+
+### Expo
+
+Expo SDK 54+ is supported via a development build (Expo Go is **not** supported — this SDK uses native modules). Add the config plugin to your `app.json` (or `app.config.js`):
+
+```json
+{
+  "expo": {
+    "plugins": [
+      ["framepayments-react-native", {
+        "applePayMerchantId": "merchant.com.yourcompany.app",
+        "enableGooglePay": true
+      }],
+      "@fingerprintjs/fingerprintjs-pro-react-native"
+    ]
+  }
+}
+```
+
+Then run `npx expo prebuild --clean` to regenerate `ios/` and `android/`. The plugin:
+
+- Injects `pod 'Sift'` into the iOS target (working around the missing dep in the upstream sift-react-native podspec).
+- When `applePayMerchantId` is provided: adds it to the `com.apple.developer.in-app-payments` entitlement and sets `com.apple.developer.devicecheck.appattest-environment` to `production` (App Attest is required for every Apple Pay charge — sandbox vs live is keyed off your Frame API keys, not this entitlement).
+- When `enableGooglePay !== false` (default `true`): adds the `com.google.android.gms.wallet.api.enabled` meta-data to `AndroidManifest.xml`.
+- When `enableProveAuth: true`: registers the cocoapods-art Artifactory source, injects `pod 'ProveAuth'` into the host target, and adds `implementation 'com.prove.sdk:proveauth:6.10.3'` to `android/app/build.gradle`. See [Enabling phone verification (Prove)](#enabling-phone-verification-prove).
+- Adds the Prove Artifactory Maven repository to the Android project so the SDK's `compileOnly` Prove dependency always resolves at SDK compile time (the binary is only pulled into your app when `enableProveAuth` is set).
+- Adds the C++20 / Folly post-install flags required by React Native 0.81+.
+
+Also list `@fingerprintjs/fingerprintjs-pro-react-native` as a plugin — Fingerprint Pro is a hard peer dep and ships its own config plugin to register its Maven repo.
+
+Both plugin options are optional. The plugin is a no-op for bare React Native users — `@expo/config-plugins` is declared as an **optional peer dependency**, so it is not installed unless you already have Expo in your project.
+
+### Optional peer dependencies
+
+| Onboarding capability | Required package |
+|---|---|
+| `bank_account_*` (Plaid) | `react-native-plaid-link-sdk` |
+| `kyc` document upload | `react-native-vision-camera` |
+| `geo_compliance` | `expo-location` *or* `@react-native-community/geolocation` |
+
+These are listed under `peerDependenciesMeta` as optional — install them only if you use the corresponding capability. The bridge surfaces a clear error if a capability is requested without its peer installed.
+
+### Enabling phone verification (Prove)
+
+The `phone_verification` onboarding capability uses Prove's ProveAuth SDK. The native bridges on both platforms are gated so the SDK is optional — without ProveAuth linked, `phone_verification` falls back to Frame's OTP path.
+
+Prove is distributed outside the public CocoaPods/Maven Central registries, so enabling it has a one-time machine-level setup step on top of the build-config changes.
+
+**Expo (`app.json` / `app.config.js`)**
+
+Add `enableProveAuth: true` to the plugin props:
+
+```json
+["framepayments-react-native", {
+  "applePayMerchantId": "merchant.com.yourcompany.app",
+  "enableGooglePay": true,
+  "enableProveAuth": true
+}]
+```
+
+Then on each dev machine and CI worker that runs `pod install`, install Prove's CocoaPods Artifactory plugin once:
+
+```bash
+gem install cocoapods-art
+pod repo-art add prove.jfrog.io https://prove.jfrog.io/artifactory/api/pods/libs-public-cocoapods
+```
+
+Run `npx expo prebuild --clean && npx expo run:ios` (and `run:android`). The plugin injects `pod 'ProveAuth'`, the cocoapods-art source declaration, and the Android `implementation 'com.prove.sdk:proveauth:6.10.3'` line for you.
+
+**Bare React Native**
+
+The plugin only runs under Expo prebuild. For bare RN, do the equivalent edits by hand:
+
+1. Install cocoapods-art (same one-time step as above):
+   ```bash
+   gem install cocoapods-art
+   pod repo-art add prove.jfrog.io https://prove.jfrog.io/artifactory/api/pods/libs-public-cocoapods
+   ```
+2. Add to the top of your `ios/Podfile`:
+   ```ruby
+   source 'https://cdn.cocoapods.org/'
+   plugin 'cocoapods-art', :sources => ['prove.jfrog.io']
+   ```
+3. Inside your app's `target ... do` block, add:
+   ```ruby
+   pod 'ProveAuth'
+   ```
+4. In `android/app/build.gradle`, inside `dependencies { ... }`, add:
+   ```gradle
+   implementation 'com.prove.sdk:proveauth:6.10.3'
+   ```
+5. Run `cd ios && pod install` and rebuild Android.
 
 ---
 
 ## Quick start
 
+The SDK's modals are mounted by `FrameProvider`. **Wrap your app root once**, then call `Frame.initialize` and the `present*` methods anywhere below it. Calling `present*` without a mounted provider rejects synchronously with `NO_PROVIDER`.
+
+```tsx
+// App.tsx
+import { useEffect } from 'react';
+import Frame, { FrameProvider } from 'framepayments-react-native';
+
+export default function App() {
+  useEffect(() => {
+    Frame.initialize({
+      secretKey: 'sk_sandbox_...',
+      publishableKey: 'pk_sandbox_...',
+      debugMode: __DEV__,
+    }).catch(console.error);
+  }, []);
+
+  return (
+    <FrameProvider>
+      {/* your existing app tree */}
+      <YourApp />
+    </FrameProvider>
+  );
+}
+```
+
+Anywhere inside the provider:
+
 ```ts
 import Frame from 'framepayments-react-native';
 
-// 1. Initialize once at app startup
-await Frame.initialize({
-  secretKey: 'sk_sandbox_...',
-  publishableKey: 'pk_sandbox_...',
-  debugMode: __DEV__,
-});
-
-// 2. Present a checkout modal — resolves with the transfer id string
+// Present a checkout modal — resolves with the transfer id string
 const transferId = await Frame.presentCheckout({ amount: 10000, accountId: 'acct_xxx' });
 
-// 3. Present a cart flow — also resolves with the transfer id string
+// Present a cart flow — also resolves with the transfer id string
 const transferId2 = await Frame.presentCart({
   accountId: 'acct_xxx',
   items: [{ id: '1', title: 'Hat', amountInCents: 5000, imageUrl: 'https://...' }],
   shippingAmountInCents: 500,
 });
 
-// 4. Present an onboarding flow (KYC, bank account, etc.)
+// Present an onboarding flow (KYC, bank account, etc.)
 const onboarding = await Frame.presentOnboarding({
   accountId: 'acct_xxx',
   capabilities: ['kyc', 'bank_account_verification'],
 });
 ```
+
+> `FrameProvider` accepts an optional `theme` prop — see [Theming](#theming). The provider also subscribes to `Appearance` changes, so light/dark switches automatically follow the OS.
 
 ---
 
@@ -104,6 +216,7 @@ await Frame.initialize({
 | `applePayMerchantId` | `string` | No | Apple Pay merchant identifier (`merchant.com.…`). Single source of truth for every Apple Pay surface — `presentApplePay`, the bundled checkout's wallet row, the onboarding wallet attach button. iOS-only; ignored on Android. |
 | `googlePayMerchantId` | `string` | No | Google Pay merchant identifier from the Google Pay & Wallet Console. Single source of truth for every Google Pay surface — `presentGooglePay`, the bundled checkout's wallet row, the onboarding wallet attach button. Android-only; ignored on iOS. |
 | `debugMode` | `boolean` | No | Enables native debug logging and routes wallet flows through sandbox/test environments. Default: `false`. |
+| `theme` | `FrameTheme` | No | Accepted and stored for forward-compat, but the SDK currently reads theme overrides only from `<FrameProvider theme={...}>`. Use the Provider prop — see [Theming](#theming). |
 
 ---
 
@@ -124,6 +237,9 @@ const transferId = await Frame.presentCheckout({
 |---|---|---|---|
 | `accountId` | `string` | Yes | Frame account that the resulting Transfer is created against |
 | `amount` | `number` | Yes | Payment amount in cents |
+| `currency` | `string` | No | ISO 4217 currency code. Default `'usd'` |
+| `addressMode` | `'required' \| 'optional' \| 'hidden'` | No | Controls whether the billing address fields are collected. Default `'required'` |
+| `title` | `string` | No | Custom title rendered at the top of the checkout sheet. Default `'Checkout'` |
 
 **Returns:** `Promise<string>` — the created Transfer's `id`.
 
@@ -155,6 +271,9 @@ const transferId = await Frame.presentCart({
 | `accountId` | `string` | Yes | Frame account that the resulting Transfer is created against |
 | `items` | `FrameCartItem[]` | Yes | Array of items to display in the cart |
 | `shippingAmountInCents` | `number` | Yes | Shipping cost in cents |
+| `currency` | `string` | No | ISO 4217 currency code. Default `'usd'` |
+| `addressMode` | `'required' \| 'optional' \| 'hidden'` | No | Forwarded to the checkout step. Default `'required'` |
+| `title` | `string` | No | Custom title rendered at the top of the cart sheet. Default `'Frame Payments'` |
 
 **Returns:** `Promise<string>` — the created Transfer's `id`.
 
@@ -180,7 +299,7 @@ const result = await Frame.presentOnboarding({
 });
 
 if (result.status === 'completed') {
-  console.log('Payment method created:', result.paymentMethodId);
+  console.log('Account onboarded:', result.accountId);
 }
 ```
 
@@ -214,7 +333,7 @@ The Apple Pay / Google Pay wallet attach steps are rendered automatically when t
 | Field | Type | Description |
 |---|---|---|
 | `status` | `'completed' \| 'cancelled'` | Whether the user finished or dismissed the flow |
-| `paymentMethodId` | `string \| undefined` | Set when a payment method was created or verified during the flow |
+| `accountId` | `string \| undefined` | The Frame account that was onboarded. Populated on `status: 'completed'` for both the host-supplied-accountId path and the empty-account auto-create path. Use it to fetch payment methods / capabilities / profile server-side. |
 
 ---
 
@@ -365,33 +484,38 @@ On non-Android platforms `Frame.presentGooglePay` rejects synchronously with a n
 
 ### Theming
 
-Customizes colors, fonts, and corner radii on Frame's reusable components — checkout, cart, and the onboarding flow. Supported on iOS (`FrameTheme` in Frame-iOS 2.1.2+) and Android (`FrameTheme` in frame-android 2.0.7+).
+Customizes colors, fonts, and corner radii across every screen the SDK renders — checkout, cart, and the onboarding flow.
 
-Pass an optional `theme` to `Frame.initialize`. On iOS it's stored on `FrameNetworking.shared`; on Android it's stashed in the bridge and applied per-screen on each subsequent `present*` call. Modals already on screen are not re-themed if the theme is changed mid-flow. Omit the field, or pass `{}`, to use SDK defaults; pass a partial dict to override only specific tokens.
+Pass an optional `theme` prop to `FrameProvider`. The provider resolves light/dark variants from `Appearance`, merges your overrides on top, and exposes the resolved value to every SDK screen via context. Omit the prop, or pass `{}`, to use SDK defaults; pass a partial dict to override only specific tokens. Light and dark variants are provided for every color token by default; pass per-mode overrides as `{ light: '...', dark: '...' }` to override one without losing the other.
 
-```ts
-import Frame from 'framepayments-react-native';
+```tsx
+import Frame, { FrameProvider } from 'framepayments-react-native';
 
-await Frame.initialize({
-  secretKey: 'sk_sandbox_...',
-  publishableKey: 'pk_sandbox_...',
-  debugMode: __DEV__,
-  theme: {
-    colors: {
-      primaryButton: '#5B2DFF',
-      primaryButtonText: '#FFFFFF',
-      surface: '#0A0A0A',
-      textPrimary: '#FFFFFF',
-      error: '#E53935',
-    },
-    fonts: {
-      title: { name: 'Inter-Bold', size: 24 },
-      button: { name: 'Inter-SemiBold', size: 16 },
-    },
-    radii: { medium: 16 },
+const myTheme = {
+  colors: {
+    primaryButton: '#5B2DFF',
+    primaryButtonText: '#FFFFFF',
+    surface: '#0A0A0A',
+    textPrimary: '#FFFFFF',
+    error: '#E53935',
   },
-});
+  fonts: {
+    title: { name: 'Inter-Bold', size: 24 },
+    button: { name: 'Inter-SemiBold', size: 16 },
+  },
+  radii: { medium: 16 },
+};
+
+export default function App() {
+  return (
+    <FrameProvider theme={myTheme}>
+      <YourApp />
+    </FrameProvider>
+  );
+}
 ```
+
+> Re-rendering `FrameProvider` with a new `theme` value updates every SDK screen on the next render, including any modal currently on screen. The provider owns the resolved value; nothing else in the SDK reads theme overrides from `Frame.initialize`.
 
 #### Tokens
 
@@ -405,6 +529,7 @@ await Frame.initialize({
 | `surface` / `surfaceStroke` | Cards, sheets, input backgrounds |
 | `textPrimary` / `textSecondary` | Body and supporting text |
 | `error` | Validation messages |
+| `toastBackground` / `toastText` | Toast notifications surfaced by the SDK |
 | `onboardingHeaderBackground` | Onboarding header bar |
 | `onboardingProgressFilledOnBrand` / `onboardingProgressEmptyOnBrand` | Onboarding progress indicator |
 
@@ -454,16 +579,13 @@ If a font name doesn't resolve on either platform, the SDK silently falls back t
 
 ### Rendering wallet buttons
 
-Apple and Google both require their official button artwork (with light/dark variants) — custom-styled buttons can be rejected. Download the assets from [Apple's marketing page](https://developer.apple.com/apple-pay/marketing/) and [Google's brand guidelines page](https://developers.google.com/pay/api/android/guides/brand-guidelines), bundle them in your app, and pick a variant based on the active color scheme:
+The SDK ships `ApplePayButton` and `GooglePayButton` components that wrap the platform's official button views (`PKPaymentButton` on iOS, Google's `PayButton` on Android). They render the brand-approved artwork in light/dark variants automatically — no need to bundle Apple's or Google's PNGs yourself.
 
 ```tsx
-import { Image, Platform, TouchableOpacity, useColorScheme } from 'react-native';
-import Frame from 'framepayments-react-native';
+import { Platform } from 'react-native';
+import Frame, { ApplePayButton, GooglePayButton } from 'framepayments-react-native';
 
-export function WalletButton({ amountCents, accountId, merchantId }) {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-
+export function WalletButton({ amountCents, accountId }) {
   const onPress = async () => {
     try {
       if (Platform.OS === 'ios') {
@@ -471,7 +593,6 @@ export function WalletButton({ amountCents, accountId, merchantId }) {
           amount: amountCents,
           currency: 'usd',
           owner: { type: 'account', id: accountId },
-          merchantId,
         });
       } else {
         await Frame.presentGooglePay({
@@ -485,23 +606,21 @@ export function WalletButton({ amountCents, accountId, merchantId }) {
     }
   };
 
-  const source = Platform.OS === 'ios'
-    ? (isDark
-        ? require('./assets/applepay/button_buy_with_light.png')
-        : require('./assets/applepay/button_buy_with_dark.png'))
-    : (isDark
-        ? require('./assets/googlepay/button_buy_with_light.png')
-        : require('./assets/googlepay/button_buy_with_dark.png'));
-
-  return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ height: 56 }}>
-      <Image source={source} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
-    </TouchableOpacity>
-  );
+  if (Platform.OS === 'ios') {
+    return <ApplePayButton onPress={onPress} />;
+  }
+  return <GooglePayButton onPress={onPress} />;
 }
 ```
 
-A complete working example (including loading-state handling) lives in [example/App.tsx](./example/App.tsx).
+Each component picks a sensible default; pass per-platform props to override:
+
+- **`ApplePayButton`** — `buttonStyle?: 'black' | 'white' | 'whiteOutline' | 'automatic'` (default `'black'`), `buttonType?: ApplePayButtonType` (default `'buy'`), `cornerRadius?: number` in points (default `10`).
+- **`GooglePayButton`** — `buttonTheme?: 'dark' | 'light'` (default `'dark'`), `buttonType?: GooglePayButtonType` (default `'pay'`), `cornerRadiusDp?: number` in dp (default `8`).
+
+On the wrong platform the component returns an empty `View`, so the cross-platform layout above is safe.
+
+A complete working example (including the loading state and per-platform fallback) lives in [example/App.tsx](./example/App.tsx).
 
 ---
 
@@ -529,29 +648,41 @@ try {
 }
 ```
 
-**Error codes (`ErrorCodes`):**
+**Error codes:**
+
+`ErrorCodes` (exported from the package) enumerates most codes thrown by the public surface. A couple of additional codes — `NO_PROVIDER` and `PRESENTER_BUSY` — are thrown by the presenter but live outside the `ErrorCodes` enum; compare against the string literal.
 
 | Code | When it's thrown |
 |---|---|
+| `NO_PROVIDER` | `present*` called before `<FrameProvider>` was mounted at the app root. Wrap your app root in `<FrameProvider>`. |
+| `PRESENTER_BUSY` | Another Frame screen is already on screen. Wait for the in-flight `present*` to resolve or reject before opening the next one. |
 | `NOT_INITIALIZED` | `present*` called before `Frame.initialize()` |
+| `INIT_FAILED` | `Frame.initialize` failed (typically a thrown peer-dep config error during prefetch) |
+| `MISSING_PUBLISHABLE_KEY` | `Frame.initialize` called without `publishableKey` |
+| `MISSING_SECRET_KEY` | `Frame.initialize` called without `secretKey` |
 | `USER_CANCELED` | User dismissed the modal without completing |
-| `INIT_FAILED` | Native SDK failed to initialize |
-| `NO_ROOT_VC` | iOS: no root view controller available |
-| `NO_ACTIVITY` | Android: no host activity available |
 | `INVALID_ITEMS` | Cart items could not be parsed |
-| `INVALID_ACCOUNT` | `accountId` was missing or empty (presentCheckout, presentCart) |
+| `INVALID_ACCOUNT` | `accountId` was missing or empty (`presentCheckout`, `presentCart`) |
 | `INVALID_OWNER` | Apple Pay / Google Pay `owner` was missing, malformed, or had an empty `id` |
-| `INVALID_MERCHANT_ID` | Apple Pay `merchantId` was missing or empty |
-| `INVALID_AMOUNT` | Google Pay `amountCents` was missing or non-positive |
+| `INVALID_MERCHANT_ID` | `applePayMerchantId` was not configured at `Frame.initialize` |
+| `INVALID_AMOUNT` | Wallet `amount` / `amountCents` was missing or non-positive |
 | `NO_RESULT` | Native activity returned OK but no payload |
 | `PARSE_ERROR` | Could not decode the native response |
+| `NO_ROOT_VC` | iOS: no root view controller available |
+| `NO_ACTIVITY` | Android: no host activity available |
 | `APPLE_PAY_UNAVAILABLE` | iOS: device cannot make Apple Pay payments |
 | `GOOGLE_PAY_UNAVAILABLE` | Android: Google Pay not ready on the device |
-| `NOT_ATTESTED` | iOS: device attestation has not completed yet |
-| `PAYMENT_METHOD_FAILED` | iOS: Apple Pay payment method creation failed |
-| `PAYMENT_FAILED` | Wallet flow failed during Transfer creation |
-| `NETWORK_ERROR` | Network failure in the native SDK |
-| `API_ERROR` | Frame API returned an error |
+| `NOT_ATTESTED` | iOS: device attestation has not completed yet — retry in a moment |
+| `ATTESTATION_FAILED` | iOS: App Attest attestation itself failed (verify Team ID / Bundle ID in your Frame dashboard's Device Attestation settings) |
+| `PAYMENT_METHOD_FAILED` | The wallet payment method could not be persisted to Frame |
+| `PAYMENT_FAILED` | Downstream `ChargeIntent` or `Transfer` creation failed |
+| `PLAID_UNAVAILABLE` | Onboarding requested a `bank_account_*` capability but `react-native-plaid-link-sdk` is not installed |
+| `CAMERA_UNAVAILABLE` | Onboarding requested KYC document upload but `react-native-vision-camera` is not installed |
+| `PLATFORM_UNSUPPORTED` | A wallet method was called on the wrong platform (e.g. `presentApplePay` on Android) |
+| `NETWORK_ERROR` / `API_NETWORK` | Network failure reaching the Frame API |
+| `API_ERROR` | Frame API returned an HTTP error |
+| `API_DECODE` | Frame API response could not be decoded |
+| `API_VALIDATION` | Frame API rejected the request body |
 
 You can also use the `isFrameError` and `normalizeToFrameError` utilities for typed error handling:
 
@@ -601,58 +732,67 @@ const paymentMethods = await frame.paymentMethods.list();
 - **Never bundle your secret key.** Anyone with access to your IPA or APK can extract embedded secrets. Fetch the key from your backend at runtime.
 - **Don't commit keys to source control.** Use environment variables or a secrets manager.
 - **Disable `debugMode` in production** to avoid logging sensitive data to the console.
-- Payment card data is handled entirely by the native Frame SDKs (via Evervault) and never passes through your JavaScript bundle.
+- Payment card data is encrypted in JS via [`@evervault/evervault-react-native`](https://www.npmjs.com/package/@evervault/evervault-react-native) at submit time, before it leaves the device. The plaintext PAN never crosses the bridge or appears in network traffic.
 
 ---
 
 ## Troubleshooting
 
-### "Helpers are not supported by the default hub" (iOS)
+### `NO_PROVIDER` rejection from any `present*` call
 
-Frame/Evervault loaded on a background thread before the main thread was ready. Fix: add `[FramePreloader preloadOnMainThread]` to your `AppDelegate` before `[super application:didFinishLaunchingWithOptions:]`. See [iOS setup](#ios-setup).
-
-Also ensure the **Frame-iOS** Swift package is added in Xcode (**File → Add Package Dependencies** → `https://github.com/Frame-Payments/frame-ios`).
+Wrap your app root in `<FrameProvider>` from `framepayments-react-native`. The presenter mounts its modal host inside the provider, so calls to `Frame.presentCheckout` / `presentCart` / `presentOnboarding` without a mounted provider reject synchronously with this code. See [Quick start](#quick-start).
 
 ### "The package doesn't seem to be linked"
 
 - iOS: run `cd ios && pod install`, then rebuild.
 - Android: rebuild the app (`npm run android`).
-- Both: make sure you're running a debug build (not Expo Go), since this SDK uses native modules.
+- Both: make sure you're running a debug / custom dev build (not Expo Go), since this SDK uses native modules.
 
-### Spinner stuck after onboarding completes (iOS)
+### `INIT_FAILED` from `Frame.initialize`
 
-Ensure you are using SDK version 1.1.0+. Earlier versions had a bug where programmatic dismiss from the onboarding flow did not resolve the promise.
+The initializer prefetches Evervault, FingerprintPro, and Sift configuration. If any of the hard peer deps listed under [Installation](#installation) is missing — or if the native side rejects (typically a missing CocoaPods install or a stale Android build) — init throws `INIT_FAILED` with the underlying message. Install the missing dep, run `pod install` (iOS) or rebuild Android, then retry. If the error mentions `secretKey`/`publishableKey`, you passed an empty string for one of them.
 
 ### `App ID verification failed` from `presentApplePay`
 
 The Frame backend computes `SHA256("<TeamID>.<BundleID>")` from the merchant's dashboard configuration and compares it to the hash signed by the device during attestation. A mismatch returns `App ID verification failed`. Fix: open your Frame dashboard → **Settings → Device Attestation** and confirm both the Apple Team ID and the Bundle ID match the iOS app you're running.
 
-### `settings.gradle` build error on Android (RN 0.74+)
+### Google Pay button hidden on Android
 
-If you see `Could not read script '.../cli-platform-android/native_modules.gradle'`, remove the `apply from:` line referencing it from your `android/settings.gradle`. This file was removed in newer versions of `@react-native-community/cli-platform-android`; the gradle plugin handles it automatically.
+The Wallet API is opted out by default. Make sure `AndroidManifest.xml` includes the `com.google.android.gms.wallet.api.enabled` meta-data inside `<application>` (the Expo plugin injects it automatically when `enableGooglePay !== false`). Then confirm the device has a saved card in Google Wallet and that `googlePayMerchantId` was passed to `Frame.initialize`.
+
+### Duplicate React instances at runtime
+
+Metro is resolving a second `react` from a nested `node_modules`. The Expo example sets `disableHierarchicalLookup: true` in `metro.config.js`; bare RN consumers typically don't hit this unless the SDK is symlinked. If you see it, dedupe with `npm dedupe react react-native` or add the same Metro setting.
 
 ---
 
-## Example app
+## Example apps
 
-The [example/](./example) directory contains a full working app demonstrating all SDK features.
+Two parallel example apps live in this repo, sharing the same `App.tsx`:
 
-**Run on iOS:**
+- [example/](./example) — bare React Native CLI (RN 0.83). Use this if you have an existing bare RN app.
+- [expo-example/](./expo-example) — Expo SDK 54 with the `framepayments-react-native` config plugin. Use this if you're on Expo. Requires Expo SDK 54+ (RN 0.81+).
+
+Both cover `initialize`, `presentCheckout`, `presentCart`, `presentOnboarding`, the Apple Pay / Google Pay flows, and server-side API calls via `framepayments`.
+
+See **[docs/RUNNING_EXAMPLES.md](./docs/RUNNING_EXAMPLES.md)** for the full setup walkthrough (prereqs, Prove SDK install, common iteration loop, which `App.tsx` constants you can change to test different capabilities / accounts / cart items, and a troubleshooting reference).
+
+Quick reference:
+
+**Bare RN:**
 ```bash
 cd example
-npm install
-cd ios && pod install && cd ..
-npm run ios
+npm install && cd ios && pod install && cd ..
+FRAME_SECRET_KEY=sk_sandbox_... FRAME_PUBLISHABLE_KEY=pk_sandbox_... npm run ios
 ```
 
-**Run on Android:**
+**Expo:**
 ```bash
-cd example
+cd expo-example
 npm install
-npm run android
+npx expo prebuild --clean
+FRAME_SECRET_KEY=sk_sandbox_... FRAME_PUBLISHABLE_KEY=pk_sandbox_... npx expo run:ios
 ```
-
-The example app covers `initialize`, `presentCheckout`, `presentCart`, `presentOnboarding`, and server-side API calls via `framepayments`.
 
 ---
 

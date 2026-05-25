@@ -1,21 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.framepayments.reactnativeframe">
-  <application>
-    <activity
-      android:name="com.framepayments.reactnativeframe.FrameCheckoutActivity"
-      android:theme="@style/Theme.Frame.NoActionBar"
-      android:exported="false" />
-    <activity
-      android:name="com.framepayments.reactnativeframe.FrameFlowActivity"
-      android:theme="@style/Theme.Frame.NoActionBar"
-      android:exported="false" />
-    <activity
-      android:name="com.framepayments.reactnativeframe.FrameOnboardingActivity"
-      android:theme="@style/Theme.Frame.NoActionBar"
-      android:exported="false" />
-    <activity
-      android:name="com.framepayments.reactnativeframe.FrameGooglePayActivity"
-      android:theme="@style/Theme.Frame.GooglePay.Translucent"
-      android:exported="false" />
-  </application>
+  <!--
+    INTERNET is required by IpAddressBridge.kt, which fetches the device's
+    public IP from api.ipify.org so the SDK can attach `ip_address` to every
+    API request (matching the native Frame Android SDK's SiftManager behavior).
+    Declared here so the Android manifest merger propagates it into host apps
+    without any per-host configuration — both bare RN and Expo consumers
+    inherit it automatically.
+  -->
+  <uses-permission android:name="android.permission.INTERNET" />
+  <application />
 </manifest>

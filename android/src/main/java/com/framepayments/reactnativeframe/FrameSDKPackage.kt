@@ -7,10 +7,15 @@ import com.facebook.react.uimanager.ViewManager
 
 class FrameSDKPackage : ReactPackage {
   override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
-    return listOf(FrameSDKModule(reactContext))
+    return listOf(
+      FrameSDKModule(reactContext),
+      GooglePayBridge(reactContext),
+      ProveAuthBridge(reactContext),
+      IpAddressBridge(reactContext),
+    )
   }
 
   override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {
-    return emptyList()
+    return listOf(FrameGooglePayButtonViewManager())
   }
 }

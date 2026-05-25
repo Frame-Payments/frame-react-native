@@ -1,36 +1,30 @@
-// Top-level build file where you can add configuration options common to all sub-projects/modules.
-
 buildscript {
     ext {
-        buildToolsVersion = "34.0.0"
-        minSdkVersion = 26
+        buildToolsVersion = "36.0.0"
+        minSdkVersion = 24
         compileSdkVersion = 36
-        targetSdkVersion = 34
-        ndkVersion = "30.0.14904198"
-        kotlinVersion = '2.2.10'
+        targetSdkVersion = 36
+        ndkVersion = "27.1.12297006"
+        kotlinVersion = "2.1.20"
     }
     repositories {
         google()
         mavenCentral()
     }
     dependencies {
-        classpath('com.android.tools.build:gradle:9.2.0')
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}")
-        classpath("org.jetbrains.kotlin:compose-compiler-gradle-plugin:${kotlinVersion}")
-        classpath(files("../node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/build/libs/react-native-gradle-plugin.jar"))
+        classpath("com.android.tools.build:gradle")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
     }
 }
 
-// LocalLifecycleOwnerKt lives in lifecycle-runtime-compose 2.8.0+ (moved from Compose UI). 2.7.0 lacks it and causes NoClassDefFoundError.
-// framesdk_onboarding requires activity-compose:1.12.2 — do not force a lower version or setContent$default will not resolve.
-subprojects {
-    afterEvaluate { project ->
-        if (project.hasProperty("android")) {
-            project.configurations.all {
-                resolutionStrategy {
-                    force "androidx.lifecycle:lifecycle-runtime-compose:2.8.2"
-                }
-            }
-        }
+allprojects {
+    repositories {
+        maven { url 'https://maven.fpregistry.io/releases' }
+        maven { url 'https://prove.jfrog.io/artifactory/libs-public-maven/' }
     }
+}
+
+if (project == rootProject) {
+    apply plugin: "com.facebook.react.rootproject"
 }
