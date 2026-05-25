@@ -18,4 +18,13 @@ buildscript {
     }
 }
 
-apply plugin: "com.facebook.react.rootproject"
+allprojects {
+    repositories {
+        maven { url 'https://maven.fpregistry.io/releases' }
+        maven { url 'https://prove.jfrog.io/artifactory/libs-public-maven/' }
+    }
+}
+
+if (project == rootProject) {
+    apply plugin: "com.facebook.react.rootproject"
+}
