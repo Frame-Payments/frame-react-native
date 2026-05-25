@@ -24,6 +24,26 @@ config.resolver.extraNodeModules = {
   'react-native': path.resolve(projectRoot, 'node_modules/react-native'),
 };
 
+// Force every import of `react` or `react-native` (including transitive imports
+// from the symlinked framepayments-react-native SDK at the repo root) to the
+// example's copies. `extraNodeModules` alone isn't always sufficient — Metro
+// can still resolve to the library's own dev-dep copies and bundle a duplicate
+// React, which then breaks hooks with "Cannot read property 'useState' of null".
+const FORCE_LOCAL = ['react', 'react-native'];
+const defaultResolveRequest = config.resolver.resolveRequest;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  for (const pkg of FORCE_LOCAL) {
+    if (moduleName === pkg || moduleName.startsWith(pkg + '/')) {
+      const subPath = moduleName.slice(pkg.length);
+      const target = path.join(projectRoot, 'node_modules', pkg + subPath);
+      return context.resolveRequest(context, target, platform);
+    }
+  }
+  return defaultResolveRequest
+    ? defaultResolveRequest(context, moduleName, platform)
+    : context.resolveRequest(context, moduleName, platform);
+};
+
 // axios (transitive via framepayments) needs browser conditions to avoid Node http/crypto.
 config.resolver.unstable_conditionNames = ['require', 'react-native', 'browser', 'default'];
 

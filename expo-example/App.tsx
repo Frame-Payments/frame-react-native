@@ -1,8 +1,8 @@
 /**
- * Frame React Native SDK – Example App
+ * Frame React Native SDK – Expo Example App
  *
  * 1. Set FRAME_SECRET_KEY and FRAME_PUBLISHABLE_KEY below or via env.
- * 2. Run: npm install, then cd ios && pod install (iOS), then npm run ios or npm run android.
+ * 2. Run: npm install, then npx expo prebuild --clean, then npx expo run:ios or npx expo run:android.
  */
 
 import React, { useState } from 'react';
@@ -18,20 +18,17 @@ import {
   Image,
   useColorScheme,
 } from 'react-native';
-import Frame from 'framepayments-react-native';
+import Frame, { FrameProvider } from 'framepayments-react-native';
 import { FrameSDK } from 'framepayments';
 
-// Supply via environment variables (e.g. `FRAME_SECRET_KEY=... npm run ios`) — do not commit real keys.
-const FRAME_SECRET_KEY = process.env.FRAME_SECRET_KEY ?? 'sk_sandbox_UgLVWB47FrscWdjEvtGvZkm3';
-const FRAME_PUBLISHABLE_KEY = process.env.FRAME_PUBLISHABLE_KEY ?? 'pk_sandbox_YLkjssgv9FMYKnfs3sfuTLQa';
+const FRAME_SECRET_KEY = 'sk_sandbox_UgLVWB47FrscWdjEvtGvZkm3';
+const FRAME_PUBLISHABLE_KEY = 'pk_sandbox_YLkjssgv9FMYKnfs3sfuTLQa';
 
 // Apple Pay merchant ID registered in the example app's entitlements. Mirrors the native iOS example.
 const APPLE_PAY_MERCHANT_ID = 'merchant.com.framepayments.example';
 
 // Demo owners. Swap which one the wallet buttons use to exercise either flow:
-// customer → ChargeIntent, account → Transfer.
-const DEMO_CUSTOMER_ID = 'SANDBOX_CUSTOMER_ID';
-const DEMO_ACCOUNT_ID = '83f5c9f7-7dfe-4962-8ccd-92a0fbc1909e';
+const DEMO_ACCOUNT_ID = 'decf4e7d-1584-490e-9278-e9f19278286a';
 
 const frameSDK = new FrameSDK({ apiKey: FRAME_SECRET_KEY });
 
@@ -166,12 +163,11 @@ export default function App() {
     setLoading('onboarding');
     try {
       const result = await Frame.presentOnboarding({
-        accountId: '572c840d-d7c6-49ed-a92a-08ea8e61a8cf',
         capabilities: ['kyc', 'kyc_prefill', 'age_verification', 'phone_verification', 'card_verification', 'bank_account_verification'],
       });
       Alert.alert(
         result.status === 'completed' ? 'Onboarding complete' : 'Onboarding cancelled',
-        result.paymentMethodId ? `Payment method: ${result.paymentMethodId}` : undefined,
+        result.accountId ? `Account: ${result.accountId}` : undefined,
       );
     } catch (e: any) {
       if (e.code === 'USER_CANCELED') return;
@@ -221,8 +217,9 @@ export default function App() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Frame RN SDK Example</Text>
+    <FrameProvider>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.title}>Frame RN SDK Example</Text>
       <Text style={styles.subtitle}>Set FRAME_SECRET_KEY + FRAME_PUBLISHABLE_KEY in App.tsx or env, then tap below.</Text>
 
       {initError && (
@@ -371,7 +368,8 @@ export default function App() {
           ))}
         </View>
       )}
-    </ScrollView>
+      </ScrollView>
+    </FrameProvider>
   );
 }
 

@@ -27,6 +27,19 @@ const POST_INSTALL_BODY = `
         else
           config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'
         end
+        # React-Core-prebuilt's umbrella imports React/*.h from non-modular
+        # locations under Pods/Headers/Public/React-Core. With prebuilt RN
+        # frameworks (RCT_USE_PREBUILT_RNCORE=1), every pod that links React
+        # must accept non-modular includes or Clang errors with
+        # -Wnon-modular-include-in-framework-module.
+        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+        # Pods are statically linked into the host app, not redistributed as
+        # binary frameworks. BUILD_LIBRARY_FOR_DISTRIBUTION = YES forces emission
+        # of a .swiftinterface whose \`@_exported import <Pod>\` cannot resolve
+        # the underlying module of a static library — breaks Swift+ObjC pods
+        # like RNFingerprintjsPro, evervault-react-native, ExpoModulesCore, and
+        # Evervault under Xcode 26+ swiftinterface verification.
+        config.build_settings['BUILD_LIBRARY_FOR_DISTRIBUTION'] = 'NO'
         config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
         unless config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'].include?('FOLLY_CFG_NO_COROUTINES=1')
           config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FOLLY_CFG_NO_COROUTINES=1'
@@ -50,6 +63,23 @@ const POST_INSTALL_BODY = `
           end
           config.build_settings['OTHER_CPLUSPLUSFLAGS'] = flags
         end
+      end
+    end
+
+    # CocoaPods 1.13+ regenerates per-target xcconfig files after build_settings
+    # mutations land, dropping the overrides above. Patch the on-disk xcconfigs
+    # so CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES and
+    # BUILD_LIBRARY_FOR_DISTRIBUTION survive.
+    Dir.glob(File.join(installer.sandbox.root, 'Target Support Files', '*', '*.xcconfig')).each do |path|
+      contents = File.read(path)
+      unless contents.include?('CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES')
+        File.open(path, 'a') { |f| f.puts 'CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES' }
+        contents = File.read(path)
+      end
+      if contents =~ /^BUILD_LIBRARY_FOR_DISTRIBUTION\\s*=/
+        File.write(path, contents.sub(/^BUILD_LIBRARY_FOR_DISTRIBUTION\\s*=.*$/, 'BUILD_LIBRARY_FOR_DISTRIBUTION = NO'))
+      else
+        File.open(path, 'a') { |f| f.puts 'BUILD_LIBRARY_FOR_DISTRIBUTION = NO' }
       end
     end
 `;
