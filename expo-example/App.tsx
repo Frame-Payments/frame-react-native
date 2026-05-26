@@ -21,14 +21,16 @@ import {
 import Frame, { FrameProvider } from 'framepayments-react-native';
 import { FrameSDK } from 'framepayments';
 
-const FRAME_SECRET_KEY = 'sk_sandbox_UgLVWB47FrscWdjEvtGvZkm3';
-const FRAME_PUBLISHABLE_KEY = 'pk_sandbox_YLkjssgv9FMYKnfs3sfuTLQa';
+const FRAME_SECRET_KEY = 'SANDBOX_SECRET_KEY_123456';
+const FRAME_PUBLISHABLE_KEY = 'SANBOX_PUB_KEY_123456';
 
 // Apple Pay merchant ID registered in the example app's entitlements. Mirrors the native iOS example.
 const APPLE_PAY_MERCHANT_ID = 'merchant.com.framepayments.example';
+// Google Pay merchant ID issued in the Google Pay & Wallet Console. Replace with your own for production.
+const GOOGLE_PAY_MERCHANT_ID = 'BCR2DN4T...';
 
 // Demo owners. Swap which one the wallet buttons use to exercise either flow:
-const DEMO_ACCOUNT_ID = 'decf4e7d-1584-490e-9278-e9f19278286a';
+const DEMO_ACCOUNT_ID = 'DEMO_ACCOUNT_ID'; // Use an account owner to create a Transfer on checkout
 
 const frameSDK = new FrameSDK({ apiKey: FRAME_SECRET_KEY });
 
@@ -67,6 +69,7 @@ export default function App() {
       publishableKey: FRAME_PUBLISHABLE_KEY,
       debugMode: __DEV__,
       applePayMerchantId: APPLE_PAY_MERCHANT_ID,
+      googlePayMerchantId: GOOGLE_PAY_MERCHANT_ID,
       // Uncomment to exercise the FrameTheme tokens (iOS + Android).
       // theme: {
       //   colors: {
@@ -134,7 +137,14 @@ export default function App() {
       Alert.alert('Apple Pay', `Charge id: ${chargeId}`);
     } catch (e: any) {
       if (e.code === 'USER_CANCELED') return;
-      Alert.alert('Apple Pay error', e.message ?? String(e));
+      console.log('[Apple Pay error]', {
+        message: e.message,
+        code: e.code,
+        status: e.status,
+        raw: e.raw,
+      });
+      const detail = e.raw ? JSON.stringify(e.raw, null, 2) : (e.message ?? String(e));
+      Alert.alert(`Apple Pay error${e.status ? ` (${e.status})` : ''}`, detail);
     } finally {
       setLoading(null);
     }

@@ -37,13 +37,14 @@ export function GeolocationScreen({ accountId, onAdvance }: GeolocationScreenPro
         const message = err instanceof Error ? err.message : 'Could not verify your location.';
         showToast(message);
       } finally {
-        if (cancelled) return;
-        setDone(true);
-        // Advance on the next frame so the user sees the "Verifying location"
-        // beat — gives the flow visual continuity. Cancelled on unmount.
-        rafId = requestAnimationFrame(() => {
-          if (!cancelled) onAdvance();
-        });
+        if (!cancelled) {
+          setDone(true);
+          // Advance on the next frame so the user sees the "Verifying location"
+          // beat — gives the flow visual continuity. Cancelled on unmount.
+          rafId = requestAnimationFrame(() => {
+            if (!cancelled) onAdvance();
+          });
+        }
       }
     })();
     return () => {

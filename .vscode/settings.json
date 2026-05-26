@@ -1,5 +1,39 @@
 {
     "java.configuration.updateBuildConfiguration": "automatic",
     "java.compile.nullAnalysis.mode": "automatic",
-    "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx4G -Xms100m -Xlog:disable"
+    "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx8G -Xms100m -Xlog:disable",
+    "java.import.gradle.enabled": false,
+    "java.import.maven.enabled": false,
+    "java.autobuild.enabled": false,
+    "java.import.exclusions": [
+        "**/node_modules/**",
+        "**/example/**",
+        "**/expo-example/**",
+        "**/android/**",
+        "**/.gradle/**",
+        "**/build/**"
+    ],
+    "java.project.importOnFirstTimeStartup": "disabled",
+    "gradle.nestedProjects": false,
+    "gradle.autoDetect": "off",
+    "files.watcherExclude": {
+        "**/.gradle/**": true,
+        "**/build/**": true,
+        "**/node_modules/**": true,
+        "**/ios/Pods/**": true,
+        "**/ios/build/**": true,
+        "**/lib/**": true,
+        "**/DerivedData/**": true
+    },
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/.gradle": true,
+        "**/build": true,
+        "**/ios/Pods": true,
+        "**/lib": true
+    },
+    "files.exclude": {
+        "**/.gradle": true,
+        "**/.settings": true
+    }
 }

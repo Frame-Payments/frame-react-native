@@ -163,6 +163,10 @@ function LazyCameraSurface({ position, sdk, onCameraReady, onError }: LazyCamera
       </View>
     );
   }
+  // The presence check above is a one-time SDK-version probe — `useDevice` is
+  // either defined for the installed vision-camera or it isn't, so call order
+  // is stable across renders for any given instance.
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const device = useDevice(position);
   if (!device) {
     return (

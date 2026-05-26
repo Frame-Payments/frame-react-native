@@ -1,3 +1,9 @@
+const mockPlatform = { OS: 'ios' as 'ios' | 'android' };
+
+jest.mock('react-native', () => ({
+  Platform: mockPlatform,
+}));
+
 const frameSdkConstructorCalls: Array<{
   apiKey: string | undefined;
   publishableKey: string | undefined;
@@ -40,7 +46,9 @@ describe('client.sdk', () => {
     const inst = client.sdk as unknown as MockFrameSDK;
     expect(inst.apiKey).toBe('sk_test');
     expect(inst.publishableKey).toBe('pk_test');
-    expect(frameSdkConstructorCalls).toEqual([{ apiKey: 'sk_test', publishableKey: 'pk_test' }]);
+    expect(frameSdkConstructorCalls).toEqual([
+      { apiKey: 'sk_test', publishableKey: 'pk_test', defaultHeaders: { 'User-Agent': 'iOS' } },
+    ]);
   });
 
   it('constructs with only apiKey when publishable key is unset', () => {
@@ -82,7 +90,9 @@ describe('warmClients', () => {
   it('skips construction when only one key is set but still returns true', () => {
     setConfig({ secretKey: 'sk_only', debugMode: false });
     expect(warmClients()).toBe(true);
-    expect(frameSdkConstructorCalls).toEqual([{ apiKey: 'sk_only', publishableKey: undefined }]);
+    expect(frameSdkConstructorCalls).toEqual([
+      { apiKey: 'sk_only', publishableKey: undefined, defaultHeaders: { 'User-Agent': 'iOS' } },
+    ]);
   });
 
   it('returns false when neither key is set', () => {
@@ -91,29 +101,50 @@ describe('warmClients', () => {
   });
 });
 
-describe('ip_address header injection', () => {
-  it('omits defaultHeaders when no IP has been resolved', () => {
+describe('defaultHeaders', () => {
+  it('always sends User-Agent so the backend takes the native-SDK code path', () => {
     setConfig({ secretKey: 'sk_test', publishableKey: 'pk_test', debugMode: false });
     void client.sdk;
-    expect(frameSdkConstructorCalls[0].defaultHeaders).toBeUndefined();
+    // Jest's react-native mock defaults Platform.OS to 'ios'.
+    expect(frameSdkConstructorCalls[0].defaultHeaders).toEqual({ 'User-Agent': 'iOS' });
   });
 
-  it('passes ip_address in defaultHeaders when the IP is cached', () => {
+  it('adds ip_address alongside User-Agent when the IP is cached', () => {
     setConfig({ secretKey: 'sk_test', publishableKey: 'pk_test', debugMode: false });
     __internal.setIpAddress('203.0.113.42');
     void client.sdk;
-    expect(frameSdkConstructorCalls[0].defaultHeaders).toEqual({ ip_address: '203.0.113.42' });
+    expect(frameSdkConstructorCalls[0].defaultHeaders).toEqual({
+      ip_address: '203.0.113.42',
+      'User-Agent': 'iOS',
+    });
   });
 
   it('picks up a late-arriving IP after resetClients()', () => {
     setConfig({ secretKey: 'sk_test', publishableKey: 'pk_test', debugMode: false });
     void client.sdk;
-    expect(frameSdkConstructorCalls[0].defaultHeaders).toBeUndefined();
+    expect(frameSdkConstructorCalls[0].defaultHeaders).toEqual({ 'User-Agent': 'iOS' });
 
     __internal.setIpAddress('198.51.100.7');
     resetClients();
     void client.sdk;
-    expect(frameSdkConstructorCalls[1].defaultHeaders).toEqual({ ip_address: '198.51.100.7' });
+    expect(frameSdkConstructorCalls[1].defaultHeaders).toEqual({
+      ip_address: '198.51.100.7',
+      'User-Agent': 'iOS',
+    });
+  });
+
+  it('sends versioned Android User-Agent so WalletController#mobile_sdk_request? matches', () => {
+    mockPlatform.OS = 'android';
+    try {
+      setConfig({ secretKey: 'sk_test', publishableKey: 'pk_test', debugMode: false });
+      void client.sdk;
+      // Must include the slash + version — backend checks `start_with?("Android/")`.
+      // Mirrors native Android SDK FrameNetworking.kt header value.
+      const ua = frameSdkConstructorCalls[0].defaultHeaders?.['User-Agent'];
+      expect(ua).toMatch(/^Android\/\d+\.\d+\.\d+/);
+    } finally {
+      mockPlatform.OS = 'ios';
+    }
   });
 });
 
