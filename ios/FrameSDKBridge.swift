@@ -62,10 +62,10 @@ public class FrameSDKBridge: NSObject {
   }
 
   @objc public
-  func presentOnboarding(from viewController: UIViewController, accountId: NSObject?, capabilities: NSArray, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+  func presentOnboarding(from viewController: UIViewController, accountId: NSObject?, capabilities: NSArray, showIntroScreen: Bool, showCompletionScreen: Bool, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     let parsedCapabilities = parseCapabilities(capabilities)
     let accountIdString = accountId as? String
-    presentOnboardingOnMain(from: viewController, accountId: accountIdString, capabilities: parsedCapabilities, resolve: resolve, reject: reject)
+    presentOnboardingOnMain(from: viewController, accountId: accountIdString, capabilities: parsedCapabilities, showIntroScreen: showIntroScreen, showCompletionScreen: showCompletionScreen, resolve: resolve, reject: reject)
   }
 
   @objc public
@@ -208,7 +208,7 @@ public class FrameSDKBridge: NSObject {
     }
   }
 
-  private func presentOnboardingOnMain(from top: UIViewController, accountId: String?, capabilities: [FrameObjects.Capabilities], resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+  private func presentOnboardingOnMain(from top: UIViewController, accountId: String?, capabilities: [FrameObjects.Capabilities], showIntroScreen: Bool, showCompletionScreen: Bool, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     // Build the dismiss delegate up-front so onResult captures a non-nil instance directly.
     let delegate = OnboardingDismissDelegate(resolve: resolve)
 
@@ -216,6 +216,8 @@ public class FrameSDKBridge: NSObject {
       rootView: OnboardingContainerView(
         accountId: accountId,
         requiredCapabilities: capabilities,
+        showIntroScreen: showIntroScreen,
+        showCompletionScreen: showCompletionScreen,
         onResult: { [delegate, weak top] result in
           switch result {
           case .completed(let id):

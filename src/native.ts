@@ -161,12 +161,16 @@ export function presentCart(options: {
 export function presentOnboarding(options: {
   accountId?: string | null;
   capabilities?: OnboardingCapability[];
+  showIntroScreen?: boolean;
+  showCompletionScreen?: boolean;
 }): Promise<OnboardingResult> {
   guardInitialized();
   return wrapPromise(
     FrameSDK.presentOnboarding(
       options.accountId ?? null,
-      options.capabilities ?? []
+      options.capabilities ?? [],
+      options.showIntroScreen ?? true,
+      options.showCompletionScreen ?? true
     )
   );
 }

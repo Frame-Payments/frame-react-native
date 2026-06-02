@@ -188,8 +188,22 @@ if (result.status === 'completed') {
 |---|---|---|---|
 | `accountId` | `string` | No | The Frame account to onboard |
 | `capabilities` | `OnboardingCapability[]` | No | Which onboarding steps to include (see below) |
+| `showIntroScreen` | `boolean` | No | Show the "Verify Your Identity" welcome screen before the first step. Default `true`. Set to `false` to skip it and open directly on the first capability step. |
+| `showCompletionScreen` | `boolean` | No | Show the "Verification Submitted" confirmation screen after the last step. Default `true`. Set to `false` to complete the flow immediately without the final screen. |
 
 The Apple Pay / Google Pay wallet attach steps are rendered automatically when the corresponding merchant ID was passed to `Frame.initialize`. No per-call merchant params here.
+
+**Controlling bookend screens:**
+
+```ts
+// Skip both bookend screens — jump straight into the flow and complete silently
+const result = await Frame.presentOnboarding({
+  accountId: 'acct_xxx',
+  capabilities: ['kyc', 'bank_account_verification'],
+  showIntroScreen: false,
+  showCompletionScreen: false,
+});
+```
 
 **`capabilities` values:**
 

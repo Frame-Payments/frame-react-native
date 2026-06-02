@@ -142,6 +142,8 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
   fun presentOnboarding(
     accountId: String?,
     capabilities: ReadableArray,
+    showIntroScreen: Boolean,
+    showCompletionScreen: Boolean,
     promise: Promise
   ) {
     val activity = reactApplicationContext.currentActivity ?: run {
@@ -154,6 +156,8 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       val intent = Intent(activity, FrameOnboardingActivity::class.java).apply {
         putExtra(FrameOnboardingActivity.EXTRA_ACCOUNT_ID, accountId)
         putExtra(FrameOnboardingActivity.EXTRA_CAPABILITIES_JSON, capabilitiesJson)
+        putExtra(FrameOnboardingActivity.EXTRA_SHOW_INTRO_SCREEN, showIntroScreen)
+        putExtra(FrameOnboardingActivity.EXTRA_SHOW_COMPLETION_SCREEN, showCompletionScreen)
       }
       activity.startActivityForResult(intent, FrameOnboardingActivity.REQUEST_CODE)
     }
