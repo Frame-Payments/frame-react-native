@@ -25,3 +25,4 @@ example/ios/FrameExampleTemp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
 /android/.gradle
 /example/android/build
 /android/.settings
+Package.resolved

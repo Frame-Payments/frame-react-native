@@ -36,7 +36,7 @@ let presentCart: (opts: {
 }) => Promise<string>;
 let presentApplePay: (opts: { amount: number; currency?: string; owner: { type: 'customer' | 'account'; id: string } }) => Promise<string>;
 let presentGooglePay: (opts: { amountCents: number; owner: { type: 'customer' | 'account'; id: string }; currencyCode?: string }) => Promise<string>;
-let presentOnboarding: (opts: { accountId?: string | null; capabilities?: string[] }) => Promise<unknown>;
+let presentOnboarding: (opts: { accountId?: string | null; capabilities?: string[]; showIntroScreen?: boolean; showCompletionScreen?: boolean }) => Promise<unknown>;
 
 beforeEach(() => {
   jest.resetModules();
@@ -305,23 +305,41 @@ describe('presentOnboarding', () => {
     expect(mockPresentOnboarding).not.toHaveBeenCalled();
   });
 
-  it('calls native presentOnboarding with accountId and capabilities only — no merchant params', async () => {
+  it('calls native presentOnboarding with showIntroScreen=true and showCompletionScreen=true by default', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     const result = await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc', 'bank_account_verification'] });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc', 'bank_account_verification']);
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc', 'bank_account_verification'], true, true);
     expect(result).toEqual({ status: 'completed', paymentMethodId: 'pm_1' });
   });
 
-  it('passes null accountId and empty array for capabilities when not provided', async () => {
+  it('passes null accountId, empty capabilities, and both screen flags=true when options are omitted', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     await presentOnboarding({});
-    expect(mockPresentOnboarding).toHaveBeenCalledWith(null, []);
+    expect(mockPresentOnboarding).toHaveBeenCalledWith(null, [], true, true);
+  });
+
+  it('passes showIntroScreen=false when explicitly set', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], showIntroScreen: false });
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], false, true);
+  });
+
+  it('passes showCompletionScreen=false when explicitly set', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], showCompletionScreen: false });
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], true, false);
+  });
+
+  it('passes both screen flags=false when both are explicitly set', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], showIntroScreen: false, showCompletionScreen: false });
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], false, false);
   });
 
   it('behaves the same on Android — merchant IDs are init-only across both platforms', async () => {
     mockPlatform.OS = 'android';
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', googlePayMerchantId: 'BCR2DN4T...' });
     await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'] });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc']);
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], true, true);
   });
 });

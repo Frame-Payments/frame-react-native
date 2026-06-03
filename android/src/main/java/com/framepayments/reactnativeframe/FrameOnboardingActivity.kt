@@ -19,10 +19,14 @@ class FrameOnboardingActivity : ComponentActivity() {
     val accountId = intent.getStringExtra(EXTRA_ACCOUNT_ID)
     val capabilitiesJson = intent.getStringExtra(EXTRA_CAPABILITIES_JSON) ?: "[]"
     val capabilities = parseCapabilities(capabilitiesJson)
+    val showIntroScreen = intent.getBooleanExtra(EXTRA_SHOW_INTRO_SCREEN, true)
+    val showCompletionScreen = intent.getBooleanExtra(EXTRA_SHOW_COMPLETION_SCREEN, true)
 
     val config = OnboardingConfig(
       accountId = accountId,
-      requiredCapabilities = capabilities
+      requiredCapabilities = capabilities,
+      showIntroScreen = showIntroScreen,
+      showCompletionScreen = showCompletionScreen
     )
 
     val themeOverride = FrameRNTheme.current
@@ -67,6 +71,8 @@ class FrameOnboardingActivity : ComponentActivity() {
   companion object {
     const val EXTRA_ACCOUNT_ID = "account_id"
     const val EXTRA_CAPABILITIES_JSON = "capabilities_json"
+    const val EXTRA_SHOW_INTRO_SCREEN = "show_intro_screen"
+    const val EXTRA_SHOW_COMPLETION_SCREEN = "show_completion_screen"
     const val EXTRA_PAYMENT_METHOD_ID = "payment_method_id"
     const val REQUEST_CODE = 9003
   }
