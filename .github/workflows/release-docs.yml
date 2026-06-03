@@ -1,0 +1,46 @@
+name: Upload SDK docs artifact
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Release tag to upload docs to (e.g. v4.0.1)"
+        type: string
+        required: true
+
+# Producer side of the SDK docs sync pipeline (FRA-3960). Attaches the
+# TypeDoc JSON model to the GitHub release so frame-docs's sync command
+# can fetch it via `gh api repos/.../releases/latest/assets` and regenerate
+# the Markdoc reference pages. Discussed in FRA-3933 / FRA-3955 follow-up.
+
+jobs:
+  upload-typedoc-json:
+    name: Upload TypeDoc JSON to release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 10
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag_name || github.event.release.tag_name }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Generate TypeDoc JSON
+        run: npm run typedoc:json
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag_name || github.event.release.tag_name }}
+        run: gh release upload "$TAG" dist-docs/frame-react-native-types.json --clobber
