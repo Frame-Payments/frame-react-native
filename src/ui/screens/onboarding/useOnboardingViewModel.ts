@@ -39,6 +39,8 @@ import {
 export interface OnboardingViewModelArgs {
   accountId: string | null;
   capabilities: ReadonlyArray<OnboardingCapability>;
+  showIntroScreen?: boolean;
+  showCompletionScreen?: boolean;
   onComplete: (result: OnboardingResult) => void;
   onCancel: () => void;
 }
@@ -112,6 +114,8 @@ export interface OnboardingViewModelResult {
 export function useOnboardingViewModel({
   accountId: initialAccountId,
   capabilities,
+  showIntroScreen = true,
+  showCompletionScreen = true,
   onComplete,
   onCancel,
 }: OnboardingViewModelArgs): OnboardingViewModelResult {
@@ -127,7 +131,7 @@ export function useOnboardingViewModel({
 
   // ─── Init: compute flow + drop into the first step on mount ───
   useEffect(() => {
-    const flow = computeFlow(capabilities);
+    const flow = computeFlow(capabilities, showIntroScreen, showCompletionScreen);
     const firstStep = flow[0] ?? 'verification_welcome';
     dispatch({
       type: 'SET_FLOW',
@@ -208,7 +212,7 @@ export function useOnboardingViewModel({
   // doesn't include the user's current step, snap them back to the first step
   // that still exists rather than wedging on a stale step.
   useEffect(() => {
-    const flow = computeFlow(state.requiredCapabilities);
+    const flow = computeFlow(state.requiredCapabilities, showIntroScreen, showCompletionScreen);
     const currentStep = flow.includes(stateRef.current.currentStep)
       ? stateRef.current.currentStep
       : (flow[0] ?? 'verification_welcome');
@@ -222,24 +226,6 @@ export function useOnboardingViewModel({
   }, [state.requiredCapabilities]);
 
   // ─── Navigation ───
-  const advance = useCallback(() => {
-    const current = stateRef.current;
-    const target = selectorNextStep(current);
-    if (!target) return;
-    dispatch({ type: 'GO_TO_STEP', step: target, subStep: entrySubStep(target, current.requiredCapabilities) });
-  }, []);
-
-  const back = useCallback(() => {
-    const current = stateRef.current;
-    const target = selectorPreviousStep(current);
-    if (!target) return;
-    dispatch({ type: 'GO_TO_STEP', step: target, subStep: entrySubStep(target, current.requiredCapabilities) });
-  }, []);
-
-  const goTo = useCallback((step: OnboardingStep, subStep: OnboardingSubStep | null) => {
-    dispatch({ type: 'GO_TO_STEP', step, subStep });
-  }, []);
-
   const cancel = useCallback(() => {
     if (completedRef.current) return;
     completedRef.current = true;
@@ -255,6 +241,28 @@ export function useOnboardingViewModel({
     completedRef.current = true;
     onComplete({ status: 'completed', accountId: stateRef.current.accountId ?? undefined });
   }, [onComplete]);
+
+  const advance = useCallback(() => {
+    const current = stateRef.current;
+    const target = selectorNextStep(current);
+    if (!target) {
+      // Flow is exhausted (e.g. showCompletionScreen=false). Complete the session.
+      complete();
+      return;
+    }
+    dispatch({ type: 'GO_TO_STEP', step: target, subStep: entrySubStep(target, current.requiredCapabilities) });
+  }, [complete]);
+
+  const back = useCallback(() => {
+    const current = stateRef.current;
+    const target = selectorPreviousStep(current);
+    if (!target) return;
+    dispatch({ type: 'GO_TO_STEP', step: target, subStep: entrySubStep(target, current.requiredCapabilities) });
+  }, []);
+
+  const goTo = useCallback((step: OnboardingStep, subStep: OnboardingSubStep | null) => {
+    dispatch({ type: 'GO_TO_STEP', step, subStep });
+  }, []);
 
   // ─── Helper for guarded async actions ───
   const guardedAction = useCallback(
