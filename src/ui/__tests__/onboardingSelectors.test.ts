@@ -101,6 +101,30 @@ describe('computeFlow — capability → step mapping', () => {
       'verification_submitted',
     ]);
   });
+
+  it('showIntroScreen=false omits verification_welcome', () => {
+    expect(computeFlow(['kyc'], false)).not.toContain('verification_welcome');
+    expect(computeFlow(['kyc'], false)).toContain('verification_submitted');
+    expect(computeFlow(['kyc'], false)[0]).toBe('personal_information');
+  });
+
+  it('showCompletionScreen=false omits verification_submitted', () => {
+    expect(computeFlow(['kyc'], true, false)).not.toContain('verification_submitted');
+    expect(computeFlow(['kyc'], true, false)).toContain('verification_welcome');
+    const flow = computeFlow(['kyc'], true, false);
+    expect(flow[flow.length - 1]).toBe('personal_information');
+  });
+
+  it('both false produces only capability steps', () => {
+    expect(computeFlow(['kyc', 'card_send'], false, false)).toEqual([
+      'personal_information',
+      'confirm_payment_method',
+    ]);
+  });
+
+  it('both false with empty capabilities produces an empty flow', () => {
+    expect(computeFlow([], false, false)).toEqual([]);
+  });
 });
 
 describe('entrySubStep', () => {

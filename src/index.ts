@@ -16,6 +16,12 @@ export {
   presentGooglePay,
 } from './native';
 export type {
+  PresentCheckoutOptions,
+  PresentCartOptions,
+  PresentOnboardingOptions,
+} from './native';
+export type { AddressMode } from './ui/screens/checkout/checkoutReducer';
+export type {
   FrameCartItem,
   BillingAddress,
   PaymentCard,

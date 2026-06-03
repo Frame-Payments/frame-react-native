@@ -11,7 +11,7 @@ PODS:
   - FBLazyVector (0.83.9)
   - FingerprintPro (2.15.1)
   - fmt (12.1.0)
-  - FrameReactNative (4.0.0):
+  - FrameReactNative (4.0.1):
     - boost
     - DoubleConversion
     - fast_float
@@ -3022,7 +3022,7 @@ SPEC CHECKSUMS:
   FBLazyVector: 3bcb3055086e5d90a12f0fe1668e79f6eceabc17
   FingerprintPro: 8136b69c3f6c17fdf3f6fb183c38b292c04e4c62
   fmt: 530618a01105dae0fa3a2f27c81ae11fa8f67eac
-  FrameReactNative: b6cf11c968c1045763d0333f5dc5c10910d3d5db
+  FrameReactNative: 589e62bd22e3b470bd8136e209df708049eaf9b2
   glog: 5683914934d5b6e4240e497e0f4a3b42d1854183
   hermes-engine: 27c8fc1e2d46ca1ab496d36d2e12c953231000e2
   RCT-Folly: b29feb752b08042c62badaef7d453f3bb5e6ae23

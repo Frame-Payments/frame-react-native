@@ -23,6 +23,8 @@ import { areDocsComplete } from './onboardingSelectors';
 export interface OnboardingRootProps {
   accountId: string | null;
   capabilities: ReadonlyArray<OnboardingCapability>;
+  showIntroScreen?: boolean;
+  showCompletionScreen?: boolean;
   /** Called when the user reaches VerificationSubmitted and taps Done. */
   onComplete: (result: OnboardingResult) => void;
   /** Called when the user dismisses the onboarding modal early. */
@@ -40,11 +42,13 @@ export interface OnboardingRootProps {
 export function OnboardingRoot({
   accountId,
   capabilities,
+  showIntroScreen = true,
+  showCompletionScreen = true,
   onComplete,
   onCancel,
   onFail,
 }: OnboardingRootProps) {
-  const vm = useOnboardingViewModel({ accountId, capabilities, onComplete, onCancel });
+  const vm = useOnboardingViewModel({ accountId, capabilities, showIntroScreen, showCompletionScreen, onComplete, onCancel });
 
   // ─── Routing helpers ───
 

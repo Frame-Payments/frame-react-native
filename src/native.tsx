@@ -257,16 +257,22 @@ export async function presentCart(options: PresentCartOptions): Promise<string> 
 export interface PresentOnboardingOptions {
   accountId?: string | null;
   capabilities?: OnboardingCapability[];
+  showIntroScreen?: boolean;
+  showCompletionScreen?: boolean;
 }
 
 export async function presentOnboarding(options: PresentOnboardingOptions): Promise<OnboardingResult> {
   guardInitialized();
   const accountId = options.accountId ?? null;
   const capabilities = options.capabilities ?? [];
+  const showIntroScreen = options.showIntroScreen ?? true;
+  const showCompletionScreen = options.showCompletionScreen ?? true;
   return presentScreen<OnboardingResult>((api) => (
     <OnboardingRoot
       accountId={accountId}
       capabilities={capabilities}
+      showIntroScreen={showIntroScreen}
+      showCompletionScreen={showCompletionScreen}
       onComplete={(result) => api.complete(result)}
       onCancel={() => api.cancel()}
       onFail={(err) => api.fail(err)}

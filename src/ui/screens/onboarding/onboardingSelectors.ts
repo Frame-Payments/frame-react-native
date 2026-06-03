@@ -52,9 +52,11 @@ const CONFIRM_BANK_ACCOUNT_CAPABILITIES: ReadonlySet<OnboardingCapability> = new
 
 export function computeFlow(
   capabilities: ReadonlyArray<OnboardingCapability>,
+  showIntroScreen = true,
+  showCompletionScreen = true,
 ): ReadonlyArray<OnboardingStep> {
   const steps: OnboardingStep[] = [];
-  steps.push('verification_welcome');
+  if (showIntroScreen) steps.push('verification_welcome');
   if (capabilities.some((c) => PERSONAL_INFO_CAPABILITIES.has(c))) {
     steps.push('personal_information');
   }
@@ -70,7 +72,7 @@ export function computeFlow(
   // UploadDocuments screens still exist in this codebase but are not part of
   // the active flow until iOS activates its equivalent. Do NOT add
   // 'upload_documents' here without mirroring an iOS activation.
-  steps.push('verification_submitted');
+  if (showCompletionScreen) steps.push('verification_submitted');
   return steps;
 }
 
