@@ -11,7 +11,7 @@ import { attachNetworkLogger, resetNetworkLogger } from './debug/networkLogger';
 // compiled lib/ shape), so the value is duplicated here. `sdk-version.test.ts`
 // fails CI if these drift, so a release bump that misses this file is caught
 // before publish.
-const SDK_VERSION = '4.0.2';
+const SDK_VERSION = '4.0.3';
 
 let sdk: FrameSDK | undefined;
 

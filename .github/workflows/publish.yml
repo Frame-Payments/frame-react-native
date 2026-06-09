@@ -1,0 +1,84 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+
+      - run: npm ci --ignore-scripts
+      - run: npm audit --audit-level=high
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      # --ignore-scripts skips the prepare hook (npm run build) on install;
+      # prepublishOnly fires at publish time after version/source are patched.
+      - run: npm ci --ignore-scripts
+
+      - name: Sync version from release tag
+        id: versions
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          if ! [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "Release tag '${GITHUB_REF_NAME}' is not valid semver — aborting." >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$TAG" = "$PKG" ]; then
+            echo "Version already matches tag ($TAG), no update needed."
+          else
+            echo "Updating package.json and src/client.ts from $PKG to $TAG"
+            npm version "$TAG" --no-git-tag-version
+            # Escape & and \ in TAG so they are treated as literals in the sed replacement.
+            ESCAPED_TAG=$(printf '%s' "$TAG" | sed 's/[&\]/\\&/g')
+            sed -i "s|const SDK_VERSION = '[^']*';|const SDK_VERSION = '$ESCAPED_TAG';|" src/client.ts
+          fi
+
+      - name: Determine npm tag
+        id: npm_tag
+        run: |
+          TAG="${{ steps.versions.outputs.tag }}"
+          MAJOR="${TAG%%.*}"
+          case "$MAJOR" in
+            3) echo "tag=release-3x" >> "$GITHUB_OUTPUT" ;;
+            4) echo "tag=latest"     >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unknown major version '$MAJOR' — add a dist-tag mapping before releasing." >&2
+               exit 1 ;;
+          esac
+
+      - name: Publish
+        run: |
+          ls lib/*.js > /dev/null 2>&1 || { echo "lib/ is empty — build produced no output" >&2; exit 1; }
+          npm publish --provenance --access public --tag "${{ steps.npm_tag.outputs.tag }}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
