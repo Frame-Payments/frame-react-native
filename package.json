@@ -11,7 +11,7 @@
     "lint": "eslint src --ext .ts,.tsx",
     "test": "jest",
     "typedoc": "typedoc",
-    "typedoc:json": "typedoc --emit none --json dist-docs/frame-react-native-types.json",
+    "typedoc:json": "typedoc --json dist-docs/frame-react-native-types.json",
     "prepare": "npm run build",
     "prepublishOnly": "npm run build"
   },
