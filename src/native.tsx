@@ -47,6 +47,45 @@ function throwCoded(code: string, message: string): never {
   throw frameError(code, message);
 }
 
+/**
+ * Initializes the Frame SDK. Must be called once — before any `present*`
+ * function — typically at app startup or immediately after the user signs in.
+ *
+ * Under the hood this:
+ * 1. Validates the provided keys.
+ * 2. Passes credentials to the native bridge (iOS / Android).
+ * 3. Warms the JS-side HTTP client.
+ * 4. Prefetches Evervault and Sift configurations in the background so
+ *    card encryption is ready by the time the checkout sheet opens.
+ *
+ * Calling `initialize` a second time with different credentials re-initializes
+ * the SDK. Any prior native state is reset before the new credentials take
+ * effect.
+ *
+ * @param options - SDK initialization options.
+ * @param options.secretKey - Your Frame secret key (`sk_...`).
+ * @param options.publishableKey - Your Frame publishable key (`pk_...`).
+ * @param options.debugMode - When `true`, emits verbose SDK logs to the console. Defaults to `false`.
+ * @param options.applePayMerchantId - Apple Pay merchant identifier registered in the Apple Developer Portal.
+ *   Required to enable Apple Pay in {@link presentCheckout} and {@link presentApplePay}.
+ * @param options.googlePayMerchantId - Google Pay merchant identifier. Required to enable Google Pay
+ *   in {@link presentCheckout} and {@link presentGooglePay}.
+ * @param options.theme - Optional visual theme applied to all Frame-managed UI surfaces.
+ *
+ * @throws {FrameErrorShape} `INIT_FAILED` if `secretKey` or `publishableKey` is missing,
+ *   `theme` is not a plain object, or the native bridge fails to initialize.
+ *
+ * @example
+ * ```ts
+ * import Frame from 'framepayments-react-native';
+ *
+ * await Frame.initialize({
+ *   secretKey: 'sk_test_...',
+ *   publishableKey: 'pk_test_...',
+ *   applePayMerchantId: 'merchant.com.example',
+ * });
+ * ```
+ */
 export function initialize(options: {
   secretKey: string;
   publishableKey: string;
@@ -192,14 +231,49 @@ function wrapPromise<T>(p: Promise<T>): Promise<T> {
   });
 }
 
+/**
+ * Options for {@link presentCheckout}.
+ */
 export interface PresentCheckoutOptions {
+  /** Frame account ID to charge. */
   accountId: string;
+  /** Charge amount in the smallest currency unit (e.g. cents for USD). */
   amount: number;
+  /** ISO 4217 currency code. Defaults to `'USD'` when omitted. */
   currency?: string;
+  /**
+   * Controls whether a billing address is collected during checkout.
+   * - `'required'` — address fields are shown and must be filled (default).
+   * - `'optional'` — address fields are shown but can be skipped.
+   * - `'hidden'` — address collection is suppressed entirely.
+   */
   addressMode?: AddressMode;
+  /** Custom title shown in the checkout sheet header. Defaults to `'Checkout'`. */
   title?: string;
 }
 
+/**
+ * Presents the Frame checkout sheet modally and resolves with the charge ID
+ * on success. The sheet handles card entry, saved payment methods, Apple Pay
+ * (iOS), and Google Pay (Android).
+ *
+ * {@link initialize} must be called before `presentCheckout`.
+ *
+ * @param options - Checkout configuration.
+ * @returns A promise that resolves to the Frame charge ID string.
+ * @throws {FrameErrorShape} `USER_CANCELED` if the user dismisses the sheet;
+ *   `NOT_INITIALIZED` if {@link initialize} was not called first;
+ *   `INVALID_ACCOUNT` if `accountId` is missing.
+ *
+ * @example
+ * ```ts
+ * const chargeId = await Frame.presentCheckout({
+ *   accountId: 'acc_...',
+ *   amount: 2500,        // $25.00
+ *   currency: 'USD',
+ * });
+ * ```
+ */
 export async function presentCheckout(options: PresentCheckoutOptions): Promise<string> {
   guardInitialized();
   if (!options?.accountId) {
@@ -226,15 +300,49 @@ export async function presentCheckout(options: PresentCheckoutOptions): Promise<
   ));
 }
 
+/**
+ * Options for {@link presentCart}.
+ */
 export interface PresentCartOptions {
+  /** Frame account ID to charge. */
   accountId: string;
+  /** Line items displayed in the cart review screen. */
   items: FrameCartItem[];
+  /** Shipping cost in the smallest currency unit (e.g. cents for USD). Added to the item total. */
   shippingAmountInCents: number;
+  /** ISO 4217 currency code. Defaults to `'USD'` when omitted. */
   currency?: string;
+  /** Custom title shown in the cart sheet header. */
   title?: string;
+  /**
+   * Controls whether a billing address is collected at checkout.
+   * See {@link PresentCheckoutOptions.addressMode} for values.
+   */
   addressMode?: AddressMode;
 }
 
+/**
+ * Presents a cart review sheet followed by the checkout sheet. The user can
+ * review line items and shipping before proceeding to payment. Resolves with
+ * the charge ID on success.
+ *
+ * {@link initialize} must be called before `presentCart`.
+ *
+ * @param options - Cart and checkout configuration.
+ * @returns A promise that resolves to the Frame charge ID string.
+ * @throws {FrameErrorShape} `USER_CANCELED` if the user dismisses the sheet;
+ *   `NOT_INITIALIZED` if {@link initialize} was not called first;
+ *   `INVALID_ACCOUNT` if `accountId` is missing.
+ *
+ * @example
+ * ```ts
+ * const chargeId = await Frame.presentCart({
+ *   accountId: 'acc_...',
+ *   items: [{ id: 'item_1', title: 'T-Shirt', amountInCents: 2000, imageUrl: 'https://...' }],
+ *   shippingAmountInCents: 500,
+ * });
+ * ```
+ */
 export async function presentCart(options: PresentCartOptions): Promise<string> {
   guardInitialized();
   if (!options?.accountId) {
@@ -254,13 +362,50 @@ export async function presentCart(options: PresentCartOptions): Promise<string> 
   ));
 }
 
+/**
+ * Options for {@link presentOnboarding}.
+ */
 export interface PresentOnboardingOptions {
+  /**
+   * An existing Frame account ID to onboard against. When omitted (or `null`),
+   * Frame creates a new account automatically and returns its ID in
+   * {@link OnboardingResult.accountId}.
+   */
   accountId?: string | null;
+  /**
+   * Capabilities to verify during onboarding. The SDK reconciles this list
+   * with the capabilities already on the account — requesting only what is
+   * still outstanding. Defaults to `[]` (no specific capabilities required).
+   */
   capabilities?: OnboardingCapability[];
+  /** Show the intro/welcome screen before the first onboarding step. Defaults to `true`. */
   showIntroScreen?: boolean;
+  /** Show the completion/success screen after all steps finish. Defaults to `true`. */
   showCompletionScreen?: boolean;
 }
 
+/**
+ * Presents the Frame onboarding flow to verify a user's identity and
+ * capabilities (KYC, bank-account linkage, etc.). Resolves with an
+ * {@link OnboardingResult} indicating whether the user completed or cancelled
+ * the flow.
+ *
+ * {@link initialize} must be called before `presentOnboarding`.
+ *
+ * @param options - Onboarding configuration.
+ * @returns A promise that resolves to an {@link OnboardingResult}.
+ *
+ * @example
+ * ```ts
+ * const result = await Frame.presentOnboarding({
+ *   accountId: 'acc_...',
+ *   capabilities: ['kyc', 'bank_account_verification'],
+ * });
+ * if (result.status === 'completed') {
+ *   console.log('Onboarded account:', result.accountId);
+ * }
+ * ```
+ */
 export async function presentOnboarding(options: PresentOnboardingOptions): Promise<OnboardingResult> {
   guardInitialized();
   const accountId = options.accountId ?? null;
@@ -344,11 +489,62 @@ function CartCheckoutBridge({
   );
 }
 
+/**
+ * Presents the native Apple Pay sheet and charges the provided amount.
+ * Resolves with a ChargeIntent ID when `owner.type === 'customer'` or a
+ * Transfer ID when `owner.type === 'account'`.
+ *
+ * iOS only — on Android the promise rejects immediately with
+ * `APPLE_PAY_UNAVAILABLE`. Use {@link isAttestationSupported} / platform
+ * checks to gate the UI before calling.
+ *
+ * {@link initialize} must be called (with `applePayMerchantId`) before
+ * `presentApplePay`.
+ *
+ * @param options - Apple Pay charge options.
+ * @returns A promise that resolves to a charge or transfer ID string.
+ * @throws {FrameErrorShape} `USER_CANCELED` if the user cancels;
+ *   `APPLE_PAY_UNAVAILABLE` if Apple Pay is not available;
+ *   `INVALID_MERCHANT_ID` if no merchant ID was supplied to {@link initialize}.
+ *
+ * @example
+ * ```ts
+ * const id = await Frame.presentApplePay({
+ *   amount: 1500,
+ *   owner: { type: 'customer', id: 'cus_...' },
+ * });
+ * ```
+ */
 export function presentApplePay(options: PresentApplePayOptions): Promise<string> {
   guardInitialized();
   return presentApplePayFlow(options);
 }
 
+/**
+ * Presents the native Google Pay sheet and charges the provided amount.
+ * Resolves with a ChargeIntent ID when `owner.type === 'customer'` or a
+ * Transfer ID when `owner.type === 'account'`.
+ *
+ * Android only — on iOS the promise rejects immediately with
+ * `GOOGLE_PAY_UNAVAILABLE`. Use platform checks to gate the UI before calling.
+ *
+ * {@link initialize} must be called (with `googlePayMerchantId`) before
+ * `presentGooglePay`.
+ *
+ * @param options - Google Pay charge options.
+ * @returns A promise that resolves to a charge or transfer ID string.
+ * @throws {FrameErrorShape} `USER_CANCELED` if the user cancels;
+ *   `GOOGLE_PAY_UNAVAILABLE` if Google Pay is not available;
+ *   `INVALID_MERCHANT_ID` if no merchant ID was supplied to {@link initialize}.
+ *
+ * @example
+ * ```ts
+ * const id = await Frame.presentGooglePay({
+ *   amountCents: 1500,
+ *   owner: { type: 'customer', id: 'cus_...' },
+ * });
+ * ```
+ */
 export function presentGooglePay(options: PresentGooglePayOptions): Promise<string> {
   guardInitialized();
   return presentGooglePayFlow(options);

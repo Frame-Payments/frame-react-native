@@ -19,6 +19,30 @@ export interface FrameProviderProps {
   children: ReactNode;
 }
 
+/**
+ * Root context provider for the Frame React Native SDK. Mount this once at
+ * the top of your component tree (wrapping your entire app or the subtree that
+ * uses Frame UI) to supply the resolved theme and the modal presentation host
+ * to all Frame components.
+ *
+ * Listens to `Appearance` changes and automatically switches between light and
+ * dark scheme defaults when the device color scheme changes.
+ *
+ * @param props - {@link FrameProviderProps}
+ *
+ * @example
+ * ```tsx
+ * import { FrameProvider } from 'framepayments-react-native';
+ *
+ * export default function App() {
+ *   return (
+ *     <FrameProvider theme={{ colors: { primaryButton: '#1A2B3C' } }}>
+ *       <YourApp />
+ *     </FrameProvider>
+ *   );
+ * }
+ * ```
+ */
 export function FrameProvider({ theme, children }: FrameProviderProps) {
   const [scheme, setScheme] = useState<ColorScheme>(readScheme);
 

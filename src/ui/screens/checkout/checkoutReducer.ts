@@ -14,6 +14,12 @@ import {
 // State is pure data; the view-model hook owns side effects (network calls,
 // dispatch, encryption). React component receives selectors only.
 
+/**
+ * Controls billing-address collection in the checkout sheet.
+ * - `'required'` — address fields are shown and must be completed before payment.
+ * - `'optional'` — address fields are shown but can be skipped.
+ * - `'hidden'` — address collection is suppressed entirely.
+ */
 export type AddressMode = 'required' | 'optional' | 'hidden';
 
 export interface AddressForm {

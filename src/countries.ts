@@ -259,10 +259,14 @@ const COUNTRIES: ReadonlyArray<readonly [string, string]> = [
   ['ZW', 'Zimbabwe'],
 ];
 
-// Alpha-2 codes for the 13 entries in iOS `AvailableCountry.restrictedCountries`.
-// Filtering by alpha-2 rather than display name guarantees CD (Congo - Kinshasa
-// in current CLDR) is actually blocked — the iOS port filters by name and would
-// silently let DRC through if/when CLDR ever renames the entry.
+/**
+ * ISO 3166-1 alpha-2 codes for the countries blocked by Frame's compliance
+ * policy. Mirrors the list in iOS `AvailableCountry.restrictedCountries`.
+ *
+ * Filtered by alpha-2 code rather than display name so that CLDR display-name
+ * changes (e.g. renaming "Congo - Kinshasa") don't silently unblock a country.
+ * Pass this to {@link getAvailableCountries} (the default) to get the filtered list.
+ */
 export const RESTRICTED_ALPHA2_CODES: ReadonlyArray<string> = [
   'IR', // Iran
   'RU', // Russia
@@ -279,9 +283,13 @@ export const RESTRICTED_ALPHA2_CODES: ReadonlyArray<string> = [
   'YE', // Yemen
 ];
 
-// Kept for backward compatibility / documentation — these are the names from
-// iOS `AvailableCountry.restrictedCountries`, NOT what current CLDR returns.
-// Use RESTRICTED_ALPHA2_CODES for the actual filter.
+/**
+ * Display names of the restricted countries as they appear in the iOS SDK's
+ * `AvailableCountry.restrictedCountries`. Kept for reference — **do not use
+ * this for filtering**; current CLDR display names may differ (e.g. `'Congo -
+ * Kinshasa'` vs `'Democratic Republic of Congo'`). Use
+ * {@link RESTRICTED_ALPHA2_CODES} for all actual filtering.
+ */
 export const RESTRICTED_COUNTRY_NAMES: ReadonlyArray<string> = [
   'Iran',
   'Russia',
@@ -298,26 +306,54 @@ export const RESTRICTED_COUNTRY_NAMES: ReadonlyArray<string> = [
   'Yemen',
 ];
 
+/**
+ * A country entry used in address and country-picker UI. Returned by
+ * {@link getAllCountries} and {@link getAvailableCountries}.
+ */
 export interface AvailableCountry {
+  /** ISO 3166-1 alpha-2 code (e.g. `'US'`). */
   alpha2Code: string;
+  /** Localized display name (e.g. `'United States'`). */
   displayName: string;
 }
 
+/**
+ * A country entry augmented with calling code and flag emoji. Returned by
+ * {@link getPhoneCountries} for use in phone-number country pickers.
+ */
 export interface PhoneCountry {
+  /** ISO 3166-1 alpha-2 code (e.g. `'US'`). */
   alpha2Code: string;
+  /** Localized display name (e.g. `'United States'`). */
   displayName: string;
+  /** ITU calling code prefixed with `+` (e.g. `'+1'`). */
   callingCode: string;
+  /** Regional indicator emoji pair representing the country flag (e.g. `'🇺🇸'`). */
   flag: string;
 }
 
 let allCountriesCache: AvailableCountry[] | null = null;
 
+/**
+ * Returns the full list of countries known to the SDK, sorted alphabetically
+ * by display name. Results are cached after the first call.
+ *
+ * @returns All {@link AvailableCountry} entries including restricted ones.
+ */
 export function getAllCountries(): AvailableCountry[] {
   if (allCountriesCache) return allCountriesCache;
   allCountriesCache = COUNTRIES.map(([alpha2Code, displayName]) => ({ alpha2Code, displayName }));
   return allCountriesCache;
 }
 
+/**
+ * Returns the list of countries with compliance-restricted countries removed.
+ * By default uses {@link RESTRICTED_ALPHA2_CODES}; pass a custom list to
+ * override.
+ *
+ * @param restrictedAlpha2 - Alpha-2 codes to exclude. Defaults to {@link RESTRICTED_ALPHA2_CODES}.
+ * @returns {@link AvailableCountry} entries with blocked countries filtered out.
+ */
 export function getAvailableCountries(
   restrictedAlpha2: ReadonlyArray<string> = RESTRICTED_ALPHA2_CODES,
 ): AvailableCountry[] {
@@ -325,13 +361,28 @@ export function getAvailableCountries(
   return getAllCountries().filter((c) => !blocked.has(c.alpha2Code));
 }
 
+/**
+ * The default country pre-selected in Frame address and country-picker UI
+ * (`'US'` — United States).
+ */
 export const DEFAULT_COUNTRY: AvailableCountry = {
   alpha2Code: 'US',
   displayName: 'United States',
 };
 
-// Converts "US" → 🇺🇸 by shifting each ASCII letter to its regional indicator
-// symbol (U+1F1E6 + offset from 'A').
+/**
+ * Converts an ISO 3166-1 alpha-2 code to its regional indicator flag emoji.
+ * Returns an empty string for invalid input.
+ *
+ * @param alpha2 - A 2-letter country code (case-insensitive, e.g. `'US'` or `'us'`).
+ * @returns The flag emoji string (e.g. `'🇺🇸'`), or `''` if the input is not valid.
+ *
+ * @example
+ * ```ts
+ * alpha2ToFlag('GB'); // '🇬🇧'
+ * alpha2ToFlag('XX'); // '' (invalid code)
+ * ```
+ */
 export function alpha2ToFlag(alpha2: string): string {
   if (alpha2.length !== 2) return '';
   const upper = alpha2.toUpperCase();
@@ -344,6 +395,13 @@ export function alpha2ToFlag(alpha2: string): string {
 let phoneCountriesCache: PhoneCountry[] | null = null;
 const NAME_BY_ALPHA2: Record<string, string> = Object.fromEntries(COUNTRIES);
 
+/**
+ * Returns the list of countries with calling codes and flag emojis, sorted
+ * alphabetically by display name. Suitable for populating a phone-number
+ * country-code picker. Results are cached after the first call.
+ *
+ * @returns All {@link PhoneCountry} entries sorted by `displayName`.
+ */
 export function getPhoneCountries(): PhoneCountry[] {
   if (phoneCountriesCache) return phoneCountriesCache;
   phoneCountriesCache = getCountries()

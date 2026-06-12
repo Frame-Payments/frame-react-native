@@ -10,6 +10,20 @@ let configuredTeamId: string | null = null;
 let configuredAppId: string | null = null;
 let inflight: Promise<void> | null = null;
 
+/**
+ * Initializes the Evervault SDK with the given team and app credentials.
+ * Idempotent — returns immediately if already configured with the same pair.
+ * Concurrent calls share a single in-flight promise so the SDK is initialized
+ * exactly once even under parallel call sites.
+ *
+ * Called automatically by {@link initialize} via a background prefetch; you
+ * only need to call this directly in tests or advanced setups.
+ *
+ * @param teamId - Evervault team identifier.
+ * @param appId - Evervault app identifier.
+ * @returns A promise that resolves when the SDK is ready to encrypt.
+ * @throws An error with `code: 'EVERVAULT_CONFIG_INVALID'` if either ID is empty.
+ */
 export function configureEvervault(teamId: string, appId: string): Promise<void> {
   if (!teamId || !appId) {
     return Promise.reject(
@@ -33,6 +47,12 @@ export function configureEvervault(teamId: string, appId: string): Promise<void>
   return inflight;
 }
 
+/**
+ * Returns `true` if {@link configureEvervault} has completed successfully
+ * for the current credentials, `false` otherwise.
+ *
+ * @returns Whether Evervault is ready to encrypt values.
+ */
 export function isEvervaultConfigured(): boolean {
   return configuredTeamId !== null && configuredAppId !== null;
 }

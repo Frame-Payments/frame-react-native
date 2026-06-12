@@ -4,6 +4,9 @@ import { truncateToLimit } from './textFieldUtils';
 
 export { truncateToLimit };
 
+/**
+ * Props for the {@link ValidatedTextField} component.
+ */
 export interface ValidatedTextFieldProps {
   prompt: string;
   value: string;
@@ -49,6 +52,26 @@ export interface ValidatedTextFieldProps {
 const HEIGHT = 49;
 const DEFAULT_ERROR_SPACING = 4;
 
+/**
+ * A themed text input that displays an inline or stacked error message and
+ * announces errors to screen readers via `accessibilityHint`. Follows the
+ * Frame design system colors, fonts, and radii from the nearest
+ * {@link FrameProvider}.
+ *
+ * @param props - {@link ValidatedTextFieldProps}
+ *
+ * @example
+ * ```tsx
+ * <ValidatedTextField
+ *   prompt="Email"
+ *   value={email}
+ *   onChangeText={setEmail}
+ *   error={emailError}
+ *   onErrorChange={setEmailError}
+ *   keyboardType="email-address"
+ * />
+ * ```
+ */
 export function ValidatedTextField({
   prompt,
   value,

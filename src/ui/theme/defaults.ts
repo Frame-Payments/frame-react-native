@@ -5,6 +5,10 @@ import type {
   FrameThemeRadii,
 } from '../../types';
 
+/**
+ * The active device color scheme. Passed to {@link resolveTheme} by
+ * {@link FrameProvider} and derived from `Appearance.getColorScheme()`.
+ */
 export type ColorScheme = 'light' | 'dark';
 
 export const lightColors: Required<FrameThemeColors> = {
@@ -86,14 +90,33 @@ export const defaultRadii: Required<FrameThemeRadii> = {
   large: 16,
 };
 
+/**
+ * Fully resolved theme with no optional fields — returned by {@link resolveTheme}
+ * and exposed to components via {@link useFrameTheme}. Every color, font, radius,
+ * weight, and line-height is guaranteed to be present.
+ */
 export interface ResolvedFrameTheme {
+  /** All color slots resolved against the current scheme and any override. */
   colors: Required<FrameThemeColors>;
+  /** All font slots resolved against defaults and any override. */
   fonts: Required<FrameThemeFonts>;
+  /** All radius slots resolved against defaults and any override. */
   radii: Required<FrameThemeRadii>;
+  /** Font-weight map used by Frame text components. */
   fontWeights: typeof fontWeights;
+  /** Line-height map used by Frame text components. */
   fontLineHeights: typeof fontLineHeights;
 }
 
+/**
+ * Merges scheme defaults with an optional {@link FrameTheme} override and
+ * returns a fully resolved theme. Called by {@link FrameProvider} on every
+ * scheme or theme change.
+ *
+ * @param scheme - `'light'` or `'dark'` — selects the base color palette.
+ * @param override - Optional partial theme merged on top of the scheme defaults.
+ * @returns A {@link ResolvedFrameTheme} with all fields populated.
+ */
 export function resolveTheme(scheme: ColorScheme, override?: FrameTheme): ResolvedFrameTheme {
   const baseColors = scheme === 'dark' ? darkColors : lightColors;
   return {
