@@ -54,8 +54,8 @@ If you add a new public export, re-export it from `src/index.ts` so TypeDoc pick
 * Active voice, second person. "Present the checkout sheet." Not "The checkout sheet is presented."
 * **Merchant** = the integrating app developer. **Customer** = the merchant's end user.
 * **Card** (not "credit card" — debit is supported).
-* **Publishable key** for `pk_...`, **secret key** for `sk_...`, **client secret** for `cs_...`.
-* Examples use `pk_test_...` / `sk_test_...`, never live keys.
+* **Publishable key** for `pk_...`, **secret key** for `sk_...`, **client secret** for `ci_...` (charge-intent secret; the legacy `cs_` prefix does not exist).
+* Examples use `pk_sandbox_...` / `sk_sandbox_...`, never live keys.
 * RN-specific: call out iOS / Android divergence when behavior differs. Use `@remarks` for platform notes.
 
 ## Example
@@ -68,13 +68,13 @@ If you add a new public export, re-export it from `src/index.ts` so TypeDoc pick
  * @param options - Checkout options.
  * @param options.items - Line items to display in the cart.
  * @param options.clientSecret - Short-lived token from the merchant's
- *   `POST /charge-intents`. Always starts with `cs_`.
+ *   `POST /charge-intents`. Always starts with `ci_`.
  * @returns The payment result on completion.
  * @throws {FrameErrorShape} If `initialize` has not been called first, or the
  *   user cancels the sheet.
  * @example
  * ```tsx
- * await initialize({ publishableKey: 'pk_test_...' });
+ * await initialize({ publishableKey: 'pk_sandbox_...' });
  *
  * const result = await presentCheckout({
  *   items: [{ name: 'T-shirt', amount: 2500 }],
