@@ -80,8 +80,8 @@ function throwCoded(code: string, message: string): never {
  * import Frame from 'framepayments-react-native';
  *
  * await Frame.initialize({
- *   secretKey: 'sk_test_...',
- *   publishableKey: 'pk_test_...',
+ *   secretKey: 'sk_sandbox_...',
+ *   publishableKey: 'pk_sandbox_...',
  *   applePayMerchantId: 'merchant.com.example',
  * });
  * ```
