@@ -54,7 +54,7 @@ If you add a new public export, re-export it from `src/index.ts` so TypeDoc pick
 * Active voice, second person. "Present the checkout sheet." Not "The checkout sheet is presented."
 * **Merchant** = the integrating app developer. **Customer** = the merchant's end user.
 * **Card** (not "credit card" — debit is supported).
-* **Publishable key** for `pk_...`, **secret key** for `sk_...`, **client secret** for `ci_...` (charge-intent secret; the legacy `cs_` prefix does not exist).
+* **Publishable key** for `pk_...`, **secret key** for `sk_...`, **client secret** for `ci_...` (charge-intent secret) or `onb_sess_...` (onboarding-session secret).
 * Examples use `pk_sandbox_...` / `sk_sandbox_...`, never live keys.
 * RN-specific: call out iOS / Android divergence when behavior differs. Use `@remarks` for platform notes.
 
