@@ -419,6 +419,27 @@ describe('presentOnboarding', () => {
       presentOnboarding({ accountId: 'acct_1', clientSecret: 'onb_sess_demo' }),
     ).rejects.toMatchObject({ code: 'NO_PROVIDER' });
   });
+
+  it('warns when called pk-only without a clientSecret (no credential for onboarding)', async () => {
+    await initialize({ publishableKey: 'pk_xxx' });
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    await expect(
+      presentOnboarding({ accountId: 'acct_1' }),
+    ).rejects.toMatchObject({ code: 'NO_PROVIDER' });
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('onboarding session'));
+    warnSpy.mockRestore();
+  });
+
+  it('does NOT warn about missing credential when a clientSecret is supplied', async () => {
+    await initialize({ publishableKey: 'pk_xxx' });
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    await expect(
+      presentOnboarding({ accountId: 'acct_1', clientSecret: 'onb_sess_demo' }),
+    ).rejects.toMatchObject({ code: 'NO_PROVIDER' });
+    const credWarnings = warnSpy.mock.calls.filter((c) => String(c[0]).includes('onboarding session'));
+    expect(credWarnings).toHaveLength(0);
+    warnSpy.mockRestore();
+  });
 });
 
 describe('initialize prefetch — Evervault + Sift', () => {

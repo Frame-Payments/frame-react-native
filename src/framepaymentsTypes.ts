@@ -1,18 +1,24 @@
 /**
- * Local mirror of the payment-method types from the `framepayments` npm SDK.
+ * Local mirror of the **wire-shape** payment-method types from the
+ * `framepayments` npm SDK (snake_case `exp_month`, `last_four`, `Address`).
  *
- * Until 2.3.x, these were importable via the deep path
+ * NOTE: this is distinct from `src/types.ts`, which defines the **public,
+ * RN-facing** payment-method shapes (camelCase `expirationMonth`,
+ * `lastFourDigits`, `BillingAddress`). The two model the same domain at
+ * different layers and are deliberately not merged — this file matches what the
+ * framepayments SDK sends/returns over the wire; `types.ts` is what Frame RN
+ * consumers see.
+ *
+ * Why a local copy: until 2.3.x these were importable via the deep path
  * `framepayments/dist/types/payment_methods`. The 2.4.0 dual-build bundles
- * everything into a single entry and the package's `exports` map exposes only
- * the root — and the bundled declarations re-export only the Apple/Google Pay
- * types, NOT `PaymentMethod` / `PaymentMethodType` / `PaymentAccountType`. So
- * neither the old deep import nor a top-level import resolves.
+ * everything into one entry whose `exports` map exposes only the root, and the
+ * bundled declarations re-export only the Apple/Google Pay types — NOT
+ * `PaymentMethod` / `PaymentMethodType` / `PaymentAccountType`. So neither the
+ * old deep import nor a top-level import resolves.
  *
- * These shapes are copied verbatim from framepayments@2.4.0's bundled
- * declarations (`dist/index.d.cts`). They are a public part of the SDK surface
- * (the return type of `paymentMethods.createCard` / `.createACH`), so a
- * follow-up should add them to frame-node's entry-point exports and let this
- * module re-export from `framepayments` instead — see FRA follow-up.
+ * Shapes are copied verbatim from framepayments@2.4.0's `dist/index.d.cts`.
+ * TODO(FRA-4714): once frame-node exports these from its entry point, delete
+ * this file and re-export the canonical types from `framepayments` instead.
  */
 
 export enum PaymentAccountType {

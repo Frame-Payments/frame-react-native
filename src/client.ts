@@ -1,6 +1,7 @@
 import { FrameSDK } from 'framepayments';
 import { Platform } from 'react-native';
 import { getIpAddress, getPublishableKey, getSecretKey } from './config';
+import { getActiveOnboardingSession, __registerOnboardingSessionApplier } from './auth';
 import { frameError, ErrorCodes } from './errors';
 import { attachNetworkLogger, resetNetworkLogger } from './debug/networkLogger';
 
@@ -51,6 +52,13 @@ function getClient(): FrameSDK {
     defaultHeaders: Object.keys(defaultHeaders).length > 0 ? defaultHeaders : undefined,
   });
   attachNetworkLogger(sdk);
+  // Re-apply any active onboarding session. The session token lives in the auth
+  // module (not just on the SDK instance), so a resetClients() mid-flow — e.g.
+  // the async IP-address prefetch landing while onboarding is open — rebuilds
+  // this instance without dropping the session. Without this, account-scoped
+  // onboarding requests would silently fall back to pk_/sk_.
+  const session = getActiveOnboardingSession();
+  if (session) sdk.setOnboardingSession(session);
   return sdk;
 }
 
@@ -59,10 +67,40 @@ export function resetClients(): void {
   resetNetworkLogger();
 }
 
+// Returns the already-built SDK instance, or undefined if none has been
+// constructed yet. Exposed for tests that assert the live session state.
+export function peekClient(): FrameSDK | undefined {
+  return sdk;
+}
+
+// Apply/clear the onboarding session on the live SDK instance the moment
+// begin/endOnboardingSession is called. Future rebuilds re-read the token in
+// getClient(), so this only needs to touch an already-built instance.
+__registerOnboardingSessionApplier((token) => {
+  if (!sdk) return;
+  if (token) sdk.setOnboardingSession(token);
+  else sdk.clearOnboardingSession();
+});
+
 export function warmClients(): boolean {
   if (!getSecretKey() && !getPublishableKey()) return false;
   getClient();
   return true;
+}
+
+// Throws a clear, coded error before a server-only (secret-keyed) operation
+// when no secret key is configured. Money-movement endpoints (chargeIntents
+// create, transfers create) are not yet publishable-key-routable on the
+// backend, so a publishable-key-only app reaches them and would otherwise get
+// framepayments' opaque `missing_api_key`. Fail with remediation instead.
+export function requireSecretKeyFor(operation: string): void {
+  if (getSecretKey()) return;
+  throw frameError(
+    ErrorCodes.MISSING_SECRET_KEY,
+    `${operation} is a server-only operation that requires a secret key, which is not configured. ` +
+      `On a publishable-key-only client, create the charge on your backend (sk_) — ` +
+      `the device should not move money directly.`,
+  );
 }
 
 export const client = {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect } from 'react';
 import type { OnboardingCapability, OnboardingResult } from '../../../types';
 import { showToast } from '../../primitives/toastCenter';
 import { toToastMessage } from '../../../api-errors';
@@ -60,16 +60,15 @@ export function OnboardingRoot({
   // Begin/end the onboarding session at the mount boundary, mirroring iOS
   // OnboardingContainerView.onAppear/onDisappear. While active, every onboarding
   // request rides the `onb_sess_...` bearer (resolved inside framepayments), so
-  // the view model's calls need no per-call wiring. On unmount we safe-clear
-  // (only if this instance began the session) so the token can't leak into
+  // the view model's calls need no per-call wiring. On unmount we safe-clear by
+  // token — endOnboardingSession only clears when this token is still the active
+  // one, so a newer flow's session isn't wiped, and the token can't leak into
   // later checkout/wallet calls.
-  const didBeginRef = useRef(false);
   useEffect(() => {
     if (!clientSecret) return;
     beginOnboardingSession(clientSecret);
-    didBeginRef.current = true;
     return () => {
-      if (didBeginRef.current) endOnboardingSession(clientSecret);
+      endOnboardingSession(clientSecret);
     };
   }, [clientSecret]);
 

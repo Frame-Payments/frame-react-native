@@ -22,12 +22,14 @@ import {
   resetConfig,
   __internal,
   getDebugMode,
+  getSecretKey,
 } from './config';
 import { resetClients, warmClients, client } from './client';
 import { configureEvervault, resetEvervault } from './evervault';
 import { fetchIpAddress } from './ipAddress';
 import { presentApplePayFlow } from './applePay';
 import { presentGooglePayFlow } from './googlePay';
+import { warnOnce } from './warn';
 
 const LINKING_ERROR =
   `The package 'framepayments-react-native' doesn't seem to be linked. Make sure you have run 'pod install' (iOS) or rebuilt the app (Android).`;
@@ -45,16 +47,6 @@ const FrameSDK = NativeModules.FrameSDK
 
 function throwCoded(code: string, message: string): never {
   throw frameError(code, message);
-}
-
-// One-time guard so repeated initialize() calls don't spam the same warning.
-// Mirrors the `warnOnce` behavior in the native Frame iOS / Frame Android SDKs'
-// publishable-key guard.
-const warnedOnce = new Set<string>();
-function warnOnce(key: string, message: string): void {
-  if (warnedOnce.has(key)) return;
-  warnedOnce.add(key);
-  console.warn(`[Frame] ${message}`);
 }
 
 /**
@@ -454,6 +446,20 @@ export async function presentOnboarding(options: PresentOnboardingOptions): Prom
   guardInitialized();
   const accountId = options.accountId ?? null;
   const clientSecret = options.clientSecret ?? null;
+  // Onboarding's account-scoped requests authenticate with the onb_sess_ token.
+  // Without one, they fall back to the configured key — which works only if a
+  // secret key is present (server-only path). A publishable-key-only app with
+  // no clientSecret would fail mid-flow with an opaque `missing_api_key`; warn
+  // up front so the misconfiguration is obvious. (Warn, don't reject — the
+  // legacy sk_ path is still supported.)
+  if (!clientSecret && !getSecretKey()) {
+    warnOnce(
+      'onboarding-no-credential',
+      'presentOnboarding was called without a clientSecret and no secretKey is configured. ' +
+        'Mint an onboarding session (onb_sess_) on your backend and pass it as clientSecret — ' +
+        'onboarding requests will otherwise fail to authenticate.',
+    );
+  }
   const capabilities = options.capabilities ?? [];
   const showIntroScreen = options.showIntroScreen ?? true;
   const showCompletionScreen = options.showCompletionScreen ?? true;

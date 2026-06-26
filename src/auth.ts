@@ -1,18 +1,37 @@
-import { client } from './client';
+import { warnOnce } from './warn';
 
-// Thin wrappers over framepayments' onboarding-session API (added in 2.4.0).
-// The npm SDK owns the auth resolution — while a session is active, every
-// request through the shared `client.sdk` instance sends
-// `Authorization: Bearer <token>` (the `onb_sess_...` token), overriding the
-// configured publishable/secret keys. A per-request `authToken` (object
-// client_secret) still takes precedence. This mirrors the native Frame iOS
-// `beginOnboardingSession` / Frame Android `beginOnboardingSession` model.
+// Owns the active onboarding-session bearer token (e.g. `onb_sess_...`). While
+// a session is active, every Frame request is authenticated with this token,
+// overriding the configured publishable/secret keys. A per-request `authToken`
+// (object client_secret) still takes precedence inside framepayments. This
+// mirrors the native Frame iOS / Frame Android `beginOnboardingSession` model.
 //
-// We keep the iOS/Android method names here (begin/end) so the React Native
-// onboarding flow reads the same as the native ports.
+// The token lives HERE (module state), not only on the framepayments SDK
+// instance, because client.ts rebuilds that instance on every resetClients()
+// (e.g. when the async IP-address prefetch lands). client.ts reads this token
+// via getActiveOnboardingSession() and re-applies it to each freshly-built SDK,
+// so the session survives client churn for the lifetime of the onboarding flow.
 
-// One-time guard so a malformed token doesn't spam the warning on every call.
-let warnedAboutSessionPrefix = false;
+let activeOnboardingSession: string | null = null;
+
+// client.ts registers an applier so begin/end can push the token to the live
+// SDK instance immediately (not just on the next build). Kept as a one-way
+// registration to avoid an auth.ts <-> client.ts import cycle: client.ts imports
+// getActiveOnboardingSession from here; nothing here statically imports client.
+type SessionApplier = (token: string | null) => void;
+let applyToLiveClient: SessionApplier = () => {};
+
+export function __registerOnboardingSessionApplier(fn: SessionApplier): void {
+  applyToLiveClient = fn;
+}
+
+/**
+ * Returns the active onboarding-session token, or null. Read by client.ts to
+ * re-apply the session to a freshly-constructed framepayments SDK instance.
+ */
+export function getActiveOnboardingSession(): string | null {
+  return activeOnboardingSession;
+}
 
 /**
  * Begin an onboarding session. While active, every Frame request is
@@ -22,14 +41,15 @@ let warnedAboutSessionPrefix = false;
  * Mirrors iOS `beginOnboardingSession` / Android `beginOnboardingSession`.
  */
 export function beginOnboardingSession(token: string): void {
-  if (!token.startsWith('onb_sess_') && !warnedAboutSessionPrefix) {
-    warnedAboutSessionPrefix = true;
-    console.warn(
-      '[Frame] beginOnboardingSession was called with a token that does not start with "onb_sess_". ' +
+  if (!token.startsWith('onb_sess_')) {
+    warnOnce(
+      'onb-sess-prefix',
+      'beginOnboardingSession was called with a token that does not start with "onb_sess_". ' +
         'Pass the client_secret minted by POST /v1/onboarding_sessions on your backend.',
     );
   }
-  client.sdk.setOnboardingSession(token);
+  activeOnboardingSession = token;
+  applyToLiveClient(token);
 }
 
 /**
@@ -37,11 +57,20 @@ export function beginOnboardingSession(token: string): void {
  *
  * Safe-clear: when `token` is provided, the session is cleared only if it
  * matches the currently active token, so a stale unmount cannot wipe a newer
- * session (mirrors Android's guarded teardown). The underlying safe-clear lives
- * in framepayments; we forward the token verbatim.
+ * session (mirrors Android's guarded teardown). Omit `token` to force-clear.
  *
  * @returns true if a session was cleared, false if the guard prevented it.
  */
 export function endOnboardingSession(token?: string): boolean {
-  return client.sdk.clearOnboardingSession(token);
+  if (token !== undefined && activeOnboardingSession !== token) {
+    return false;
+  }
+  activeOnboardingSession = null;
+  applyToLiveClient(null);
+  return true;
+}
+
+// Reset hook for tests so module state doesn't leak across cases.
+export function __resetOnboardingSessionForTests(): void {
+  activeOnboardingSession = null;
 }
