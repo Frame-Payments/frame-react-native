@@ -22,12 +22,14 @@ import {
   resetConfig,
   __internal,
   getDebugMode,
+  getSecretKey,
 } from './config';
 import { resetClients, warmClients, client } from './client';
 import { configureEvervault, resetEvervault } from './evervault';
 import { fetchIpAddress } from './ipAddress';
 import { presentApplePayFlow } from './applePay';
 import { presentGooglePayFlow } from './googlePay';
+import { warnOnce } from './warn';
 
 const LINKING_ERROR =
   `The package 'framepayments-react-native' doesn't seem to be linked. Make sure you have run 'pod install' (iOS) or rebuilt the app (Android).`;
@@ -62,9 +64,16 @@ function throwCoded(code: string, message: string): never {
  * the SDK. Any prior native state is reset before the new credentials take
  * effect.
  *
+ * The SDK is **publishable-key first**: pass your publishable key (`pk_...`).
+ * Secret keys grant full merchant privileges and must never ship in an app
+ * binary — serve `sk_` from your backend. `secretKey` remains accepted for
+ * backward compatibility with server-only flows that have not yet moved to the
+ * publishable-key + onboarding-session path, but supplying one emits a warning.
+ *
  * @param options - SDK initialization options.
- * @param options.secretKey - Your Frame secret key (`sk_...`).
- * @param options.publishableKey - Your Frame publishable key (`pk_...`).
+ * @param options.publishableKey - Your Frame publishable key (`pk_...`). Required.
+ * @param options.secretKey - Your Frame secret key (`sk_...`). Optional and
+ *   discouraged on-device; prefer publishable-key + onboarding-session flows.
  * @param options.debugMode - When `true`, emits verbose SDK logs to the console. Defaults to `false`.
  * @param options.applePayMerchantId - Apple Pay merchant identifier registered in the Apple Developer Portal.
  *   Required to enable Apple Pay in {@link presentCheckout} and {@link presentApplePay}.
@@ -72,7 +81,7 @@ function throwCoded(code: string, message: string): never {
  *   in {@link presentCheckout} and {@link presentGooglePay}.
  * @param options.theme - Optional visual theme applied to all Frame-managed UI surfaces.
  *
- * @throws {FrameErrorShape} `INIT_FAILED` if `secretKey` or `publishableKey` is missing,
+ * @throws {FrameErrorShape} `INIT_FAILED` if `publishableKey` is missing,
  *   `theme` is not a plain object, or the native bridge fails to initialize.
  *
  * @example
@@ -80,25 +89,36 @@ function throwCoded(code: string, message: string): never {
  * import Frame from 'framepayments-react-native';
  *
  * await Frame.initialize({
- *   secretKey: 'sk_sandbox_...',
  *   publishableKey: 'pk_sandbox_...',
  *   applePayMerchantId: 'merchant.com.example',
  * });
  * ```
  */
 export function initialize(options: {
-  secretKey: string;
   publishableKey: string;
+  secretKey?: string;
   debugMode?: boolean;
   applePayMerchantId?: string;
   googlePayMerchantId?: string;
   theme?: FrameTheme;
 }): Promise<void> {
-  if (!options?.secretKey) {
-    throwCoded(ErrorCodes.INIT_FAILED, 'Frame.initialize requires secretKey');
-  }
   if (!options?.publishableKey) {
     throwCoded(ErrorCodes.INIT_FAILED, 'Frame.initialize requires publishableKey');
+  }
+  // Publishable-key guard, mirroring the native iOS / Android SDKs: warn (don't
+  // reject) when a secret key is mishandled, so existing integrations keep
+  // working through the migration window.
+  if (options.publishableKey.startsWith('sk_')) {
+    warnOnce(
+      'pk-is-sk',
+      'publishableKey looks like a secret key (sk_). Pass your publishable key (pk_); secret keys must never ship in an app binary.',
+    );
+  }
+  if (options.secretKey) {
+    warnOnce(
+      'sk-configured',
+      'secretKey is configured. Secret keys grant full merchant privileges and must not ship in an app binary — serve sk_ from your backend and prefer publishable-key + onboarding-session flows on device.',
+    );
   }
   if (options.theme !== undefined && (typeof options.theme !== 'object' || Array.isArray(options.theme))) {
     throwCoded(ErrorCodes.INIT_FAILED, 'Frame.initialize: theme must be an object');
@@ -110,8 +130,8 @@ export function initialize(options: {
 // resolves. A successful resolve means the native side is ready; only then is
 // it safe for parallel guardInitialized() calls to see initialized=true.
 async function runInitialize(options: {
-  secretKey: string;
   publishableKey: string;
+  secretKey?: string;
   debugMode?: boolean;
   applePayMerchantId?: string;
   googlePayMerchantId?: string;
@@ -119,8 +139,12 @@ async function runInitialize(options: {
 }): Promise<void> {
   try {
     await wrapPromise(
+      // The native bridges are no-ops (src/config.ts holds the truth) but their
+      // `secretKey` param is a non-null String. secretKey is now optional, so
+      // coerce undefined to '' to satisfy the bridge marshaling; the value is
+      // ignored on both platforms.
       FrameSDK.initialize(
-        options.secretKey,
+        options.secretKey ?? '',
         options.publishableKey,
         options.debugMode ?? false,
         options.applePayMerchantId ?? null,
@@ -214,7 +238,7 @@ function guardInitialized(): void {
   if (!configIsInitialized()) {
     throw frameError(
       ErrorCodes.NOT_INITIALIZED,
-      'Frame SDK must be initialized before calling presentCheckout, presentCart, or presentOnboarding. Call Frame.initialize({ secretKey, publishableKey }) first.',
+      'Frame SDK must be initialized before calling presentCheckout, presentCart, or presentOnboarding. Call Frame.initialize({ publishableKey }) first.',
     );
   }
 }
@@ -373,6 +397,15 @@ export interface PresentOnboardingOptions {
    */
   accountId?: string | null;
   /**
+   * Server-minted onboarding-session token (`onb_sess_...`). Mint it on your
+   * backend via `POST /v1/onboarding_sessions` (which uses your secret key) and
+   * pass it here. While the onboarding flow is presented, every request is
+   * scoped to this token, overriding the configured pk_/sk_ keys — the
+   * publishable-key-safe way to run onboarding on device. Mirrors iOS
+   * `OnboardingContainerView(clientSecret:)`.
+   */
+  clientSecret?: string | null;
+  /**
    * Capabilities to verify during onboarding. The SDK reconciles this list
    * with the capabilities already on the account — requesting only what is
    * still outstanding. Defaults to `[]` (no specific capabilities required).
@@ -397,8 +430,11 @@ export interface PresentOnboardingOptions {
  *
  * @example
  * ```ts
+ * // Mint the session token on your backend, then pass it in:
+ * const { clientSecret } = await myBackend.createOnboardingSession(accountId);
  * const result = await Frame.presentOnboarding({
  *   accountId: 'acc_...',
+ *   clientSecret, // 'onb_sess_...'
  *   capabilities: ['kyc', 'bank_account_verification'],
  * });
  * if (result.status === 'completed') {
@@ -409,6 +445,21 @@ export interface PresentOnboardingOptions {
 export async function presentOnboarding(options: PresentOnboardingOptions): Promise<OnboardingResult> {
   guardInitialized();
   const accountId = options.accountId ?? null;
+  const clientSecret = options.clientSecret ?? null;
+  // Onboarding's account-scoped requests authenticate with the onb_sess_ token.
+  // Without one, they fall back to the configured key — which works only if a
+  // secret key is present (server-only path). A publishable-key-only app with
+  // no clientSecret would fail mid-flow with an opaque `missing_api_key`; warn
+  // up front so the misconfiguration is obvious. (Warn, don't reject — the
+  // legacy sk_ path is still supported.)
+  if (!clientSecret && !getSecretKey()) {
+    warnOnce(
+      'onboarding-no-credential',
+      'presentOnboarding was called without a clientSecret and no secretKey is configured. ' +
+        'Mint an onboarding session (onb_sess_) on your backend and pass it as clientSecret — ' +
+        'onboarding requests will otherwise fail to authenticate.',
+    );
+  }
   const capabilities = options.capabilities ?? [];
   const showIntroScreen = options.showIntroScreen ?? true;
   const showCompletionScreen = options.showCompletionScreen ?? true;
@@ -416,6 +467,7 @@ export async function presentOnboarding(options: PresentOnboardingOptions): Prom
     <OnboardingRoot
       accountId={accountId}
       capabilities={capabilities}
+      clientSecret={clientSecret}
       showIntroScreen={showIntroScreen}
       showCompletionScreen={showCompletionScreen}
       onComplete={(result) => api.complete(result)}

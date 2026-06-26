@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
-import { PaymentMethodType } from 'framepayments/dist/types/payment_methods';
-import { client } from '../../../client';
+import { PaymentMethodType } from '../../../framepaymentsTypes';
+import { client, requireSecretKeyFor } from '../../../client';
 import { configureEvervault, encryptWithEvervault } from '../../../evervault';
 import { __internal as configInternal } from '../../../config';
 import { ErrorCodes, frameError } from '../../../errors';
@@ -88,6 +88,11 @@ export function useCheckoutViewModel({
     performingRef.current = true;
 
     try {
+      // Checkout tokenizes the card and creates a transfer — both server-only
+      // (secret-keyed) today. Fail up front with remediation rather than letting
+      // framepayments throw an opaque `missing_api_key` after the user submits.
+      requireSecretKeyFor('Checkout');
+
       const current = stateRef.current;
 
       const validation = validateForSubmit(current);

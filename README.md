@@ -152,7 +152,6 @@ import Frame, { FrameProvider } from 'framepayments-react-native';
 export default function App() {
   useEffect(() => {
     Frame.initialize({
-      secretKey: 'sk_sandbox_...',
       publishableKey: 'pk_sandbox_...',
       debugMode: __DEV__,
     }).catch(console.error);
@@ -182,9 +181,11 @@ const transferId2 = await Frame.presentCart({
   shippingAmountInCents: 500,
 });
 
-// Present an onboarding flow (KYC, bank account, etc.)
+// Present an onboarding flow (KYC, bank account, etc.). Mint the session token
+// on your backend (POST /v1/onboarding_sessions) and pass it as clientSecret.
 const onboarding = await Frame.presentOnboarding({
   accountId: 'acct_xxx',
+  clientSecret: 'onb_sess_...', // from your backend
   capabilities: ['kyc', 'bank_account_verification'],
 });
 ```
@@ -199,9 +200,10 @@ const onboarding = await Frame.presentOnboarding({
 
 Initializes the native SDK. Must be called before any `present*` method. Call once at app startup (e.g., in your root component's `useEffect`).
 
+The SDK is **publishable-key first** — pass your publishable key (`pk_…`). Secret keys grant full merchant privileges and must never ship in an app binary; serve `sk_` from your backend. See [Onboarding sessions](#onboarding-sessions) for the publishable-key-safe way to run onboarding.
+
 ```ts
 await Frame.initialize({
-  secretKey: 'sk_sandbox_...',      // your Frame secret key
   publishableKey: 'pk_sandbox_...', // your Frame publishable key
   applePayMerchantId: 'merchant.com.yourapp', // optional — see Apple Pay section
   googlePayMerchantId: 'BCR2DN4T...',         // optional — see Google Pay section
@@ -211,8 +213,8 @@ await Frame.initialize({
 
 | Option | Type | Required | Description |
 |---|---|---|---|
-| `secretKey` | `string` | Yes | Your Frame secret key (`sk_…`). Used for server-style operations. |
-| `publishableKey` | `string` | Yes | Your Frame publishable key (`pk_…`). Used for client-side operations like wallet payments. |
+| `publishableKey` | `string` | Yes | Your Frame publishable key (`pk_…`). Used for client-side operations like wallet payments and onboarding. |
+| `secretKey` | `string` | No | Your Frame secret key (`sk_…`). Discouraged on-device — secret keys must not ship in an app binary. Accepted for backward compatibility with server-only flows; supplying one emits a warning. Prefer publishable-key + onboarding-session flows. |
 | `applePayMerchantId` | `string` | No | Apple Pay merchant identifier (`merchant.com.…`). Single source of truth for every Apple Pay surface — `presentApplePay`, the bundled checkout's wallet row, the onboarding wallet attach button. iOS-only; ignored on Android. |
 | `googlePayMerchantId` | `string` | No | Google Pay merchant identifier from the Google Pay & Wallet Console. Single source of truth for every Google Pay surface — `presentGooglePay`, the bundled checkout's wallet row, the onboarding wallet attach button. Android-only; ignored on iOS. |
 | `debugMode` | `boolean` | No | Enables native debug logging and routes wallet flows through sandbox/test environments. Default: `false`. |
@@ -295,6 +297,7 @@ Opens the native onboarding flow for KYC, identity verification, and payment met
 ```ts
 const result = await Frame.presentOnboarding({
   accountId: 'acct_xxx',
+  clientSecret: 'onb_sess_...', // minted on your backend — see Onboarding sessions
   capabilities: ['kyc', 'bank_account_verification'],
 });
 
@@ -306,6 +309,7 @@ if (result.status === 'completed') {
 | Option | Type | Required | Description |
 |---|---|---|---|
 | `accountId` | `string` | No | The Frame account to onboard |
+| `clientSecret` | `string` | No | Server-minted onboarding-session token (`onb_sess_…`). Scopes every onboarding request to this token, overriding the configured keys — the publishable-key-safe way to run onboarding. See [Onboarding sessions](#onboarding-sessions). |
 | `capabilities` | `OnboardingCapability[]` | No | Which onboarding steps to include (see below) |
 | `showIntroScreen` | `boolean` | No | Show the "Verify Your Identity" welcome screen before the first step. Default `true`. Set to `false` to open directly on the first capability step. |
 | `showCompletionScreen` | `boolean` | No | Show the "Verification Submitted" confirmation screen after the last step. Default `true`. Set to `false` to complete the flow immediately without the final screen. |
@@ -336,6 +340,23 @@ The Apple Pay / Google Pay wallet attach steps are rendered automatically when t
 |---|---|---|
 | `status` | `'completed' \| 'cancelled'` | Whether the user finished or dismissed the flow |
 | `accountId` | `string \| undefined` | The Frame account that was onboarded. Populated on `status: 'completed'` for both the host-supplied-accountId path and the empty-account auto-create path. Use it to fetch payment methods / capabilities / profile server-side. |
+
+#### Onboarding sessions
+
+Onboarding touches account-scoped data, so it authenticates with a short-lived **onboarding-session token** (`onb_sess_…`) rather than your publishable key. This is the publishable-key-safe way to run onboarding on device — it mirrors the Frame iOS and Android SDKs.
+
+1. **Mint the token on your backend** (it uses your secret key, which never leaves your server):
+
+   ```bash
+   POST /v1/onboarding_sessions
+   Authorization: Bearer sk_...
+   { "account_id": "acct_xxx" }
+   # → { "id": "onb_sess_...", "client_secret": "onb_sess_...", ... }
+   ```
+
+2. **Pass the `client_secret` to `presentOnboarding`** as `clientSecret`. While the flow is presented, the SDK scopes every onboarding request to that token, overriding the configured keys. When the modal closes, the SDK reverts to your publishable key automatically.
+
+If you omit `clientSecret`, onboarding requests fall back to the configured key (requires a secret key today, which is discouraged on device). Provide a session token for production.
 
 ---
 

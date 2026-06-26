@@ -31,7 +31,7 @@ jest.mock('framepayments', () => ({
 }));
 
 import { setConfig, resetConfig, __internal } from '../config';
-import { client, warmClients, resetClients } from '../client';
+import { client, warmClients, resetClients, requireSecretKeyFor } from '../client';
 import { ErrorCodes } from '../errors';
 
 beforeEach(() => {
@@ -166,5 +166,24 @@ describe('resetClients', () => {
     resetClients();
     setConfig({ secretKey: 'sk_2', publishableKey: 'pk_2', debugMode: false });
     expect((client.sdk as unknown as MockFrameSDK).apiKey).toBe('sk_2');
+  });
+});
+
+describe('requireSecretKeyFor', () => {
+  it('throws MISSING_SECRET_KEY with remediation when only a publishable key is configured', () => {
+    setConfig({ publishableKey: 'pk_only', debugMode: false });
+    try {
+      requireSecretKeyFor('Checkout');
+      throw new Error('expected requireSecretKeyFor to throw');
+    } catch (e: any) {
+      expect(e.code).toBe(ErrorCodes.MISSING_SECRET_KEY);
+      expect(e.message).toContain('Checkout');
+      expect(e.message).toContain('backend');
+    }
+  });
+
+  it('does not throw when a secret key is configured', () => {
+    setConfig({ secretKey: 'sk_test', publishableKey: 'pk_test', debugMode: false });
+    expect(() => requireSecretKeyFor('Checkout')).not.toThrow();
   });
 });

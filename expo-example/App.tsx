@@ -65,8 +65,12 @@ export default function App() {
 
   React.useEffect(() => {
     Frame.initialize({
-      secretKey: FRAME_SECRET_KEY,
+      // Publishable-key first. The example also passes a secret key so the
+      // legacy server-only checkout routes still work in the demo; production
+      // apps should ship the publishable key only and run onboarding via a
+      // server-minted onb_sess_ token (see handleOnboarding).
       publishableKey: FRAME_PUBLISHABLE_KEY,
+      secretKey: FRAME_SECRET_KEY,
       debugMode: __DEV__,
       applePayMerchantId: APPLE_PAY_MERCHANT_ID,
       googlePayMerchantId: GOOGLE_PAY_MERCHANT_ID,
@@ -172,7 +176,14 @@ export default function App() {
   const handleOnboarding = async () => {
     setLoading('onboarding');
     try {
+      // In production, mint the onboarding-session token on YOUR backend
+      // (POST /v1/onboarding_sessions, authenticated with sk_) and hand the
+      // client_secret to the app. Here the demo uses the server-side `frameSDK`
+      // (apiKey) to stand in for that backend.
+      const session = await frameSDK.onboardingSessions.create({ account_id: DEMO_ACCOUNT_ID });
       const result = await Frame.presentOnboarding({
+        accountId: DEMO_ACCOUNT_ID,
+        clientSecret: session.client_secret,
         capabilities: ['kyc', 'kyc_prefill', 'age_verification', 'phone_verification', 'card_verification', 'bank_account_verification'],
       });
       Alert.alert(
