@@ -1,7 +1,8 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { OnboardingCapability, OnboardingResult } from '../../../types';
 import { showToast } from '../../primitives/toastCenter';
 import { toToastMessage } from '../../../api-errors';
+import { beginOnboardingSession, endOnboardingSession } from '../../../auth';
 import { useOnboardingViewModel } from './useOnboardingViewModel';
 import { OnboardingChrome } from './OnboardingChrome';
 import { VerificationWelcomeScreen } from './personalInformation/VerificationWelcomeScreen';
@@ -23,6 +24,13 @@ import { areDocsComplete } from './onboardingSelectors';
 export interface OnboardingRootProps {
   accountId: string | null;
   capabilities: ReadonlyArray<OnboardingCapability>;
+  /**
+   * Server-minted onboarding-session token (`onb_sess_...`). When provided, the
+   * SDK scopes every onboarding request to this token, overriding the
+   * configured pk_/sk_ keys for the duration of the flow. Mirrors iOS
+   * `OnboardingContainerView(clientSecret:)`.
+   */
+  clientSecret?: string | null;
   showIntroScreen?: boolean;
   showCompletionScreen?: boolean;
   /** Called when the user reaches VerificationSubmitted and taps Done. */
@@ -42,12 +50,29 @@ export interface OnboardingRootProps {
 export function OnboardingRoot({
   accountId,
   capabilities,
+  clientSecret,
   showIntroScreen = true,
   showCompletionScreen = true,
   onComplete,
   onCancel,
   onFail,
 }: OnboardingRootProps) {
+  // Begin/end the onboarding session at the mount boundary, mirroring iOS
+  // OnboardingContainerView.onAppear/onDisappear. While active, every onboarding
+  // request rides the `onb_sess_...` bearer (resolved inside framepayments), so
+  // the view model's calls need no per-call wiring. On unmount we safe-clear
+  // (only if this instance began the session) so the token can't leak into
+  // later checkout/wallet calls.
+  const didBeginRef = useRef(false);
+  useEffect(() => {
+    if (!clientSecret) return;
+    beginOnboardingSession(clientSecret);
+    didBeginRef.current = true;
+    return () => {
+      if (didBeginRef.current) endOnboardingSession(clientSecret);
+    };
+  }, [clientSecret]);
+
   const vm = useOnboardingViewModel({ accountId, capabilities, showIntroScreen, showCompletionScreen, onComplete, onCancel });
 
   // ─── Routing helpers ───

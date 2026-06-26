@@ -1,4 +1,4 @@
-import type { PaymentMethod as FramePaymentMethod } from 'framepayments/dist/types/payment_methods';
+import type { PaymentMethod as FramePaymentMethod } from '../../../framepaymentsTypes';
 import {
   validateEmail,
   validateFullName,

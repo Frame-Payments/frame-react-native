@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
-import { PaymentMethodType } from 'framepayments/dist/types/payment_methods';
+import { PaymentMethodType } from '../../../framepaymentsTypes';
 import { client } from '../../../client';
 import { configureEvervault, encryptWithEvervault } from '../../../evervault';
 import { __internal as configInternal } from '../../../config';

@@ -22,7 +22,7 @@ function getClient(): FrameSDK {
   if (!apiKey && !publishableKey) {
     throw frameError(
       ErrorCodes.NOT_INITIALIZED,
-      'Frame SDK is not configured. Call Frame.initialize({ secretKey, publishableKey }) first.',
+      'Frame SDK is not configured. Call Frame.initialize({ publishableKey }) first.',
     );
   }
   // Forward the device IP via the `ip_address` header on every request,
