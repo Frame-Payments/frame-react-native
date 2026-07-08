@@ -5,7 +5,7 @@ import { __internal as configInternal, getIpAddress } from '../../../config';
 import { ErrorCodes, frameError } from '../../../errors';
 import { addApplePayToOwnerFlow } from '../../../applePay';
 import { openPlaidLink as runPlaidLink, type PlaidConnectResult } from '../../../plaid';
-import { PaymentAccountType, PaymentMethodType } from 'framepayments/dist/types/payment_methods';
+import { PaymentAccountType, PaymentMethodType, type PaymentMethod as FramePaymentMethod } from '../../../framepaymentsTypes';
 import type { OnboardingCapability, OnboardingResult } from '../../../types';
 import {
   initialOnboardingState,
@@ -184,12 +184,8 @@ export function useOnboardingViewModel({
         // the payout list. The reducer's selectors filter again on render
         // but pre-sorting is cleaner.
         const list = ((methodsResp.data ?? []) as ReadonlyArray<{ card?: unknown; ach?: unknown; id: string }>);
-        const cards = list.filter((m) => m.card != null) as unknown as ReadonlyArray<
-          import('framepayments/dist/types/payment_methods').PaymentMethod
-        >;
-        const achs = list.filter((m) => m.ach != null) as unknown as ReadonlyArray<
-          import('framepayments/dist/types/payment_methods').PaymentMethod
-        >;
+        const cards = list.filter((m) => m.card != null) as unknown as ReadonlyArray<FramePaymentMethod>;
+        const achs = list.filter((m) => m.ach != null) as unknown as ReadonlyArray<FramePaymentMethod>;
         dispatch({ type: 'SET_SAVED_PAYMENT_METHODS', methods: cards });
         dispatch({ type: 'SET_SAVED_PAYOUT_METHODS', methods: achs });
       } catch {

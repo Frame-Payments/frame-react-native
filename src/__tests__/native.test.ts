@@ -84,13 +84,15 @@ jest.mock('framepayments', () => {
       getEvervaultConfiguration: getEvervaultConfigMock,
       getSiftConfiguration: getSiftConfigMock,
     };
+    setOnboardingSession = jest.fn();
+    clearOnboardingSession = jest.fn(() => true);
     constructor(_config: unknown) {}
   }
   return { FrameSDK: MockFrameSDK };
 });
 
 // Re-import after mock so we get the mocked NativeModules
-let initialize: (opts: { secretKey: string; publishableKey: string; debugMode?: boolean; applePayMerchantId?: string; googlePayMerchantId?: string }) => Promise<void>;
+let initialize: (opts: { publishableKey: string; secretKey?: string; debugMode?: boolean; applePayMerchantId?: string; googlePayMerchantId?: string }) => Promise<void>;
 let presentCheckout: (opts: { accountId: string; amount: number }) => Promise<string>;
 let presentCart: (opts: {
   accountId: string;
@@ -99,7 +101,7 @@ let presentCart: (opts: {
 }) => Promise<string>;
 let presentApplePay: (opts: { amount: number; currency?: string; owner: { type: 'customer' | 'account'; id: string } }) => Promise<string>;
 let presentGooglePay: (opts: { amountCents: number; owner: { type: 'customer' | 'account'; id: string }; currencyCode?: string }) => Promise<string>;
-let presentOnboarding: (opts: { accountId?: string | null; capabilities?: string[] }) => Promise<unknown>;
+let presentOnboarding: (opts: { accountId?: string | null; clientSecret?: string | null; capabilities?: string[] }) => Promise<unknown>;
 
 beforeEach(() => {
   jest.resetModules();
@@ -153,16 +155,33 @@ describe('initialize', () => {
     expect(mockInitialize).toHaveBeenCalledWith('sk_test', 'pk_test', false, null, 'BCR2DN4T...', null);
   });
 
-  it('throws if secretKey is missing', () => {
-    expect(() => initialize({ secretKey: '', publishableKey: 'pk_test' })).toThrow(/secretKey/);
-    expect(() => (initialize as any)({ publishableKey: 'pk_test' })).toThrow(/secretKey/);
-    expect(mockInitialize).not.toHaveBeenCalled();
+  it('does not require secretKey — publishable-key only init succeeds and coerces secretKey to ""', () => {
+    initialize({ publishableKey: 'pk_test_only' });
+    expect(mockInitialize).toHaveBeenCalledWith('', 'pk_test_only', false, null, null, null);
   });
 
   it('throws if publishableKey is missing', () => {
-    expect(() => initialize({ secretKey: 'sk_test', publishableKey: '' })).toThrow(/publishableKey/);
+    expect(() => (initialize as any)({ publishableKey: '' })).toThrow(/publishableKey/);
     expect(() => (initialize as any)({ secretKey: 'sk_test' })).toThrow(/publishableKey/);
     expect(mockInitialize).not.toHaveBeenCalled();
+  });
+
+  it('warns once when publishableKey looks like a secret key', () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    initialize({ publishableKey: 'sk_oops' });
+    initialize({ publishableKey: 'sk_oops' });
+    const pkWarnings = warnSpy.mock.calls.filter((c) => String(c[0]).includes('looks like a secret key'));
+    expect(pkWarnings).toHaveLength(1);
+    warnSpy.mockRestore();
+  });
+
+  it('warns once when secretKey is configured', () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    initialize({ publishableKey: 'pk_test', secretKey: 'sk_test' });
+    initialize({ publishableKey: 'pk_test', secretKey: 'sk_test' });
+    const skWarnings = warnSpy.mock.calls.filter((c) => String(c[0]).includes('secretKey is configured'));
+    expect(skWarnings).toHaveLength(1);
+    warnSpy.mockRestore();
   });
 
   it('throws if theme is not a plain object', () => {
@@ -393,6 +412,34 @@ describe('presentOnboarding', () => {
     // owns onboarding now. Verify the legacy bridge mock is never touched.
     expect(mockPresentOnboarding).not.toHaveBeenCalled();
   });
+
+  it('accepts a clientSecret (onb_sess_) without throwing on the new param', async () => {
+    await initialize({ publishableKey: 'pk_xxx' });
+    await expect(
+      presentOnboarding({ accountId: 'acct_1', clientSecret: 'onb_sess_demo' }),
+    ).rejects.toMatchObject({ code: 'NO_PROVIDER' });
+  });
+
+  it('warns when called pk-only without a clientSecret (no credential for onboarding)', async () => {
+    await initialize({ publishableKey: 'pk_xxx' });
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    await expect(
+      presentOnboarding({ accountId: 'acct_1' }),
+    ).rejects.toMatchObject({ code: 'NO_PROVIDER' });
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('onboarding session'));
+    warnSpy.mockRestore();
+  });
+
+  it('does NOT warn about missing credential when a clientSecret is supplied', async () => {
+    await initialize({ publishableKey: 'pk_xxx' });
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    await expect(
+      presentOnboarding({ accountId: 'acct_1', clientSecret: 'onb_sess_demo' }),
+    ).rejects.toMatchObject({ code: 'NO_PROVIDER' });
+    const credWarnings = warnSpy.mock.calls.filter((c) => String(c[0]).includes('onboarding session'));
+    expect(credWarnings).toHaveLength(0);
+    warnSpy.mockRestore();
+  });
 });
 
 describe('initialize prefetch — Evervault + Sift', () => {
@@ -440,7 +487,9 @@ describe('initialize prefetch — Evervault + Sift', () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     getEvervaultConfigMock.mockRejectedValueOnce(new Error('boom'));
     getSiftConfigMock.mockRejectedValueOnce(new Error('boom'));
-    await initialize({ secretKey: 'sk_1', publishableKey: 'pk_1' });
+    // Publishable-key only so we isolate prefetch-warning behavior from the
+    // init-time secretKey-configured warning.
+    await initialize({ publishableKey: 'pk_1' });
     await settlePrefetch();
     expect(warnSpy).not.toHaveBeenCalled();
     warnSpy.mockRestore();

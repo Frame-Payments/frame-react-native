@@ -1,6 +1,6 @@
 import { NativeModules, Platform } from 'react-native';
 import type { ApplePayPaymentData } from 'framepayments';
-import { client } from './client';
+import { client, requireSecretKeyFor } from './client';
 import { ErrorCodes, frameError } from './errors';
 import { ensureAttested, generateAssertionForPayment } from './attestation';
 import { getApplePayMerchantId } from './config';
@@ -77,6 +77,10 @@ export async function presentApplePayFlow(options: PresentApplePayOptions): Prom
     throw frameError(ErrorCodes.PLATFORM_UNSUPPORTED, 'Frame.presentApplePay is iOS-only; use presentGooglePay on Android.');
   }
   validateOwner(options.owner);
+  // The charge step (chargeIntents/transfers create) is server-only and needs a
+  // secret key. Fail before opening the Apple Pay sheet so a publishable-key-
+  // only app doesn't prompt the user for a payment that can't complete.
+  requireSecretKeyFor('Apple Pay charge');
   const merchantId = getApplePayMerchantId();
   if (!merchantId) {
     throw frameError(

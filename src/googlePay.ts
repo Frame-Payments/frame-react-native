@@ -1,5 +1,5 @@
 import { NativeModules, Platform } from 'react-native';
-import { client } from './client';
+import { client, requireSecretKeyFor } from './client';
 import { ErrorCodes, frameError } from './errors';
 import { getDebugMode, getGooglePayMerchantId } from './config';
 import type { PresentGooglePayOptions, WalletOwner } from './types';
@@ -67,6 +67,10 @@ export async function presentGooglePayFlow(options: PresentGooglePayOptions): Pr
     throw frameError(ErrorCodes.PLATFORM_UNSUPPORTED, 'Frame.presentGooglePay is Android-only; use presentApplePay on iOS.');
   }
   validateOwner(options.owner);
+  // The charge step (chargeIntents/transfers create) is server-only and needs a
+  // secret key. Fail before opening the Google Pay sheet so a publishable-key-
+  // only app doesn't prompt the user for a payment that can't complete.
+  requireSecretKeyFor('Google Pay charge');
   const merchantId = getGooglePayMerchantId();
   if (!merchantId) {
     throw frameError(

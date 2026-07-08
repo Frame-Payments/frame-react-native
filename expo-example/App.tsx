@@ -1,7 +1,7 @@
 /**
  * Frame React Native SDK – Expo Example App
  *
- * 1. Set FRAME_SECRET_KEY and FRAME_PUBLISHABLE_KEY below or via env.
+ * 1. Set EXPO_PUBLIC_FRAME_PUBLISHABLE_KEY (and optionally EXPO_PUBLIC_FRAME_SECRET_KEY) in expo-example/.env.
  * 2. Run: npm install, then npx expo prebuild --clean, then npx expo run:ios or npx expo run:android.
  */
 
@@ -21,8 +21,12 @@ import {
 import Frame, { FrameProvider } from 'framepayments-react-native';
 import { FrameSDK } from 'framepayments';
 
-const FRAME_SECRET_KEY = 'SANDBOX_SECRET_KEY_123456';
-const FRAME_PUBLISHABLE_KEY = 'SANBOX_PUB_KEY_123456';
+// Expo inlines EXPO_PUBLIC_*-prefixed vars from expo-example/.env at build time
+// (babel-preset-expo) — no metro/babel plugin needed, unlike the bare RN example.
+// undefined when unset, so hasSecretKey()/requireSecretKeyFor gate correctly on
+// a publishable-key-only setup.
+const FRAME_SECRET_KEY = process.env.EXPO_PUBLIC_FRAME_SECRET_KEY;
+const FRAME_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_FRAME_PUBLISHABLE_KEY;
 
 // Apple Pay merchant ID registered in the example app's entitlements. Mirrors the native iOS example.
 const APPLE_PAY_MERCHANT_ID = 'merchant.com.framepayments.example';
@@ -32,7 +36,24 @@ const GOOGLE_PAY_MERCHANT_ID = 'BCR2DN4T...';
 // Demo owners. Swap which one the wallet buttons use to exercise either flow:
 const DEMO_ACCOUNT_ID = 'DEMO_ACCOUNT_ID'; // Use an account owner to create a Transfer on checkout
 
-const frameSDK = new FrameSDK({ apiKey: FRAME_SECRET_KEY });
+// Server-side SDK, standing in for YOUR backend. It needs a secret key, so it's
+// built lazily: a publishable-key-only app (the recommended mobile setup) boots
+// fine and runs checkout / wallet / onboarding-via-clientSecret. Only the demo
+// buttons that simulate backend calls (list customers/accounts/payment-methods,
+// mint an onboarding session) require sk_ — and they surface a clear message
+// instead of crashing app startup when it's absent.
+let _frameSDK: FrameSDK | undefined;
+function getFrameSDK(): FrameSDK {
+  if (!FRAME_SECRET_KEY) {
+    throw new Error(
+      'This is a server-only operation that requires a secret key, which is not configured. ' +
+        'On a publishable-key-only client, run it on your backend (sk_) — the device should not ' +
+        'call secret-keyed endpoints directly. To exercise it in this demo, set FRAME_SECRET_KEY in example/.env.',
+    );
+  }
+  if (!_frameSDK) _frameSDK = new FrameSDK({ apiKey: FRAME_SECRET_KEY });
+  return _frameSDK;
+}
 
 const sampleCartItems = [
   {
@@ -65,8 +86,12 @@ export default function App() {
 
   React.useEffect(() => {
     Frame.initialize({
-      secretKey: FRAME_SECRET_KEY,
+      // Publishable-key first. The example also passes a secret key so the
+      // legacy server-only checkout routes still work in the demo; production
+      // apps should ship the publishable key only and run onboarding via a
+      // server-minted onb_sess_ token (see handleOnboarding).
       publishableKey: FRAME_PUBLISHABLE_KEY,
+      secretKey: FRAME_SECRET_KEY,
       debugMode: __DEV__,
       applePayMerchantId: APPLE_PAY_MERCHANT_ID,
       googlePayMerchantId: GOOGLE_PAY_MERCHANT_ID,
@@ -172,7 +197,14 @@ export default function App() {
   const handleOnboarding = async () => {
     setLoading('onboarding');
     try {
+      // In production, mint the onboarding-session token on YOUR backend
+      // (POST /v1/onboarding_sessions, authenticated with sk_) and hand the
+      // client_secret to the app. Here the demo uses the server-side `frameSDK`
+      // (apiKey) to stand in for that backend.
+      const session = await getFrameSDK().onboardingSessions.create({ account_id: DEMO_ACCOUNT_ID });
       const result = await Frame.presentOnboarding({
+        accountId: DEMO_ACCOUNT_ID,
+        clientSecret: session.client_secret,
         capabilities: ['kyc', 'kyc_prefill', 'age_verification', 'phone_verification', 'card_verification', 'bank_account_verification'],
       });
       Alert.alert(
@@ -190,7 +222,7 @@ export default function App() {
   const handleListCustomers = async () => {
     setLoading('customers');
     try {
-      const response = await frameSDK.customers.list();
+      const response = await getFrameSDK().customers.list();
       const list = (response as { data?: unknown[] })?.data ?? [];
       setCustomers(Array.isArray(list) ? list : []);
     } catch (e: any) {
@@ -203,7 +235,7 @@ export default function App() {
   const handleListAccounts = async () => {
     setLoading('accounts');
     try {
-      const response = await frameSDK.accounts.list();
+      const response = await getFrameSDK().accounts.list();
       const list = (response as { data?: unknown[] })?.data ?? [];
       setAccounts(Array.isArray(list) ? list : []);
     } catch (e: any) {
@@ -216,7 +248,7 @@ export default function App() {
   const handleListPaymentMethods = async () => {
     setLoading('paymentMethods');
     try {
-      const response = await frameSDK.paymentMethods.list();
+      const response = await getFrameSDK().paymentMethods.list();
       const list = (response as { data?: unknown[] })?.data ?? [];
       setPaymentMethods(Array.isArray(list) ? list : []);
     } catch (e: any) {
