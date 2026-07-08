@@ -1,7 +1,7 @@
 /**
  * Frame React Native SDK – Expo Example App
  *
- * 1. Set FRAME_SECRET_KEY and FRAME_PUBLISHABLE_KEY below or via env.
+ * 1. Set EXPO_PUBLIC_FRAME_PUBLISHABLE_KEY (and optionally EXPO_PUBLIC_FRAME_SECRET_KEY) in expo-example/.env.
  * 2. Run: npm install, then npx expo prebuild --clean, then npx expo run:ios or npx expo run:android.
  */
 
@@ -21,8 +21,12 @@ import {
 import Frame, { FrameProvider } from 'framepayments-react-native';
 import { FrameSDK } from 'framepayments';
 
-const FRAME_SECRET_KEY = 'SANDBOX_SECRET_KEY_123456';
-const FRAME_PUBLISHABLE_KEY = 'SANBOX_PUB_KEY_123456';
+// Expo inlines EXPO_PUBLIC_*-prefixed vars from expo-example/.env at build time
+// (babel-preset-expo) — no metro/babel plugin needed, unlike the bare RN example.
+// undefined when unset, so hasSecretKey()/requireSecretKeyFor gate correctly on
+// a publishable-key-only setup.
+const FRAME_SECRET_KEY = process.env.EXPO_PUBLIC_FRAME_SECRET_KEY;
+const FRAME_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_FRAME_PUBLISHABLE_KEY;
 
 // Apple Pay merchant ID registered in the example app's entitlements. Mirrors the native iOS example.
 const APPLE_PAY_MERCHANT_ID = 'merchant.com.framepayments.example';
