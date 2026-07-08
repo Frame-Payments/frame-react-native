@@ -31,7 +31,7 @@ jest.mock('framepayments', () => ({
 }));
 
 import { setConfig, resetConfig, __internal } from '../config';
-import { client, warmClients, resetClients, requireSecretKeyFor } from '../client';
+import { client, warmClients, resetClients, requireSecretKeyFor, hasSecretKey } from '../client';
 import { ErrorCodes } from '../errors';
 
 beforeEach(() => {
@@ -185,5 +185,17 @@ describe('requireSecretKeyFor', () => {
   it('does not throw when a secret key is configured', () => {
     setConfig({ secretKey: 'sk_test', publishableKey: 'pk_test', debugMode: false });
     expect(() => requireSecretKeyFor('Checkout')).not.toThrow();
+  });
+});
+
+describe('hasSecretKey', () => {
+  it('is false on a publishable-key-only client (so secret-keyed calls are skipped, not fired)', () => {
+    setConfig({ publishableKey: 'pk_only', debugMode: false });
+    expect(hasSecretKey()).toBe(false);
+  });
+
+  it('is true when a secret key is configured', () => {
+    setConfig({ secretKey: 'sk_test', publishableKey: 'pk_test', debugMode: false });
+    expect(hasSecretKey()).toBe(true);
   });
 });

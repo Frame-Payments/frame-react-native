@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { PaymentMethodType } from '../../../framepaymentsTypes';
-import { client, requireSecretKeyFor } from '../../../client';
+import { client, hasSecretKey, requireSecretKeyFor } from '../../../client';
 import { configureEvervault, encryptWithEvervault } from '../../../evervault';
 import { __internal as configInternal } from '../../../config';
 import { ErrorCodes, frameError } from '../../../errors';
@@ -60,8 +60,15 @@ export function useCheckoutViewModel({
   // The ref flips synchronously inside the callback so the second tap bails.
   const performingRef = useRef(false);
 
-  // Load saved payment methods for the account.
+  // Load saved payment methods for the account. This is a secret-keyed call, so
+  // a publishable-key-only client skips it rather than firing an unauthorized
+  // request — the user can still enter a new card. (Checkout submit is likewise
+  // gated by requireSecretKeyFor below.)
   useEffect(() => {
+    if (!hasSecretKey()) {
+      dispatch({ type: 'SET_PAYMENT_OPTIONS', options: [] });
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {

@@ -103,6 +103,15 @@ export function requireSecretKeyFor(operation: string): void {
   );
 }
 
+// Non-throwing counterpart to requireSecretKeyFor, for the non-money-movement
+// server-only calls that run outside a user action (e.g. the checkout screen's
+// on-mount saved-cards fetch). A pk-only client must not fire a secret-keyed
+// request it can't authorize, so callers skip the request when this is false
+// rather than making it and swallowing framepayments' opaque `missing_api_key`.
+export function hasSecretKey(): boolean {
+  return getSecretKey() !== undefined;
+}
+
 export const client = {
   get sdk(): FrameSDK {
     return getClient();
