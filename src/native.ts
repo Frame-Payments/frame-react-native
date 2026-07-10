@@ -231,3 +231,21 @@ export function presentGooglePay(options: PresentGooglePayOptions): Promise<stri
     )
   );
 }
+
+/**
+ * Clears the device's stored App Attest key and re-attests against the backend.
+ *
+ * App Attest keys persist in the iOS keychain across app reinstalls, so a key
+ * attested against a stale backend environment keeps being presented until it is
+ * explicitly reset — deleting the app does not clear it. Call this to force a
+ * fresh attestation (generate key → challenge → attest → verify → persist).
+ *
+ * iOS-only; resolves once re-attestation completes, or rejects with
+ * `ATTESTATION_FAILED` if the backend flow fails.
+ */
+export function resetDeviceAttestation(): Promise<void> {
+  if (Platform.OS !== 'ios') {
+    throwCoded('PLATFORM_UNSUPPORTED', 'Frame.resetDeviceAttestation is iOS-only.');
+  }
+  return wrapPromise(FrameSDK.resetDeviceAttestation());
+}

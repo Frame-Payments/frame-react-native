@@ -15,6 +15,7 @@ import {
   presentOnboarding,
   presentApplePay,
   presentGooglePay,
+  resetDeviceAttestation,
 } from './native';
 
 export {
@@ -24,6 +25,7 @@ export {
   presentOnboarding,
   presentApplePay,
   presentGooglePay,
+  resetDeviceAttestation,
 } from './native';
 export type {
   FrameCartItem,
@@ -57,4 +59,5 @@ export default {
   presentOnboarding,
   presentApplePay,
   presentGooglePay,
+  resetDeviceAttestation,
 };

@@ -112,6 +112,24 @@ public class FrameSDKBridge: NSObject {
     }
   }
 
+  /// Clears the stored App Attest key so the next attestation performs the full
+  /// backend flow. App Attest keys persist in the keychain across app reinstalls,
+  /// so a key attested against a stale backend environment sticks until explicitly
+  /// reset. After clearing, this kicks off a fresh `attestDevice()` so the device
+  /// re-registers with the backend without waiting for the next payment attempt.
+  @objc public
+  func resetDeviceAttestation(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    DeviceAttestationManager.shared.resetAttestation()
+    Task {
+      do {
+        _ = try await DeviceAttestationManager.shared.attestDevice()
+        resolve(nil)
+      } catch {
+        reject("ATTESTATION_FAILED", "Re-attestation after reset failed: \(error.localizedDescription)", error)
+      }
+    }
+  }
+
   // MARK: - Private helpers
 
   private func presentCheckoutOnMain(from top: UIViewController, accountId: String, amount: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {

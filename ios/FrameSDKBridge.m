@@ -59,6 +59,9 @@ RCT_EXTERN_METHOD(presentApplePay:(NSString *)ownerType
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(resetDeviceAttestation:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end
 
 @implementation FrameSDK
@@ -110,6 +113,10 @@ RCT_EXTERN_METHOD(presentApplePay:(NSString *)ownerType
 
 - (void)presentApplePay:(NSString *)ownerType ownerId:(NSString *)ownerId amount:(NSNumber *)amount currency:(NSString *)currency resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
   [[[ObjCFrameSDKBridge alloc] init] presentApplePay:ownerType ownerId:ownerId amount:amount.intValue currency:currency resolver:resolve rejecter:reject];
+}
+
+- (void)resetDeviceAttestation:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+  [[[ObjCFrameSDKBridge alloc] init] resetDeviceAttestation:resolve rejecter:reject];
 }
 
 @end
