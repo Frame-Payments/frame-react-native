@@ -68,6 +68,7 @@ export default function App() {
     Frame.initialize({
       secretKey: FRAME_SECRET_KEY,
       publishableKey: FRAME_PUBLISHABLE_KEY,
+      applePayMerchantId: APPLE_PAY_MERCHANT_ID,
       debugMode: __DEV__,
       // Uncomment to exercise the FrameTheme tokens (iOS + Android).
       // theme: {
@@ -126,6 +127,11 @@ export default function App() {
   const handleApplePay = async () => {
     setLoading('applePay');
     try {
+      // Clear any stale App Attest key and re-attest against the backend before
+      // presenting Apple Pay. App Attest keys persist in the keychain across
+      // reinstalls, so a key attested against a stale backend environment would
+      // otherwise stick and never re-register.
+      await Frame.resetDeviceAttestation();
       // Switch `owner.type` to 'customer' to create a ChargeIntent against a customer
       // instead of a Transfer against an account. The resolved id type matches the owner.
       const chargeId = await Frame.presentApplePay({
