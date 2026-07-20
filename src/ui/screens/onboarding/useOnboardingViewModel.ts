@@ -5,7 +5,7 @@ import { __internal as configInternal, getIpAddress } from '../../../config';
 import { ErrorCodes, frameError } from '../../../errors';
 import { addApplePayToOwnerFlow } from '../../../applePay';
 import { openPlaidLink as runPlaidLink, type PlaidConnectResult } from '../../../plaid';
-import { PaymentAccountType, PaymentMethodType, type PaymentMethod as FramePaymentMethod } from '../../../framepaymentsTypes';
+import { PaymentAccountType, PaymentMethodType, type PaymentMethod as FramePaymentMethod } from 'framepayments';
 import type { OnboardingCapability, OnboardingResult } from '../../../types';
 import {
   initialOnboardingState,
