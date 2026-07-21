@@ -102,14 +102,7 @@ export interface OnboardingState {
   // ─── Account ───
   accountId: string | null;
   accountLoaded: boolean;
-  // Mirrors iOS OnboardingContainerViewModel.termsOfServiceToken — fetched
-  // once via TermsOfServiceAPI.createToken on phone-auth screen mount, then
-  // attached to every account create/update payload that needs it.
   termsOfServiceToken: string | null;
-  // Mirrors iOS OnboardingContainerViewModel.existingAccountHasTOS — set from
-  // `account.terms_of_service.accepted_at != null` during mount-time prefill.
-  // When true, updateAccount omits the termsOfService payload (matches iOS
-  // updateExistingIndividualAccount, OnboardingContainerViewModel.swift:210).
   existingAccountHasTOS: boolean;
 
   // ─── PersonalInformation: phone-auth ───
@@ -130,10 +123,6 @@ export interface OnboardingState {
   customerLastName: string;
   customerEmail: string;
   ssnLast4: string;
-  // No-SSN path: set true once the Frame backend confirms (via POST /idv/complete)
-  // that the user verified identity with a government ID through Persona. While
-  // true, the SSN input + "I don't have a social security number" button are
-  // hidden, SSN validation is skipped, and ssn_last_four is omitted on submit.
   identityVerifiedViaGovId: boolean;
   // The pre-created Persona inquiry id (`inq_...`) from POST /idv/session, kept
   // for reference/debugging after the flow completes.
