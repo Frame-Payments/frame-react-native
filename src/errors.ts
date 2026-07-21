@@ -50,6 +50,8 @@ export const ErrorCodes = {
   GOOGLE_PAY_UNAVAILABLE: 'GOOGLE_PAY_UNAVAILABLE',
   /** Plaid is not available or not linked. */
   PLAID_UNAVAILABLE: 'PLAID_UNAVAILABLE',
+  /** Persona (government-ID identity verification) is not installed in the host app. */
+  PERSONA_UNAVAILABLE: 'PERSONA_UNAVAILABLE',
   /** Camera permission was denied or hardware is unavailable. */
   CAMERA_UNAVAILABLE: 'CAMERA_UNAVAILABLE',
   /** The operation is not supported on the current platform. */

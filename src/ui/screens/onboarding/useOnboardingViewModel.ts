@@ -5,6 +5,8 @@ import { __internal as configInternal, getIpAddress } from '../../../config';
 import { ErrorCodes, frameError } from '../../../errors';
 import { addApplePayToOwnerFlow } from '../../../applePay';
 import { openPlaidLink as runPlaidLink, type PlaidConnectResult } from '../../../plaid';
+import { launchPersonaInquiry } from '../../../persona';
+import { createIdvSession, completeIdvSession } from '../../../idv';
 import { PaymentAccountType, PaymentMethodType, type PaymentMethod as FramePaymentMethod } from 'framepayments';
 import type { OnboardingCapability, OnboardingResult } from '../../../types';
 import {
@@ -87,6 +89,11 @@ export interface OnboardingViewModelResult {
    *  called from sendOTPVerification / confirmTwilioOTP. */
   refreshAccountAfterPhoneVerify: () => Promise<void>;
   submitCustomerInformation: () => Promise<void>;
+  /** No-SSN path: create an IDV session, launch Persona against the pre-created
+   *  inquiry, then confirm with the Frame backend. On a verified backend
+   *  response, dispatch the verified state so the SSN row + button are removed.
+   *  Server response is the source of truth — Persona's client status is not. */
+  verifyIdentityWithoutSsn: () => Promise<void>;
   // Payment-method actions
   loadSavedPaymentMethods: () => Promise<void>;
   submitNewCard: (card: { pan: string; expirationMonth: string; expirationYear: string; cvc: string }) => Promise<string>;
@@ -412,7 +419,9 @@ export function useOnboardingViewModel({
         email: current.customerEmail,
         phone: { number: phoneE164, country_code: current.phoneCountry.callingCode },
         birthdate: `${current.dobYear}-${current.dobMonth.padStart(2, '0')}-${current.dobDay.padStart(2, '0')}`,
-        ssn_last_four: current.ssnLast4 || undefined,
+        // Omit SSN entirely when the user verified via government ID — the
+        // no-SSN path means we never collected it.
+        ssn_last_four: current.identityVerifiedViaGovId ? undefined : current.ssnLast4 || undefined,
         address: {
           line_1: current.address.line1,
           line_2: current.address.line2 || undefined,
@@ -454,6 +463,32 @@ export function useOnboardingViewModel({
       }
     });
   }, [guardedAction, advance]);
+
+  // No-SSN government-ID path (mirrors the openPlaidLink end-to-end shape):
+  //   1. POST /idv/session → pre-created Persona inquiry id.
+  //   2. Launch Persona against that inquiry (Inquiry.fromInquiry).
+  //   3. POST /idv/complete → the AUTHORITATIVE verified flag. Persona's
+  //      client-side onComplete status is best-effort and is NOT trusted to
+  //      flip the UI — only the backend response is.
+  // On verified=true we dispatch the verified state (removing the SSN input +
+  // the button). On verified=false (incl. the not-yet-shipped JSON endpoint
+  // degrading to pending) we surface a soft error so the user stays on the SSN
+  // screen and can retry or type their SSN. Cancel/USER_CANCELED propagates so
+  // the caller can no-op it.
+  const verifyIdentityWithoutSsn = useCallback(async () => {
+    return guardedAction(async () => {
+      const { inquiryId } = await createIdvSession();
+      await launchPersonaInquiry({ inquiryId });
+      const { verified } = await completeIdvSession(inquiryId);
+      if (!verified) {
+        throw frameError(
+          ErrorCodes.PAYMENT_FAILED,
+          'We could not confirm your identity yet. Please try again or enter your SSN.',
+        );
+      }
+      dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId });
+    });
+  }, [guardedAction]);
 
   // ─── Payment methods ───
 
@@ -772,7 +807,7 @@ export function useOnboardingViewModel({
         !params.date_of_birth ||
         !params.email ||
         !params.phone_number ||
-        !params.ssn ||
+        (!current.identityVerifiedViaGovId && !params.ssn) ||
         !params.address.line_1
       ) {
         throw frameError(
@@ -780,7 +815,17 @@ export function useOnboardingViewModel({
           'Customer identity is missing required fields. Complete the customer information step before uploading documents.',
         );
       }
-      const identity = await client.sdk.customerIdentityVerifications.create(params);
+      // On the no-SSN government-ID path, identity was established via Persona,
+      // so we never collected an SSN. The SDK's create params type `ssn` as a
+      // required string, but the backend accepts an SSN-less identity on this
+      // path — drop the key at runtime rather than send an empty string.
+      let createParams: typeof params = params;
+      if (current.identityVerifiedViaGovId) {
+        const { ssn: _omitSsn, ...rest } = params;
+        void _omitSsn;
+        createParams = rest as typeof params;
+      }
+      const identity = await client.sdk.customerIdentityVerifications.create(createParams);
       if (!identity?.id) {
         throw frameError(ErrorCodes.PAYMENT_FAILED, 'Frame returned no customer-identity id.');
       }
@@ -924,6 +969,7 @@ export function useOnboardingViewModel({
     confirmFrameOtp,
     refreshAccountAfterPhoneVerify,
     submitCustomerInformation,
+    verifyIdentityWithoutSsn,
     loadSavedPaymentMethods,
     submitNewCard,
     addApplePayToOwner,

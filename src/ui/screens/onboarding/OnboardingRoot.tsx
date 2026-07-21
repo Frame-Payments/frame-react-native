@@ -291,6 +291,7 @@ export function OnboardingRoot({
               onChangeSsn={vm.setSsnLast4}
               onChangeAddressField={vm.setAddressField}
               onSubmit={() => vm.submitCustomerInformation().catch(surfaceError)}
+              onVerifyIdentity={() => vm.verifyIdentityWithoutSsn().catch(surfaceError)}
             />
           );
         case 'geolocation':

@@ -130,6 +130,14 @@ export interface OnboardingState {
   customerLastName: string;
   customerEmail: string;
   ssnLast4: string;
+  // No-SSN path: set true once the Frame backend confirms (via POST /idv/complete)
+  // that the user verified identity with a government ID through Persona. While
+  // true, the SSN input + "I don't have a social security number" button are
+  // hidden, SSN validation is skipped, and ssn_last_four is omitted on submit.
+  identityVerifiedViaGovId: boolean;
+  // The pre-created Persona inquiry id (`inq_...`) from POST /idv/session, kept
+  // for reference/debugging after the flow completes.
+  govIdInquiryId: string | null;
   address: OnboardingAddress;
 
   // ─── ConfirmPaymentMethod ───
@@ -182,6 +190,7 @@ export type OnboardingAction =
   | { type: 'SET_CUSTOMER_LAST_NAME'; value: string }
   | { type: 'SET_CUSTOMER_EMAIL'; value: string }
   | { type: 'SET_SSN_LAST4'; value: string }
+  | { type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID'; verified: boolean; inquiryId: string | null }
   | { type: 'SET_ADDRESS_FIELD'; field: keyof OnboardingAddress; value: string }
   // Payment method
   | { type: 'SET_SAVED_PAYMENT_METHODS'; methods: ReadonlyArray<FramePaymentMethod> }
@@ -255,6 +264,8 @@ export function initialOnboardingState(
     customerLastName: '',
     customerEmail: '',
     ssnLast4: '',
+    identityVerifiedViaGovId: false,
+    govIdInquiryId: null,
     address: { ...DEFAULT_ADDRESS },
     savedPaymentMethods: [],
     selectedPaymentMethodId: null,
@@ -354,6 +365,15 @@ export function onboardingReducer(state: OnboardingState, action: OnboardingActi
       };
     case 'SET_SSN_LAST4':
       return { ...state, ssnLast4: action.value, fieldErrors: clearError(state.fieldErrors, 'ssnLast4') };
+    case 'SET_IDENTITY_VERIFIED_VIA_GOV_ID':
+      return {
+        ...state,
+        identityVerifiedViaGovId: action.verified,
+        govIdInquiryId: action.inquiryId,
+        // Verified via gov ID means the SSN row disappears — drop any stale SSN
+        // error so it can't wedge the Continue button on the now-hidden field.
+        fieldErrors: action.verified ? clearError(state.fieldErrors, 'ssnLast4') : state.fieldErrors,
+      };
     case 'SET_ADDRESS_FIELD': {
       const nextAddress: OnboardingAddress = { ...state.address, [action.field]: action.value };
       return {
