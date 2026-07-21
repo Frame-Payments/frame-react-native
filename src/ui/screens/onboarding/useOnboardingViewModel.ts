@@ -431,13 +431,7 @@ export function useOnboardingViewModel({
           postal_code: current.address.postalCode,
         },
       };
-      // Mirrors iOS updateExistingIndividualAccount
-      // (OnboardingContainerViewModel.swift:210):
-      //   termsOfService: existingAccountHasTOS ? nil : termsOfService
-      // The JS SDK's UpdateAccountParams type doesn't declare terms_of_service,
-      // but the backend accepts it (iOS sends it on every update where TOS
-      // hasn't been accepted yet). Runtime cast preserves type-safety on the
-      // rest of the payload.
+      
       const updateBody: Record<string, unknown> = { profile: { individual } };
       if (!current.existingAccountHasTOS) {
         const tos = buildTosPayload(current.termsOfServiceToken);
@@ -463,18 +457,7 @@ export function useOnboardingViewModel({
       }
     });
   }, [guardedAction, advance]);
-
-  // No-SSN government-ID path (mirrors the openPlaidLink end-to-end shape):
-  //   1. POST /idv/session → pre-created Persona inquiry id.
-  //   2. Launch Persona against that inquiry (Inquiry.fromInquiry).
-  //   3. POST /idv/complete → the AUTHORITATIVE verified flag. Persona's
-  //      client-side onComplete status is best-effort and is NOT trusted to
-  //      flip the UI — only the backend response is.
-  // On verified=true we dispatch the verified state (removing the SSN input +
-  // the button). On verified=false (incl. the not-yet-shipped JSON endpoint
-  // degrading to pending) we surface a soft error so the user stays on the SSN
-  // screen and can retry or type their SSN. Cancel/USER_CANCELED propagates so
-  // the caller can no-op it.
+  
   const verifyIdentityWithoutSsn = useCallback(async () => {
     return guardedAction(async () => {
       const { inquiryId } = await createIdvSession();
@@ -545,11 +528,7 @@ export function useOnboardingViewModel({
         if (!pm?.id) {
           throw frameError(ErrorCodes.PAYMENT_METHOD_FAILED, 'Frame returned no payment method id.');
         }
-        // Mirror iOS OnboardingContainerViewModel.addNewPaymentMethod():
-        //   selectedPaymentMethod = paymentMethod
-        //   paymentMethods.append(paymentMethod)
-        // so the SelectPaymentMethod screen sees the new card without a
-        // round-trip back to the server.
+        
         dispatch({ type: 'APPEND_SAVED_PAYMENT_METHOD', method: pm });
         dispatch({ type: 'SELECT_PAYMENT_METHOD', id: pm.id });
         return pm.id;
