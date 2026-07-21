@@ -1,26 +1,5 @@
 import { ErrorCodes, frameError } from './errors';
 
-// Thin wrapper around react-native-persona so the rest of the SDK doesn't have
-// to deal with the dynamic import / peer-dep dance. Mirrors src/plaid.ts: a
-// guarded `isPersonaAvailable()` plus a single `launchPersonaInquiry({ inquiryId })`
-// entry point that owns the builder → start round-trip and resolves with the
-// inquiry outcome.
-//
-// The Persona SDK is an OPTIONAL peer dep. Host apps that don't offer the
-// no-SSN government-ID path don't need it. We lazy-require it so a missing dep
-// doesn't crash module load — `isPersonaAvailable()` returns false and the
-// onboarding screen hides the "I don't have a social security number" button.
-
-// Minimal structural view of the react-native-persona surface we consume.
-// Kept local (rather than importing the package's types) so this module still
-// type-checks when the optional peer dep isn't installed. Verified against
-// react-native-persona@2.47.0:
-//   Inquiry.fromInquiry(inquiryId) → InquiryBuilder
-//     .onComplete((inquiryId, status, fields, extraData) => void)
-//     .onCanceled((inquiryId?, sessionToken?) => void)
-//     .onError((error, errorCode?) => void)
-//     .build() → Inquiry
-//   Inquiry.start(): void   // launches the native modal; NOT a promise
 type PersonaFields = Record<string, unknown>;
 
 interface PersonaInquiryInstance {
@@ -80,17 +59,6 @@ export interface PersonaInquiryResult {
   fields: PersonaFields;
 }
 
-/**
- * Launch the Persona mobile flow against a PRE-CREATED inquiry id
- * (`Inquiry.fromInquiry(inquiryId)`), NOT a template. Resolves on the SDK's
- * `onComplete`, rejects with USER_CANCELED on cancel, PAYMENT_FAILED on error,
- * or PERSONA_UNAVAILABLE when the SDK isn't installed.
- *
- * ⚠️ The resolved `status` is Persona's client-side, best-effort signal — it is
- * NOT authoritative. Callers MUST confirm verification via the Frame backend
- * (`POST /idv/complete`) before flipping any UI to a verified state. This
- * promise resolving only means the user finished the flow on-device.
- */
 export function launchPersonaInquiry(opts: { inquiryId: string }): Promise<PersonaInquiryResult> {
   const sdk = loadSdk();
   if (!sdk) {
