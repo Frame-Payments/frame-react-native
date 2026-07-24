@@ -7,6 +7,7 @@ import { addApplePayToOwnerFlow } from '../../../applePay';
 import { openPlaidLink as runPlaidLink, type PlaidConnectResult } from '../../../plaid';
 import { launchPersonaInquiry } from '../../../persona';
 import { createIdvSession, completeIdvSession } from '../../../idv';
+import { ensureOnboardingSession } from '../../../onboardingSession';
 import { PaymentAccountType, PaymentMethodType, type PaymentMethod as FramePaymentMethod } from 'framepayments';
 import type { OnboardingCapability, OnboardingResult } from '../../../types';
 import {
@@ -33,10 +34,9 @@ import {
   isCapabilitySatisfied,
 } from './onboardingSelectors';
 
-// Hook owning the onboarding state machine + side effects. Phase 8a wires the
-// foundation; later sub-phases plug screens in. The Prove + Plaid + camera +
-// 3DS-poll surfaces stay behind adapter callables so 8b–8e can extend
-// without rewriting 8a.
+// Hook owning the onboarding state machine + side effects. Screens drive it
+// through the returned callables; the Prove + Plaid + camera + 3DS-poll
+// surfaces stay behind adapters so they can be swapped independently.
 
 export interface OnboardingViewModelArgs {
   accountId: string | null;
@@ -155,6 +155,12 @@ export function useOnboardingViewModel({
     let cancelled = false;
     (async () => {
       try {
+        // Host launched against an existing account: mint the onboarding
+        // session before the prefetch so account-scoped requests use the
+        // `onb_sess_...` bearer. Mirrors iOS checkExistingAccount.
+        await ensureOnboardingSession(initialAccountId);
+        if (cancelled) return;
+
         // Pull the account profile + saved methods in parallel. Failures are
         // non-fatal — the user can still complete the flow, just without
         // prefill.
@@ -210,10 +216,10 @@ export function useOnboardingViewModel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Re-sync flow if requiredCapabilities changes after the initial computation
-  // (used by 8g: capabilities resolved by account-prefetch). If the new flow
-  // doesn't include the user's current step, snap them back to the first step
-  // that still exists rather than wedging on a stale step.
+  // Re-sync flow when requiredCapabilities changes after the initial
+  // computation (e.g. capabilities resolved by account-prefetch). If the new
+  // flow drops the user's current step, snap them back to the first step that
+  // still exists rather than wedging on a stale step.
   useEffect(() => {
     const flow = computeFlow(state.requiredCapabilities, showIntroScreen, showCompletionScreen);
     const currentStep = flow.includes(stateRef.current.currentStep)
@@ -297,14 +303,10 @@ export function useOnboardingViewModel({
       }
       const forceFrameOtp = opts?.forceFrameOtp === true;
 
-      // Account creation: empty-individual account if none exists, then OTP.
-      // Mirrors iOS OnboardingContainerViewModel.createEmptyIndividualAccount
-      // (lines 169-188): empty name + email, phone {number, country_code},
-      // birthdate when present, plus termsOfService + capabilities on the
-      // CreateAccountRequest. The SDK's CreateAccountProfile type requires
-      // name + email at the type level, but the backend treats them as
-      // optional on initial create — we use a runtime-safe cast here and
-      // assert the response shape ourselves.
+      // Create an empty individual account if none exists, then OTP. Mirrors
+      // iOS createEmptyIndividualAccount. The SDK types name + email as
+      // required, but the backend treats them as optional on initial create —
+      // hence the runtime-safe cast and our own response-shape assertion.
       let accountId = current.accountId;
       if (!accountId) {
         const e164 = `+${current.phoneCountry.callingCode}${current.phoneNumber.replace(/\D+/g, '')}`;
@@ -333,6 +335,11 @@ export function useOnboardingViewModel({
         }
         accountId = account.id;
         dispatch({ type: 'SET_ACCOUNT_ID', id: accountId });
+        // Mint the account-scoped onboarding session now so downstream
+        // account-scoped requests (the no-SSN IDV calls in particular)
+        // authenticate with an `onb_sess_...` bearer instead of the raw pk_/sk_.
+        // Mirrors iOS beginOnboardingSessionIfNeeded.
+        await ensureOnboardingSession(accountId);
       }
 
       const e164 = `+${current.phoneCountry.callingCode}${current.phoneNumber.replace(/\D+/g, '')}`;
@@ -457,10 +464,20 @@ export function useOnboardingViewModel({
       }
     });
   }, [guardedAction, advance]);
-  
+
+  // No-SSN government-ID path. The backend's /idv/complete response is the
+  // authoritative verified flag — Persona's client-side status is not trusted.
   const verifyIdentityWithoutSsn = useCallback(async () => {
     return guardedAction(async () => {
       const { inquiryId } = await createIdvSession();
+      // A pre-existing account may already have an approved (terminal) inquiry,
+      // which the Persona SDK can't launch. The backend reads inquiry status
+      // server-side, so if it reports verified up front we skip Persona.
+      const preCheck = await completeIdvSession(inquiryId);
+      if (preCheck.verified) {
+        dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId });
+        return;
+      }
       await launchPersonaInquiry({ inquiryId });
       const { verified } = await completeIdvSession(inquiryId);
       if (!verified) {
@@ -877,7 +894,10 @@ export function useOnboardingViewModel({
   const generateTermsOfServiceToken = useCallback(async () => {
     if (stateRef.current.termsOfServiceToken) return;
     try {
-      const response = await client.sdk.termsOfService.createToken();
+      // terms_of_service is a merchant-level endpoint that rejects the
+      // onboarding session token, so force the pk_ even while a session is
+      // active. Mirrors iOS/Android marking TOS as publishable.
+      const response = await client.sdk.termsOfService.createToken({ usePublishableKey: true });
       if (response?.token) {
         dispatch({ type: 'SET_TERMS_OF_SERVICE_TOKEN', token: response.token });
       }
@@ -920,8 +940,6 @@ export function useOnboardingViewModel({
     dispatch({ type: 'SET_ACH_MANUAL_MODE', value });
   }, []);
 
-  // Surface adjacent helpers used by 8g via the returned shape.
-  // (Kept on the object so screens have one canonical access point.)
   return {
     state,
     dispatch,
@@ -965,7 +983,7 @@ export function useOnboardingViewModel({
   };
 }
 
-// Re-exposed for advanced consumers (e.g. tests + 8g prefetch logic).
+// Re-exposed for advanced consumers (e.g. tests + prefetch logic).
 export { isCapabilitySatisfied };
 
 // ─── Evervault helper (mirrors useCheckoutViewModel) ───
@@ -1014,10 +1032,8 @@ async function reconcileCapabilities(
 }
 
 // For each required capability the account already has with an empty
-// `currently_due`, remove it from the merchant's requested list. The mount
-// effect's downstream `SET_REQUIRED_CAPABILITIES` dispatch triggers the
-// existing `state.requiredCapabilities` effect (see ~line 182) which
-// recomputes the flow.
+// `currently_due`, remove it from the merchant's requested list so the flow
+// skips that step.
 function trimCompletedCapabilities(
   required: ReadonlyArray<OnboardingCapability>,
   account: { capabilities?: unknown[] } | null | undefined,
@@ -1065,11 +1081,8 @@ function prefillFromAccount(account: {
     null;
   if (emailCandidate) out.customerEmail = emailCandidate;
   if (typeof individual.ssn_last_four === 'string') out.ssnLast4 = individual.ssn_last_four;
-  // Backend returns `birthdate` (verified empirically + matches iOS
-  // IndividualAccount.birthdate). Earlier code read `date_of_birth`, which
-  // never matched — DOB only appeared prefilled because the user typed it on
-  // the auth-phone step. Accept `date_of_birth` too just in case a future
-  // schema migration renames it.
+  // Backend returns `birthdate` (matches iOS IndividualAccount.birthdate);
+  // accept `date_of_birth` too in case a future schema migration renames it.
   const birthdate =
     (typeof individual.birthdate === 'string' && (individual.birthdate as string)) ||
     (typeof individual.date_of_birth === 'string' && (individual.date_of_birth as string)) ||
@@ -1120,7 +1133,9 @@ async function ensureEvervaultConfigured(): Promise<void> {
     await configureEvervault(cached.teamId, cached.appId);
     return;
   }
-  const config = await client.sdk.configuration.getEvervaultConfiguration();
+  // Merchant-level endpoint reached mid-onboarding while a session is active —
+  // force the pk_ so the session token isn't sent to an endpoint that rejects it.
+  const config = await client.sdk.configuration.getEvervaultConfiguration({ usePublishableKey: true });
   if (!config.team_id || !config.app_id) {
     throw frameError(ErrorCodes.PAYMENT_FAILED, 'Evervault configuration is unavailable.');
   }

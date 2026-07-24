@@ -31,7 +31,7 @@ export async function createIdvSession(): Promise<{ inquiryId: string }> {
   }
   let response: Response;
   try {
-    response = await fetch(`${FRAME_API_BASE_URL}/idv/session`, {
+    response = await fetch(`${FRAME_API_BASE_URL}/v1/idv/session`, {
       method: 'POST',
       headers: idvHeaders(),
       body: JSON.stringify({}),
@@ -64,7 +64,7 @@ export async function createIdvSession(): Promise<{ inquiryId: string }> {
 export async function completeIdvSession(inquiryId: string): Promise<{ verified: boolean }> {
   let response: Response;
   try {
-    response = await fetch(`${FRAME_API_BASE_URL}/idv/complete`, {
+    response = await fetch(`${FRAME_API_BASE_URL}/v1/idv/complete`, {
       method: 'POST',
       headers: idvHeaders(),
       body: JSON.stringify({ inquiry_id: inquiryId }),

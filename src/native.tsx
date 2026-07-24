@@ -397,11 +397,13 @@ export interface PresentOnboardingOptions {
    */
   accountId?: string | null;
   /**
-   * Server-minted onboarding-session token (`onb_sess_...`). Mint it on your
-   * backend via `POST /v1/onboarding_sessions` (which uses your secret key) and
-   * pass it here. While the onboarding flow is presented, every request is
-   * scoped to this token, overriding the configured pk_/sk_ keys — the
-   * publishable-key-safe way to run onboarding on device. Mirrors iOS
+   * Onboarding-session token (`onb_sess_...`) from `POST /v1/onboarding_sessions`.
+   * Optional: when omitted, the SDK mints one on-device after it creates the
+   * account (that endpoint accepts a publishable key, so no secret key is
+   * needed). Supply your own here only if you mint it elsewhere (e.g. a backend
+   * mint with your secret key). While the onboarding flow is presented, every
+   * request is scoped to this token, overriding the configured pk_/sk_ keys —
+   * the publishable-key-safe way to run onboarding on device. Mirrors iOS
    * `OnboardingContainerView(clientSecret:)`.
    */
   clientSecret?: string | null;
@@ -447,17 +449,20 @@ export async function presentOnboarding(options: PresentOnboardingOptions): Prom
   const accountId = options.accountId ?? null;
   const clientSecret = options.clientSecret ?? null;
   // Onboarding's account-scoped requests authenticate with the onb_sess_ token.
-  // Without one, they fall back to the configured key — which works only if a
-  // secret key is present (server-only path). A publishable-key-only app with
-  // no clientSecret would fail mid-flow with an opaque `missing_api_key`; warn
-  // up front so the misconfiguration is obvious. (Warn, don't reject — the
-  // legacy sk_ path is still supported.)
-  if (!clientSecret && !getSecretKey()) {
+  // When no clientSecret is supplied, the SDK mints one on-device with the
+  // publishable key right after it CREATES the account (see
+  // ensureOnboardingSession) — so a pk_-only app that lets Frame create the
+  // account is fully supported. The gap is a host-supplied accountId with no
+  // clientSecret and no secretKey: there's no create step to mint from and the
+  // account is not yet session-scoped, so its requests would fall back to the
+  // pk_ and can fail mid-flow. Warn up front for that case only. (Warn, don't
+  // reject — the legacy sk_ path is still supported.)
+  if (accountId && !clientSecret && !getSecretKey()) {
     warnOnce(
       'onboarding-no-credential',
-      'presentOnboarding was called without a clientSecret and no secretKey is configured. ' +
-        'Mint an onboarding session (onb_sess_) on your backend and pass it as clientSecret — ' +
-        'onboarding requests will otherwise fail to authenticate.',
+      'presentOnboarding was called with an accountId but no clientSecret, and no secretKey is ' +
+        'configured. Mint an onboarding session (onb_sess_) for that account and pass it as ' +
+        'clientSecret — onboarding requests may otherwise fail to authenticate.',
     );
   }
   const capabilities = options.capabilities ?? [];
