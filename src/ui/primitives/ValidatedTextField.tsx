@@ -1,7 +1,5 @@
 import { StyleSheet, Text, TextInput, View, type KeyboardTypeOptions, type ViewStyle } from 'react-native';
 import { useFrameTheme } from '../theme/ThemeContext';
-import { KEYBOARD_ACCESSORY_ID } from './KeyboardAccessory';
-import { isNumericKeyboard } from './keyboardAccessoryLogic';
 import { truncateToLimit } from './textFieldUtils';
 
 export { truncateToLimit };
@@ -115,10 +113,6 @@ export function ValidatedTextField({
       placeholder={prompt}
       placeholderTextColor={theme.colors.textSecondary}
       keyboardType={keyboardType}
-      // Numeric keyboards have no return key, so they need the Done bar to be
-      // dismissible. Text keyboards already have one — attaching it there would
-      // add a redundant row above the keyboard.
-      inputAccessoryViewID={isNumericKeyboard(keyboardType) ? KEYBOARD_ACCESSORY_ID : undefined}
       secureTextEntry={secureTextEntry}
       autoCapitalize={autoCapitalize}
       autoCorrect={autoCorrect}

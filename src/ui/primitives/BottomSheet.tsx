@@ -72,8 +72,8 @@ export function BottomSheet({
       <View style={styles.body}>{children}</View>
       {/* Every SDK screen is presented through this primitive, so mounting the
           Done bar here gives all of them a dismissible numeric keyboard from one
-          place. It renders no layout of its own — iOS only surfaces it while an
-          input carrying KEYBOARD_ACCESSORY_ID has focus. */}
+          place. It is absolutely positioned and only renders while the keyboard
+          is up, so it costs no layout the rest of the time. */}
       <KeyboardAccessory />
     </SafeAreaView>
   );

@@ -11,7 +11,9 @@
       "bundleIdentifier": "com.framepayments.expoexample",
       "supportsTablet": false,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Used to photograph your ID and take a selfie for identity verification.",
+        "NSPhotoLibraryUsageDescription": "Used to upload an existing photo of your ID for identity verification."
       }
     },
     "android": {

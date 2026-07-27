@@ -2,7 +2,6 @@ import { useMemo, useRef } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { AsYouType } from 'libphonenumber-js';
 import { useFrameTheme } from '../theme/ThemeContext';
-import { KEYBOARD_ACCESSORY_ID } from './KeyboardAccessory';
 import { PhoneCountryPicker } from './PhoneCountryPicker';
 import type { PhoneCountry } from '../../countries';
 
@@ -63,7 +62,6 @@ export function PhoneNumberField({
             placeholder="Phone number"
             placeholderTextColor={theme.colors.textSecondary}
             keyboardType="phone-pad"
-            inputAccessoryViewID={KEYBOARD_ACCESSORY_ID}
             autoComplete="tel"
             textContentType="telephoneNumber"
             style={[
