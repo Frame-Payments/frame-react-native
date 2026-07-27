@@ -8,6 +8,9 @@ import { openPlaidLink as runPlaidLink, type PlaidConnectResult } from '../../..
 import { launchPersonaInquiry } from '../../../persona';
 import { createIdvSession, completeIdvSession } from '../../../idv';
 import { ensureOnboardingSession } from '../../../onboardingSession';
+import { isNotFoundError } from '../../../api-errors';
+import { endOnboardingSession } from '../../../auth';
+import { warnOnce } from '../../../warn';
 import { PaymentAccountType, PaymentMethodType, type PaymentMethod as FramePaymentMethod } from 'framepayments';
 import type { OnboardingCapability, OnboardingResult } from '../../../types';
 import {
@@ -163,14 +166,41 @@ export function useOnboardingViewModel({
 
         // Pull the account profile + saved methods in parallel. Failures are
         // non-fatal — the user can still complete the flow, just without
-        // prefill.
-        const [accountInitial, methodsResp] = await Promise.all([
-          client.sdk.accounts.get(initialAccountId).catch(() => null),
+        // prefill. A 404 is special-cased below: it's the one failure that
+        // tells us the id itself is bad.
+        const [accountResult, methodsResp] = await Promise.all([
+          client.sdk.accounts
+            .get(initialAccountId)
+            .then((account) => ({ account, notFound: false }))
+            .catch((err: unknown) => ({ account: null, notFound: isNotFoundError(err) })),
           client.sdk.accounts
             .getPaymentMethods(initialAccountId)
             .catch(() => ({ data: [] as Array<unknown> })),
         ]);
         if (cancelled) return;
+
+        // The host passed an accountId the server doesn't have. Drop it so the
+        // flow follows the same path as a host that passed none at all: the
+        // create-empty-account branch in sendOtp runs and onboarding proceeds
+        // against a fresh account. Only a 404 clears the id — a transport
+        // failure or 5xx says nothing about whether the account exists, and
+        // discarding a valid id there would silently create a duplicate.
+        if (accountResult.notFound) {
+          warnOnce(
+            'onboarding-account-not-found',
+            `presentOnboarding was called with accountId "${initialAccountId}", which Frame ` +
+              'returned 404 for. Continuing as if no accountId was supplied — a new account will ' +
+              'be created during the flow.',
+          );
+          // Drop the session minted above against the bad id — it's scoped to a
+          // nonexistent account, and ensureOnboardingSession returns early when
+          // one is already active, so leaving it would make the post-create mint
+          // a no-op and send every request with a dead bearer.
+          endOnboardingSession();
+          dispatch({ type: 'SET_ACCOUNT_ID', id: null });
+          return;
+        }
+        const accountInitial = accountResult.account;
 
         // Reconcile the merchant-requested capabilities with the account's
         // existing capabilities. Mirrors iOS OnboardingContainerViewModel.

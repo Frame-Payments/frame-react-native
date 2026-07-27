@@ -1,3 +1,4 @@
+import { NativeModules } from 'react-native';
 import { ErrorCodes, frameError } from './errors';
 
 type PersonaFields = Record<string, unknown>;
@@ -26,6 +27,17 @@ let cachedSdk: PersonaSdk | null | undefined;
 function loadSdk(): PersonaSdk | null {
   if (cachedSdk !== undefined) return cachedSdk;
   try {
+    // The JS package resolving does NOT mean Persona is usable: in a monorepo
+    // or with a hoisted peer dep, `react-native-persona` is reachable from
+    // node_modules while its pod was never installed. react-native-persona
+    // builds a NativeEventEmitter at module scope, which throws
+    // "`new NativeEventEmitter()` requires a non-null argument" the moment we
+    // require it — so check the native module is registered BEFORE the require,
+    // not after. `PersonaInquiry2` is the name react-native-persona registers.
+    if (!NativeModules.PersonaInquiry2) {
+      cachedSdk = null;
+      return cachedSdk;
+    }
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require('react-native-persona');
     // The package exports `Inquiry` as a named export; some bundlers surface

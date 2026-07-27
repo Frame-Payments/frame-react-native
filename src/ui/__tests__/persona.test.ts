@@ -5,6 +5,16 @@ import { ErrorCodes } from '../../errors';
 // re-requires persona.ts through jest.isolateModules so the module-level cache
 // starts fresh — mirroring how __resetPersonaSdkCache is used in the app.
 
+// Mutable so a test can simulate the pod being absent. Defaults to present:
+// every pre-existing case here exercises the JS-resolution guard, which is only
+// reachable once the native check passes.
+const mockNativeModules: { PersonaInquiry2?: unknown } = { PersonaInquiry2: {} };
+jest.mock('react-native', () => ({
+  get NativeModules() {
+    return mockNativeModules;
+  },
+}));
+
 type PersonaModule = typeof import('../../persona');
 
 function loadPersona(): PersonaModule {
@@ -19,6 +29,7 @@ function loadPersona(): PersonaModule {
 afterEach(() => {
   jest.resetModules();
   jest.dontMock('react-native-persona');
+  mockNativeModules.PersonaInquiry2 = {};
 });
 
 describe('launchPersonaInquiry — dependency gating', () => {
@@ -42,6 +53,42 @@ describe('launchPersonaInquiry — dependency gating', () => {
     await expect(launchPersonaInquiry({ inquiryId: 'inq_1' })).rejects.toMatchObject({
       code: ErrorCodes.PERSONA_UNAVAILABLE,
     });
+  });
+
+  // Regression: a hoisted/monorepo node_modules makes the JS package resolvable
+  // in apps that never installed the pod. react-native-persona constructs a
+  // NativeEventEmitter at module scope, so requiring it there throws
+  // "`new NativeEventEmitter()` requires a non-null argument" and crashes the
+  // screen. The native check must short-circuit BEFORE the require.
+  it('reports unavailable when the JS package resolves but the native module is missing', async () => {
+    delete mockNativeModules.PersonaInquiry2;
+    let required = false;
+    jest.doMock(
+      'react-native-persona',
+      () => {
+        required = true;
+        throw new Error('`new NativeEventEmitter()` requires a non-null argument.');
+      },
+      { virtual: true },
+    );
+    const { isPersonaAvailable, launchPersonaInquiry, __resetPersonaSdkCache } = loadPersona();
+    __resetPersonaSdkCache();
+
+    expect(isPersonaAvailable()).toBe(false);
+    expect(required).toBe(false);
+    await expect(launchPersonaInquiry({ inquiryId: 'inq_1' })).rejects.toMatchObject({
+      code: ErrorCodes.PERSONA_UNAVAILABLE,
+    });
+  });
+
+  it('reports available when both the native module and the JS package are present', () => {
+    jest.doMock('react-native-persona', () => ({ Inquiry: { fromInquiry: () => ({}) } }), {
+      virtual: true,
+    });
+    const { isPersonaAvailable, __resetPersonaSdkCache } = loadPersona();
+    __resetPersonaSdkCache();
+
+    expect(isPersonaAvailable()).toBe(true);
   });
 });
 

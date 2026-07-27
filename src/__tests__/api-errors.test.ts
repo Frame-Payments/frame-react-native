@@ -1,5 +1,5 @@
 import { FrameAPIError } from 'framepayments';
-import { toToastMessage, toFrameError, isTransportError, DEFAULT_TOAST_FALLBACK } from '../api-errors';
+import { toToastMessage, toFrameError, isNotFoundError, isTransportError, DEFAULT_TOAST_FALLBACK } from '../api-errors';
 import { ErrorCodes, isFrameError } from '../errors';
 
 describe('toToastMessage', () => {
@@ -66,6 +66,39 @@ describe('toToastMessage', () => {
       error: 'Unprocessable Entity',
     });
     expect(toToastMessage(err)).toBe('Error: Unprocessable Entity');
+  });
+});
+
+describe('isNotFoundError', () => {
+  it('is true for a 404', () => {
+    const err = new FrameAPIError('An error occurred', 'unknown_error', 404, {
+      error: 'Not Found',
+    });
+    expect(isNotFoundError(err)).toBe(true);
+  });
+
+  // The negative cases carry the weight: onboarding uses this to decide whether
+  // to discard a host-supplied accountId, and a false positive there silently
+  // creates a duplicate account.
+  it('is false for other 4xx statuses', () => {
+    const err = new FrameAPIError('Validation', 'unknown_error', 422, {});
+    expect(isNotFoundError(err)).toBe(false);
+  });
+
+  it('is false for 5xx server errors', () => {
+    const err = new FrameAPIError('Server', 'unknown_error', 500, {});
+    expect(isNotFoundError(err)).toBe(false);
+  });
+
+  it('is false for a status-0 network failure', () => {
+    const err = new FrameAPIError('Network down', 'network_error', 0, null);
+    expect(isNotFoundError(err)).toBe(false);
+  });
+
+  it('is false for non-FrameAPIError throws', () => {
+    expect(isNotFoundError(new Error('not found'))).toBe(false);
+    expect(isNotFoundError('404')).toBe(false);
+    expect(isNotFoundError(undefined)).toBe(false);
   });
 });
 
