@@ -173,6 +173,7 @@ export default function App() {
     try {
       const result = await Frame.presentOnboarding({
         capabilities: ['kyc', 'kyc_prefill', 'age_verification', 'phone_verification', 'card_verification', 'bank_account_verification'],
+        // clientSecret: 'onb_sess_...', // mint server-side via POST /v1/onboarding_sessions
       });
       Alert.alert(
         result.status === 'completed' ? 'Onboarding complete' : 'Onboarding cancelled',

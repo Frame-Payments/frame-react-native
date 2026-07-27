@@ -4,7 +4,7 @@ PODS:
   - fast_float (8.0.0)
   - FBLazyVector (0.83.9)
   - fmt (12.1.0)
-  - FrameReactNative (3.0.6):
+  - FrameReactNative (3.1.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -2786,7 +2786,7 @@ SPEC CHECKSUMS:
   fast_float: b32c788ed9c6a8c584d114d0047beda9664e7cc6
   FBLazyVector: 3bcb3055086e5d90a12f0fe1668e79f6eceabc17
   fmt: 530618a01105dae0fa3a2f27c81ae11fa8f67eac
-  FrameReactNative: 06ac0084e2851a42b5bccdb46f5b8142ae24cbee
+  FrameReactNative: f30c3410bed98396a5e8660a9296d1f0b7f1b22c
   glog: 5683914934d5b6e4240e497e0f4a3b42d1854183
   hermes-engine: 27c8fc1e2d46ca1ab496d36d2e12c953231000e2
   RCT-Folly: b29feb752b08042c62badaef7d453f3bb5e6ae23
@@ -2862,6 +2862,6 @@ SPEC CHECKSUMS:
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: e6489bbfdab9b98f8d51993484d6bd40216b7834
 
-PODFILE CHECKSUM: 711a79d87dce669e52e6a1cd2877bba1167cb288
+PODFILE CHECKSUM: 9cb7aa1f0a962d07c623263f4051f55cbfe8400f
 
 COCOAPODS: 1.16.2

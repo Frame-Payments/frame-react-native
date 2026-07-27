@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2026-07-27
+
+### Added
+
+- **Publishable-key-first initialization (iOS).** `secretKey` is now optional in
+  `Frame.initialize` on iOS — Frame-iOS 4.x authenticates client-side flows with
+  the publishable key, so apps no longer need to ship an `sk_` key. Existing
+  calls passing both keys keep working unchanged. `secretKey` remains required
+  on Android until frame-android supports publishable-key-first initialization.
+- **Onboarding sessions.** `Frame.presentOnboarding` accepts an optional
+  `clientSecret` (`onb_sess_…` token minted server-side via
+  `POST /v1/onboarding_sessions`). When provided, the onboarding flow
+  authenticates with that session instead of the legacy secret-key path.
+  iOS-only; ignored on Android.
+
+### Changed
+
+- Frame-iOS: `3.0.4` → `4.2.0`. Resolved automatically on the next
+  `pod install`; no consumer code or Podfile changes required. Consumers who
+  added the Frame-iOS package manually in Xcode (the manual-setup fallback)
+  must bump that pin to `4.2.0` themselves. Onboarding now pulls in Persona's
+  `PersonaInquirySDK2` transitively for the no-SSN government-ID verification
+  step.
+- iOS native bridge: `presentOnboarding` selector gained a trailing
+  `clientSecret:` argument; `initialize`'s `secretKey` argument is now nullable.
+  Consumers calling the bridge from custom Objective-C code (uncommon) must
+  update their selectors.
+
+### Fixed
+
+- iOS: Apple Pay results are now delivered after the payment sheet has fully
+  dismissed instead of inline from the authorization callback. On iOS 26+,
+  resolving early let JS dismiss its own modal while the Apple Pay sheet was
+  still up, stranding the sheet on screen. (Mirrors the same fix in
+  Frame-iOS 4.x's `FrameApplePayViewModel`.)
+- iOS: account-owner Apple Pay charges now establish a risk session
+  (`SessionManager.ensureSession`) before creating the transfer — the server
+  rejects the transfer without one.
+- iOS: if payment-method creation fails because the device assertion was
+  rejected, the stored App Attest key is reset so the next attempt
+  re-attests, matching Frame-iOS 4.x behavior.
+- iOS: device-attestation keychain keys are namespaced per App Attest
+  environment (via Frame-iOS 4.x), fixing development keys leaking into
+  TestFlight/production builds.
+
 ## [3.0.1] - 2026-05-18
 
 ### Breaking

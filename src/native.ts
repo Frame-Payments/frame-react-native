@@ -44,8 +44,17 @@ function throwCoded(code: string, message: string): never {
 let isInitialized = false;
 
 export function initialize(options: {
-  secretKey: string;
+  /**
+   * Frame publishable key (`pk_…`). The preferred, publishable-key-first way to
+   * initialize the SDK on iOS.
+   */
   publishableKey: string;
+  /**
+   * Frame secret key (`sk_…`). Optional on iOS as of Frame-iOS 4.x — prefer
+   * shipping only the publishable key in your app. Still required on Android
+   * until frame-android supports publishable-key-first initialization.
+   */
+  secretKey?: string;
   debugMode?: boolean;
   /**
    * Apple Pay merchant ID configured in your Apple Developer account. Applied to every
@@ -67,18 +76,18 @@ export function initialize(options: {
    */
   theme?: FrameTheme;
 }): Promise<void> {
-  if (!options?.secretKey) {
-    throwCoded(ErrorCodes.INIT_FAILED, 'Frame.initialize requires secretKey');
-  }
   if (!options?.publishableKey) {
     throwCoded(ErrorCodes.INIT_FAILED, 'Frame.initialize requires publishableKey');
+  }
+  if (Platform.OS === 'android' && !options.secretKey) {
+    throwCoded(ErrorCodes.INIT_FAILED, 'Frame.initialize requires secretKey on Android');
   }
   if (options.theme !== undefined && (typeof options.theme !== 'object' || Array.isArray(options.theme))) {
     throwCoded(ErrorCodes.INIT_FAILED, 'Frame.initialize: theme must be an object');
   }
   return wrapPromise(
     FrameSDK.initialize(
-      options.secretKey,
+      options.secretKey ?? null,
       options.publishableKey,
       options.debugMode ?? false,
       options.applePayMerchantId ?? null,
@@ -93,7 +102,7 @@ export function initialize(options: {
 function guardInitialized(): void {
   if (!isInitialized) {
     const message =
-      'Frame SDK must be initialized before calling presentCheckout, presentCart, or presentOnboarding. Call Frame.initialize({ apiKey }) first.';
+      'Frame SDK must be initialized before calling presentCheckout, presentCart, or presentOnboarding. Call Frame.initialize({ publishableKey }) first.';
     const err = new Error(message) as Error & { code: string };
     err.code = ErrorCodes.NOT_INITIALIZED;
     throw err;
@@ -163,6 +172,13 @@ export function presentOnboarding(options: {
   capabilities?: OnboardingCapability[];
   showIntroScreen?: boolean;
   showCompletionScreen?: boolean;
+  /**
+   * Onboarding session client secret (`onb_sess_…`) minted server-side via
+   * `POST /v1/onboarding_sessions`. When provided, the onboarding flow
+   * authenticates with this session instead of the legacy secret-key path.
+   * iOS-only — ignored on Android.
+   */
+  clientSecret?: string | null;
 }): Promise<OnboardingResult> {
   guardInitialized();
   return wrapPromise(
@@ -170,7 +186,8 @@ export function presentOnboarding(options: {
       options.accountId ?? null,
       options.capabilities ?? [],
       options.showIntroScreen ?? true,
-      options.showCompletionScreen ?? true
+      options.showCompletionScreen ?? true,
+      options.clientSecret ?? null
     )
   );
 }
