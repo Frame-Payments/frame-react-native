@@ -124,6 +124,32 @@ describe('onboardingReducer — customer information', () => {
     expect(s.fieldErrors['address.line1']).toBeUndefined();
     expect(s.fieldErrors['address.city']).toBe('bad');
   });
+
+  it('SET_IDENTITY_VERIFIED_VIA_GOV_ID (verified) sets the flag + inquiry id and clears a stale ssnLast4 error', () => {
+    let s = initialOnboardingState(baseCaps, null);
+    s = onboardingReducer(s, { type: 'SET_FIELD_ERRORS', errors: { ssnLast4: 'required' } });
+    s = onboardingReducer(s, {
+      type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID',
+      verified: true,
+      inquiryId: 'inq_123',
+    });
+    expect(s.identityVerifiedViaGovId).toBe(true);
+    expect(s.govIdInquiryId).toBe('inq_123');
+    expect(s.fieldErrors.ssnLast4).toBeUndefined();
+  });
+
+  it('SET_IDENTITY_VERIFIED_VIA_GOV_ID (not verified) records the flag but preserves an existing ssnLast4 error', () => {
+    let s = initialOnboardingState(baseCaps, null);
+    s = onboardingReducer(s, { type: 'SET_FIELD_ERRORS', errors: { ssnLast4: 'required' } });
+    s = onboardingReducer(s, {
+      type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID',
+      verified: false,
+      inquiryId: 'inq_123',
+    });
+    expect(s.identityVerifiedViaGovId).toBe(false);
+    expect(s.govIdInquiryId).toBe('inq_123');
+    expect(s.fieldErrors.ssnLast4).toBe('required');
+  });
 });
 
 describe('onboardingReducer — payment method', () => {

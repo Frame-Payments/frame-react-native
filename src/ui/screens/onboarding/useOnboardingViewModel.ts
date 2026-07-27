@@ -472,15 +472,26 @@ export function useOnboardingViewModel({
       const { inquiryId } = await createIdvSession();
       // A pre-existing account may already have an approved (terminal) inquiry,
       // which the Persona SDK can't launch. The backend reads inquiry status
-      // server-side, so if it reports verified up front we skip Persona.
+      // server-side, so if it reports verified up front we skip Persona. Any
+      // non-verified status (including 'pending') just means "launch Persona".
       const preCheck = await completeIdvSession(inquiryId);
-      if (preCheck.verified) {
+      if (preCheck === 'verified') {
         dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId });
         return;
       }
       await launchPersonaInquiry({ inquiryId });
-      const { verified } = await completeIdvSession(inquiryId);
-      if (!verified) {
+      const status = await completeIdvSession(inquiryId);
+      if (status === 'pending') {
+        // The user finished Persona but the confirm request couldn't reach an
+        // authoritative answer (network blip / transient 5xx). Don't push them
+        // to the SSN fallback — the verification likely succeeded and just
+        // needs a moment to settle.
+        throw frameError(
+          ErrorCodes.PAYMENT_FAILED,
+          'We could not reach our verification service just now. Please try again in a moment.',
+        );
+      }
+      if (status === 'not_verified') {
         throw frameError(
           ErrorCodes.PAYMENT_FAILED,
           'We could not confirm your identity yet. Please try again or enter your SSN.',

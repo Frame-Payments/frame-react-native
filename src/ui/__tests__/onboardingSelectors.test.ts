@@ -288,6 +288,27 @@ describe('validateCustomerInformation', () => {
     s = onboardingReducer(s, { type: 'SET_SSN_LAST4', value: '1234' });
     expect(isCustomerInformationValid(s)).toBe(true);
   });
+
+  it('kyc skips the SSN requirement once identity is verified via government ID', () => {
+    let s = initialOnboardingState(['kyc'], null);
+    s = valid(s);
+    // Without SSN and without gov-ID verification, kyc still requires SSN.
+    expect(validateCustomerInformation(s).ssnLast4).toBeDefined();
+    // Verifying via gov ID drops the SSN requirement even with no SSN entered.
+    s = onboardingReducer(s, {
+      type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID',
+      verified: true,
+      inquiryId: 'inq_1',
+    });
+    expect(validateCustomerInformation(s).ssnLast4).toBeUndefined();
+    expect(isCustomerInformationValid(s)).toBe(true);
+  });
+
+  it('kyc_prefill still enforces SSN when identity is NOT verified via government ID', () => {
+    let s = initialOnboardingState(['kyc_prefill'], null);
+    s = valid(s);
+    expect(validateCustomerInformation(s).ssnLast4).toBeDefined();
+  });
 });
 
 describe('validateAddress', () => {

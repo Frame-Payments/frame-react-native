@@ -1,9 +1,14 @@
 import { getActiveOnboardingSession } from './auth';
 import { getIpAddress } from './config';
+import { FRAME_API_BASE_URL, frameUserAgent } from './client';
 import { ErrorCodes, frameError } from './errors';
 
-const FRAME_API_BASE_URL = 'https://api.framepayments.com';
-
+// The framepayments SDK has no API surface for the `/v1/idv/*` endpoints and
+// exposes no generic request hook, so these calls are hand-rolled. They must
+// still route identically to every SDK request: same base URL, same User-Agent
+// (which the backend uses to select its native-SDK code path) and same
+// `ip_address` header. Those values are imported from client.ts rather than
+// duplicated so the two never drift.
 function idvHeaders(extra?: Record<string, string>): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -14,6 +19,8 @@ function idvHeaders(extra?: Record<string, string>): Record<string, string> {
   if (session) headers.Authorization = `Bearer ${session}`;
   const ip = getIpAddress();
   if (ip) headers.ip_address = ip;
+  const userAgent = frameUserAgent();
+  if (userAgent) headers['User-Agent'] = userAgent;
   return headers;
 }
 
@@ -61,7 +68,19 @@ export async function createIdvSession(): Promise<{ inquiryId: string }> {
   return { inquiryId };
 }
 
-export async function completeIdvSession(inquiryId: string): Promise<{ verified: boolean }> {
+/**
+ * Result of confirming an IDV inquiry with the backend.
+ *   - `'verified'`     — the backend authoritatively confirmed identity.
+ *   - `'not_verified'` — the backend returned a well-formed `verified: false`,
+ *                        i.e. an authoritative "not verified yet" answer.
+ *   - `'pending'`      — the answer is unknown: a network error, a non-2xx
+ *                        response, or a non-JSON body. Callers must NOT treat
+ *                        this as "not verified" — after the user has already
+ *                        completed Persona it means "try again in a moment".
+ */
+export type IdvCompletionStatus = 'verified' | 'not_verified' | 'pending';
+
+export async function completeIdvSession(inquiryId: string): Promise<IdvCompletionStatus> {
   let response: Response;
   try {
     response = await fetch(`${FRAME_API_BASE_URL}/v1/idv/complete`, {
@@ -70,19 +89,19 @@ export async function completeIdvSession(inquiryId: string): Promise<{ verified:
       body: JSON.stringify({ inquiry_id: inquiryId }),
     });
   } catch {
-    // Network hiccup → treat as pending, not a hard error.
-    return { verified: false };
+    // Network hiccup → unknown, not an authoritative "not verified".
+    return 'pending';
   }
   if (!response.ok) {
-    // Endpoint not live yet / transient server error → pending.
-    return { verified: false };
+    // Endpoint not live yet / transient server error → unknown.
+    return 'pending';
   }
   let body: { verified?: unknown };
   try {
     body = (await response.json()) as { verified?: unknown };
   } catch {
-    // Non-JSON (e.g. the JSON variant hasn't shipped) → pending.
-    return { verified: false };
+    // Non-JSON (e.g. the JSON variant hasn't shipped) → unknown.
+    return 'pending';
   }
-  return { verified: body.verified === true };
+  return body.verified === true ? 'verified' : 'not_verified';
 }
