@@ -8,6 +8,7 @@ import {
   type TextInputKeyPressEventData,
 } from 'react-native';
 import { useFrameTheme } from '../theme/ThemeContext';
+import { KEYBOARD_ACCESSORY_ID } from './KeyboardAccessory';
 import {
   OTP_LENGTH,
   fromString,
@@ -99,6 +100,7 @@ export function OtpInputField({
           onKeyPress={(event) => onSlotKeyPress(index, event)}
           editable={!disabled}
           keyboardType="number-pad"
+          inputAccessoryViewID={KEYBOARD_ACCESSORY_ID}
           inputMode="numeric"
           autoComplete={Platform.OS === 'ios' ? 'one-time-code' : 'sms-otp'}
           textContentType="oneTimeCode"

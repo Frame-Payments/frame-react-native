@@ -1,6 +1,7 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFrameTheme } from '../theme/ThemeContext';
+import { KEYBOARD_ACCESSORY_ID } from './KeyboardAccessory';
 import {
   applyCvcInput,
   applyExpiryInput,
@@ -150,6 +151,7 @@ export const PaymentCardField = forwardRef<PaymentCardFieldHandle, PaymentCardFi
                 placeholder="1234 5678 9012 3456"
                 placeholderTextColor={theme.colors.textSecondary}
                 keyboardType="number-pad"
+                inputAccessoryViewID={KEYBOARD_ACCESSORY_ID}
                 inputMode="numeric"
                 autoComplete="cc-number"
                 textContentType="creditCardNumber"
@@ -182,6 +184,7 @@ export const PaymentCardField = forwardRef<PaymentCardFieldHandle, PaymentCardFi
               placeholder="MM/YY"
               placeholderTextColor={theme.colors.textSecondary}
               keyboardType="number-pad"
+              inputAccessoryViewID={KEYBOARD_ACCESSORY_ID}
               inputMode="numeric"
               autoComplete="cc-exp"
               maxLength={5}
@@ -205,6 +208,7 @@ export const PaymentCardField = forwardRef<PaymentCardFieldHandle, PaymentCardFi
               placeholder={state.brand === 'amex' ? '1234' : '123'}
               placeholderTextColor={theme.colors.textSecondary}
               keyboardType="number-pad"
+              inputAccessoryViewID={KEYBOARD_ACCESSORY_ID}
               inputMode="numeric"
               autoComplete="cc-csc"
               maxLength={state.brand === 'amex' ? 4 : 3}

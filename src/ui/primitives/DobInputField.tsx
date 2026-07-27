@@ -1,6 +1,7 @@
 import { forwardRef, useMemo, useRef, type Ref } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFrameTheme } from '../theme/ThemeContext';
+import { KEYBOARD_ACCESSORY_ID } from './KeyboardAccessory';
 
 // Date-of-birth entry: three side-by-side numeric inputs (MM / DD / YYYY) with
 // auto-advance once each box is "full" (2 / 2 / 4 digits). The reducer stores
@@ -145,6 +146,7 @@ const Cell = forwardRef(function Cell(
       placeholder={placeholder}
       placeholderTextColor={theme.colors.textSecondary}
       keyboardType="number-pad"
+      inputAccessoryViewID={KEYBOARD_ACCESSORY_ID}
       inputMode="numeric"
       maxLength={maxLength}
       accessibilityLabel={accessibilityLabel}

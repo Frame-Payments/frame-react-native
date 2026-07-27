@@ -9,6 +9,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useFrameTheme } from '../theme/ThemeContext';
+import { KeyboardAccessory } from './KeyboardAccessory';
 import { Icon } from '../assets';
 
 // Visual container for a screen presented via FramePresentationHost. RN's
@@ -69,6 +70,11 @@ export function BottomSheet({
       </View>
       <View style={[styles.divider, { backgroundColor: theme.colors.surfaceStroke }]} />
       <View style={styles.body}>{children}</View>
+      {/* Every SDK screen is presented through this primitive, so mounting the
+          Done bar here gives all of them a dismissible numeric keyboard from one
+          place. It renders no layout of its own — iOS only surfaces it while an
+          input carrying KEYBOARD_ACCESSORY_ID has focus. */}
+      <KeyboardAccessory />
     </SafeAreaView>
   );
 }
