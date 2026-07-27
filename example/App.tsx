@@ -18,7 +18,7 @@ import {
   Image,
   useColorScheme,
 } from 'react-native';
-import Frame, { FrameProvider } from 'framepayments-react-native';
+import Frame, { FrameProvider, isNotFoundError, toToastMessage } from 'framepayments-react-native';
 import { FrameSDK } from 'framepayments';
 
 // Supply via environment variables (e.g. `FRAME_SECRET_KEY=... npm run ios`) — do not commit real keys.
@@ -32,7 +32,7 @@ const APPLE_PAY_MERCHANT_ID = 'merchant.com.framepayments.example';
 const GOOGLE_PAY_MERCHANT_ID = 'BCR2DN4T_TEST_STUB';
 
 // Demo owners. Swap which one the wallet buttons use to exercise either flow:
-const DEMO_ACCOUNT_ID = 'decf4e7d-1584-490e-9278-e9f19278286a';
+const DEMO_ACCOUNT_ID = 'ENTER_AN_ACCOUNT_ID';
 
 // Server-side SDK, standing in for YOUR backend. It needs a secret key, so it's
 // built lazily: a publishable-key-only app (the recommended mobile setup) boots
@@ -199,10 +199,21 @@ export default function App() {
       // (POST /v1/onboarding_sessions, authenticated with sk_) and hand the
       // client_secret to the app. Here the demo uses the server-side `frameSDK`
       // (apiKey) to stand in for that backend.
-      const session = await getFrameSDK().onboardingSessions.create({ account_id: DEMO_ACCOUNT_ID });
+      //
+      // The mint is account-scoped, so it 404s when DEMO_ACCOUNT_ID doesn't
+      // exist yet (including the shipped placeholder). Treat that as "no account
+      // yet" and launch onboarding with neither accountId nor clientSecret — the
+      // SDK then creates the account and mints the session on-device with the
+      // publishable key. Any other failure is a real error and still throws.
+      const session = await getFrameSDK()
+        .onboardingSessions.create({ account_id: DEMO_ACCOUNT_ID })
+        .catch((err: unknown) => {
+          if (isNotFoundError(err)) return null;
+          throw err;
+        });
       const result = await Frame.presentOnboarding({
-        accountId: DEMO_ACCOUNT_ID,
-        clientSecret: session.client_secret,
+        accountId: session ? DEMO_ACCOUNT_ID : undefined,
+        clientSecret: session?.client_secret,
         capabilities: ['kyc', 'kyc_prefill', 'age_verification', 'phone_verification', 'card_verification', 'bank_account_verification'],
       });
       Alert.alert(
@@ -211,7 +222,10 @@ export default function App() {
       );
     } catch (e: any) {
       if (e.code === 'USER_CANCELED') return;
-      Alert.alert('Error', e.message ?? String(e));
+      // toToastMessage digs the server's `error_details.message` out of
+      // FrameAPIError.raw — `e.message` alone is the generic "An error
+      // occurred" envelope, which says nothing about what actually failed.
+      Alert.alert('Error', toToastMessage(e));
     } finally {
       setLoading(null);
     }

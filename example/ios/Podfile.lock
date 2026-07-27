@@ -11,7 +11,7 @@ PODS:
   - FBLazyVector (0.83.9)
   - FingerprintPro (2.15.1)
   - fmt (12.1.0)
-  - FrameReactNative (4.0.1):
+  - FrameReactNative (4.0.4):
     - boost
     - DoubleConversion
     - fast_float
@@ -43,6 +43,7 @@ PODS:
   - hermes-engine (0.14.1):
     - hermes-engine/Pre-built (= 0.14.1)
   - hermes-engine/Pre-built (0.14.1)
+  - PersonaInquirySDK2 (2.52.0)
   - RCT-Folly (2024.11.18.00):
     - boost
     - DoubleConversion
@@ -2654,6 +2655,12 @@ PODS:
   - RNFingerprintjsPro (1.0.4):
     - FingerprintPro (~> 2.15.0)
     - React-Core
+  - RNPersonaInquiry2 (2.48.0):
+    - React-Core
+    - RNPersonaInquiry2/Core (= 2.48.0)
+  - RNPersonaInquiry2/Core (2.48.0):
+    - PersonaInquirySDK2 (= 2.52.0)
+    - React-Core
   - RNSVG (15.15.5):
     - boost
     - DoubleConversion
@@ -2827,6 +2834,7 @@ DEPENDENCIES:
   - ReactCodegen (from `build/generated/ios/ReactCodegen`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - "RNFingerprintjsPro (from `../node_modules/@fingerprintjs/fingerprintjs-pro-react-native`)"
+  - RNPersonaInquiry2 (from `../node_modules/react-native-persona`)
   - RNSVG (from `../node_modules/react-native-svg`)
   - Sift
   - SiftReactNative (from `../node_modules/sift-react-native`)
@@ -2837,6 +2845,7 @@ SPEC REPOS:
   trunk:
     - Evervault
     - FingerprintPro
+    - PersonaInquirySDK2
     - Sift
     - SocketRocket
 
@@ -3006,6 +3015,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   RNFingerprintjsPro:
     :path: "../node_modules/@fingerprintjs/fingerprintjs-pro-react-native"
+  RNPersonaInquiry2:
+    :path: "../node_modules/react-native-persona"
   RNSVG:
     :path: "../node_modules/react-native-svg"
   SiftReactNative:
@@ -3022,9 +3033,10 @@ SPEC CHECKSUMS:
   FBLazyVector: 3bcb3055086e5d90a12f0fe1668e79f6eceabc17
   FingerprintPro: 8136b69c3f6c17fdf3f6fb183c38b292c04e4c62
   fmt: 530618a01105dae0fa3a2f27c81ae11fa8f67eac
-  FrameReactNative: 589e62bd22e3b470bd8136e209df708049eaf9b2
+  FrameReactNative: e7becfdd0d550239008a6eeae7977fa7a0ef93bf
   glog: 5683914934d5b6e4240e497e0f4a3b42d1854183
   hermes-engine: 27c8fc1e2d46ca1ab496d36d2e12c953231000e2
+  PersonaInquirySDK2: b034d2a88d349deaf56db726e7f45c3c9dd8935d
   RCT-Folly: b29feb752b08042c62badaef7d453f3bb5e6ae23
   RCTDeprecation: c7d33f6bc08dbb8be7dfa70d219bfb034480a406
   RCTRequired: 42b13c9504609bae9a9f65673a6b4fcbd8d07bd1
@@ -3098,6 +3110,7 @@ SPEC CHECKSUMS:
   ReactCodegen: 417334350a76a91784cc20f7aff392327e217dc4
   ReactCommon: 5f2db7556b60816bdc5761a359539bacd2d0250d
   RNFingerprintjsPro: 1f39fb67c1f7613e04973379e9b41e3ca0baba5a
+  RNPersonaInquiry2: c323c070058b100b49d2138b06d9eba2ccf308f7
   RNSVG: 6470d6f2636d71bd4bbc44a4f27fb7444e437b2f
   Sift: 376455214f1df4cb1a51f84ebffe219f3a449241
   SiftReactNative: 7901154765ba6451dac35329e0754bc2ddde1691

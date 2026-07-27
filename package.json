@@ -39,6 +39,7 @@
     "expo-location": ">=17.0.0",
     "react": "*",
     "react-native": ">=0.81.0",
+    "react-native-persona": ">=2.0.0",
     "react-native-plaid-link-sdk": ">=11.0.0",
     "react-native-svg": ">=15.0.0",
     "react-native-vision-camera": ">=4.0.0 <6.0.0",
@@ -52,6 +53,9 @@
       "optional": true
     },
     "expo-location": {
+      "optional": true
+    },
+    "react-native-persona": {
       "optional": true
     },
     "react-native-plaid-link-sdk": {
@@ -80,6 +84,7 @@
     "prettier": "^3.8.3",
     "react": "19.1.1",
     "react-native": "^0.82.1",
+    "react-native-persona": "^2.47.0",
     "react-native-plaid-link-sdk": "^12.8.0",
     "react-native-svg": "^15.15.5",
     "react-native-vision-camera": "^5.0.10",

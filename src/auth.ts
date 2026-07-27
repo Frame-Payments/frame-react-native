@@ -45,7 +45,8 @@ export function beginOnboardingSession(token: string): void {
     warnOnce(
       'onb-sess-prefix',
       'beginOnboardingSession was called with a token that does not start with "onb_sess_". ' +
-        'Pass the client_secret minted by POST /v1/onboarding_sessions on your backend.',
+        'Pass the client_secret minted by POST /v1/onboarding_sessions (that endpoint accepts a ' +
+        'publishable key, so the SDK can mint it on-device; a backend mint with a secret key works too).',
     );
   }
   activeOnboardingSession = token;

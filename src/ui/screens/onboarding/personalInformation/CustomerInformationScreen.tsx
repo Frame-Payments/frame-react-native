@@ -6,6 +6,7 @@ import { ValidatedTextField } from '../../../primitives/ValidatedTextField';
 import { DobInputField } from '../../../primitives/DobInputField';
 import { BillingAddressDetailView } from '../../../primitives/BillingAddressDetailView';
 import { requiresDobInPhoneAuth } from '../onboardingSelectors';
+import { isPersonaAvailable } from '../../../../persona';
 import { FORM_SPACING } from '../formSpacing';
 import type { OnboardingCapability } from '../../../../types';
 import type { OnboardingAddress, OnboardingState } from '../onboardingReducer';
@@ -28,6 +29,8 @@ export interface CustomerInformationScreenProps {
   onChangeSsn: (value: string) => void;
   onChangeAddressField: (field: keyof OnboardingAddress, value: string) => void;
   onSubmit: () => void;
+  /** No-SSN path: launch government-ID identity verification via Persona. */
+  onVerifyIdentity: () => void;
 }
 
 export function CustomerInformationScreen({
@@ -40,11 +43,20 @@ export function CustomerInformationScreen({
   onChangeSsn,
   onChangeAddressField,
   onSubmit,
+  onVerifyIdentity,
 }: CustomerInformationScreenProps) {
   const theme = useFrameTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const showDob = !requiresDobInPhoneAuth(capabilities);
-  const showSsn = capabilities.includes('kyc') || capabilities.includes('kyc_prefill');
+  const ssnCapabilityRequested = capabilities.includes('kyc') || capabilities.includes('kyc_prefill');
+  // The SSN section shows whenever an SSN-collecting capability is requested AND
+  // the user hasn't already verified with a government ID.
+  const showSsn = ssnCapabilityRequested && !state.identityVerifiedViaGovId;
+  // The no-SSN button shows alongside the SSN section, but only when Persona is
+  // actually installed in the host app — otherwise the flow can't launch.
+  const showNoSsnButton = showSsn && isPersonaAvailable();
+  // Once verified, replace the whole SSN block with a confirmation line.
+  const showVerifiedNotice = ssnCapabilityRequested && state.identityVerifiedViaGovId;
 
   const containerStyle = [
     styles.container,
@@ -178,6 +190,38 @@ export function CustomerInformationScreen({
               />
             </View>
           </View>
+          {showNoSsnButton ? (
+            <View style={styles.noSsnButton}>
+              <Button
+                text="I don't have a social security number"
+                variant="secondary"
+                enabled={!state.isPerformingAction}
+                isLoading={state.isPerformingAction}
+                onPress={onVerifyIdentity}
+              />
+            </View>
+          ) : null}
+        </>
+      ) : null}
+
+      {/* Verified-via-government-ID notice (replaces the SSN block) */}
+      {showVerifiedNotice ? (
+        <>
+          <Text style={[styles.sectionLabel, sectionLabelStyle]}>Social Security Number</Text>
+          <View style={containerStyle}>
+            <Text
+              style={[
+                styles.verifiedNotice,
+                {
+                  color: theme.colors.textPrimary,
+                  fontSize: theme.fonts.label.size,
+                  lineHeight: theme.fontLineHeights.label,
+                },
+              ]}
+            >
+              Verified with government ID.
+            </Text>
+          </View>
         </>
       ) : null}
 
@@ -252,6 +296,13 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
     },
     ssnField: {
       flex: 1,
+    },
+    noSsnButton: {
+      marginTop: 10,
+    },
+    verifiedNotice: {
+      paddingHorizontal: 12,
+      paddingVertical: 14,
     },
     footer: {
       marginTop: FORM_SPACING.sectionBottom,

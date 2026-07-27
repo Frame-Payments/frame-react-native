@@ -188,7 +188,13 @@ export function validateCustomerInformation(state: OnboardingState): Record<stri
     if (dobError) errors.dob = dobError;
   }
 
-  if (state.requiredCapabilities.includes('kyc') || state.requiredCapabilities.includes('kyc_prefill')) {
+  // SSN is required for the kyc / kyc_prefill capabilities UNLESS the user
+  // verified identity with a government ID (no-SSN path) — in which case the
+  // backend has confirmed identity via Persona and SSN is optional.
+  if (
+    !state.identityVerifiedViaGovId &&
+    (state.requiredCapabilities.includes('kyc') || state.requiredCapabilities.includes('kyc_prefill'))
+  ) {
     const ssnError = validateSSNLast4(state.ssnLast4);
     if (ssnError) errors.ssnLast4 = ssnError;
   }

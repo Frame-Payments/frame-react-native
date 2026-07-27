@@ -40,6 +40,32 @@ cd ios && pod install && cd ..
 
 The SDK autolinks otherwise; there is no Swift Package Manager step, no `FramePreloader` to install, and no entitlement to add by hand (the config plugin handles entitlements for Expo users; bare RN users add the Apple Pay + App Attest entitlements once in Xcode — see [Required iOS setup](#required-ios-setup) under `presentApplePay`).
 
+**If you ship onboarding with identity verification** (the `kyc` capability, document upload, or the Persona government-ID flow), add camera usage descriptions to `ios/YourApp/Info.plist`. iOS denies camera access without them, and the ID-capture step fails with "There was a problem establishing a connection to the camera":
+
+```xml
+<key>NSCameraUsageDescription</key>
+<string>Used to photograph your ID and take a selfie for identity verification.</string>
+<key>NSPhotoLibraryUsageDescription</key>
+<string>Used to upload an existing photo of your ID for identity verification.</string>
+```
+
+Expo users add the same keys under `ios.infoPlist` in `app.json` instead — editing `ios/` directly is lost on the next `prebuild`:
+
+```json
+{
+  "expo": {
+    "ios": {
+      "infoPlist": {
+        "NSCameraUsageDescription": "Used to photograph your ID and take a selfie for identity verification.",
+        "NSPhotoLibraryUsageDescription": "Used to upload an existing photo of your ID for identity verification."
+      }
+    }
+  }
+}
+```
+
+Note this only reproduces on a physical device — the simulator has no camera, so the same step fails there regardless of permissions.
+
 ### Android setup
 
 No manual steps. Autolinking wires up the native module, and Google Pay's wallet meta-data is injected automatically by the Expo plugin (or, for bare RN apps, add it once to `AndroidManifest.xml` — see [Required Android setup](#required-android-setup) under `presentGooglePay`).

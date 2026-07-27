@@ -14,6 +14,26 @@ import { attachNetworkLogger, resetNetworkLogger } from './debug/networkLogger';
 // before publish.
 const SDK_VERSION = '4.0.4';
 
+// The framepayments SDK defaults to this host when no `baseURL` override is
+// passed to its ClientConfig (see framepayments' client.ts). We never override
+// it, so every SDK request — and any bespoke request that must route the same
+// way (e.g. the IDV endpoints in idv.ts, which the SDK exposes no API for) —
+// hits this host. Exported so idv.ts stays in lockstep rather than hardcoding
+// its own copy.
+export const FRAME_API_BASE_URL = 'https://api.framepayments.com';
+
+// The User-Agent every SDK request sends, matching the native Frame iOS /
+// Android SDKs (see getClient below for why the exact strings matter to the
+// backend's native-SDK routing). Exported so non-SDK requests (idv.ts) send the
+// identical header instead of duplicating the platform/version logic.
+export function frameUserAgent(): string | undefined {
+  return Platform.OS === 'ios'
+    ? 'iOS'
+    : Platform.OS === 'android'
+      ? `Android/${SDK_VERSION}`
+      : undefined;
+}
+
 let sdk: FrameSDK | undefined;
 
 function getClient(): FrameSDK {
@@ -41,8 +61,7 @@ function getClient(): FrameSDK {
   // "Android" fails the Google Pay domain-bypass. Mirror the native Android
   // SDK exactly. SDK_VERSION must stay in sync with package.json; the
   // sdk-version.test.ts test fails if they drift.
-  const userAgent =
-    Platform.OS === 'ios' ? 'iOS' : Platform.OS === 'android' ? `Android/${SDK_VERSION}` : undefined;
+  const userAgent = frameUserAgent();
   const defaultHeaders: Record<string, string> = {};
   if (ip) defaultHeaders.ip_address = ip;
   if (userAgent) defaultHeaders['User-Agent'] = userAgent;

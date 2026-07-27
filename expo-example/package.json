@@ -18,6 +18,7 @@
     "framepayments-react-native": "file:..",
     "react": "19.1.0",
     "react-native": "0.81.5",
+    "react-native-persona": "^2.48.0",
     "sift-react-native": "^1.0.1"
   },
   "devDependencies": {

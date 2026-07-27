@@ -32,6 +32,14 @@ export function toToastMessage(error: unknown, fallback: string = DEFAULT_TOAST_
   return `Error: ${fallback}`;
 }
 
+// A 404 from the API means the resource genuinely does not exist, as opposed to
+// a transport failure or a 5xx, which say nothing about whether it exists.
+// Callers use this to distinguish "the id is bad" from "we couldn't reach the
+// server" — only the former is safe to treat as a permanent answer.
+export function isNotFoundError(error: unknown): boolean {
+  return error instanceof FrameAPIError && error.status === 404;
+}
+
 // Non-FrameAPIError throws are treated as transport errors because they're
 // typically thrown before framepayments' interceptor wraps them.
 export function isTransportError(error: unknown): boolean {
