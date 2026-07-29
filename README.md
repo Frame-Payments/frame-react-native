@@ -44,6 +44,17 @@ This prevents the **"Helpers are not supported by the default hub"** crash, whic
 
 > Using Swift Package Manager directly instead of CocoaPods? The package's `Package.swift` resolves `frame-ios` transitively, so just add `framepayments-react-native` via **File → Add Package Dependencies** in Xcode.
 
+#### Required Info.plist keys
+
+Onboarding's identity-verification step captures a government ID with the camera. iOS terminates the capture immediately if the usage description is missing, which surfaces as the onboarding flow closing with `status: 'cancelled'`. Add to your app target's `Info.plist`:
+
+```xml
+<key>NSCameraUsageDescription</key>
+<string>We use your camera to complete identity verification</string>
+```
+
+Only required if your onboarding flow includes the `identity` capability. A library cannot declare this on your behalf — it must live in your own app target.
+
 ### Android setup
 
 No extra steps required. Autolinking handles the native module automatically and pulls in `com.framepayments:framesdk*` from Maven Central.
