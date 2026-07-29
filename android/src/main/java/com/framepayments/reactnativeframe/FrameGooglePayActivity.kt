@@ -159,7 +159,9 @@ class FrameGooglePayActivity : AppCompatActivity() {
     const val EXTRA_CHARGE_ID = "charge_id"
     const val EXTRA_FAILURE_MESSAGE = "failure_message"
 
-    const val REQUEST_CODE = 9003
+    // Must stay distinct from the other Frame activities' request codes —
+    // FrameOnboardingActivity already owns 9003.
+    const val REQUEST_CODE = 9004
 
     // RESULT_FIRST_USER == 1; we use that to distinguish payment failure from cancel.
     const val RESULT_FAILURE = android.app.Activity.RESULT_FIRST_USER

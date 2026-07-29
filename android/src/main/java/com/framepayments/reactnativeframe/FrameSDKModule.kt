@@ -33,7 +33,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun initialize(
-    secretKey: String,
+    secretKey: String?,
     publishableKey: String,
     debugMode: Boolean,
     applePayMerchantId: String?,
@@ -46,7 +46,10 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       // applePayMerchantId is iOS-only; accepted in the bridge signature so the JS Frame.initialize()
       // API stays cross-platform, but ignored here. frame-android has no Apple Pay surface.
       @Suppress("UNUSED_PARAMETER") val ignoredApplePayMerchantId = applePayMerchantId
-      FrameNetworking.initializeWithAPIKey(ctx, secretKey, publishableKey, googlePayMerchantId, debugMode)
+      // frame-android still declares secretKey as a non-null String, but only uses a non-empty
+      // value to emit its "you shipped a secret key" warning. Passing "" is the supported
+      // publishable-key-only path, so JS can omit secretKey on Android just like on iOS.
+      FrameNetworking.initializeWithAPIKey(ctx, secretKey ?: "", publishableKey, googlePayMerchantId, debugMode)
       FrameRNTheme.current = theme?.takeIf { it.keySetIterator().hasNextKey() }?.let {
         FrameRNTheme.parse(ctx, it)
       }
@@ -147,8 +150,6 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     clientSecret: String?,
     promise: Promise
   ) {
-    // clientSecret is iOS-only (Frame-iOS onboarding sessions); accepted here so
-    // the JS Frame.presentOnboarding() API stays cross-platform.
     val activity = reactApplicationContext.currentActivity ?: run {
       promise.reject("NO_ACTIVITY", "No current activity", null)
       return
@@ -161,6 +162,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
         putExtra(FrameOnboardingActivity.EXTRA_CAPABILITIES_JSON, capabilitiesJson)
         putExtra(FrameOnboardingActivity.EXTRA_SHOW_INTRO_SCREEN, showIntroScreen)
         putExtra(FrameOnboardingActivity.EXTRA_SHOW_COMPLETION_SCREEN, showCompletionScreen)
+        putExtra(FrameOnboardingActivity.EXTRA_CLIENT_SECRET, clientSecret)
       }
       activity.startActivityForResult(intent, FrameOnboardingActivity.REQUEST_CODE)
     }

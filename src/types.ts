@@ -131,9 +131,8 @@ export interface PresentGooglePayOptions {
 }
 
 /**
- * Theming for Frame's reusable iOS components (checkout, cart, onboarding).
- * iOS-only: on Android, Frame.setTheme() resolves immediately and has no effect
- * until frame-android ships a matching theme API.
+ * Theming for Frame's reusable components (checkout, cart, onboarding).
+ * Applied on both iOS and Android.
  *
  * Pass any subset — unspecified tokens fall back to SDK defaults.
  */

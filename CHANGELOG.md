@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2026-07-29
+
+### Added
+
+- **Publishable-key-first initialization on Android.** `secretKey` is now optional
+  in `Frame.initialize` on Android as well, closing the last platform asymmetry
+  from 3.1.0. When omitted, the bridge passes an empty secret key to
+  frame-android, which authenticates client-side flows with the publishable key.
+  Existing calls passing both keys keep working unchanged.
+- **Onboarding sessions on Android.** `Frame.presentOnboarding`'s `clientSecret`
+  (`onb_sess_…`) is now honored on Android instead of being accepted and
+  discarded. It is threaded into `OnboardingConfig`, and frame-android's
+  `OnboardingContainerView` begins and ends the session around the flow.
+- **Persona no-SSN government-ID verification on Android**, via frame-android
+  3.x — matching the iOS capability added in 3.1.0. Apps must declare camera
+  permission to use it.
+
+### Changed
+
+- **frame-android: `2.1.0` → `3.0.1`.** Note that `3.0.0` was tagged but never
+  published to Maven Central; `3.0.1` is the first published 3.x release and is
+  API-identical to it.
+- `theme` is documented as supported on both platforms. It has been implemented
+  on Android since 2.0.7 — the "no-op on Android" notes in `src/native.ts` and
+  `src/types.ts` were stale, and the latter referenced a `Frame.setTheme()`
+  method that does not exist.
+
+### Fixed
+
+- **Google Pay activity request-code collision.** `FrameGooglePayActivity` used
+  request code `9003`, the same as `FrameOnboardingActivity`, which made its
+  branch in `onActivityResult` unreachable. Moved to `9004`. No behavior change
+  today — Google Pay results route through a static callback rather than
+  `startActivityForResult` — but it removes a latent misrouting bug.
+
 ## [3.1.0] - 2026-07-27
 
 ### Added
