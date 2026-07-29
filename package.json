@@ -35,7 +35,7 @@
     "react-native": ">=0.81.0"
   },
   "frameNativeVersions": {
-    "ios": "4.2.0",
+    "ios": "4.2.1",
     "android": "2.1.0"
   },
   "devDependencies": {
