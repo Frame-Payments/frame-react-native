@@ -3,12 +3,13 @@
  * presentApplePay, presentGooglePay, presentOnboarding). NativeModules.FrameSDK is mocked.
  */
 
-const mockInitialize = jest.fn((_secretKey: string, _publishableKey: string, _debugMode: boolean, _applePayMerchantId: string | null, _googlePayMerchantId: string | null, _theme: unknown) => Promise.resolve());
+const mockInitialize = jest.fn((_secretKey: string | null, _publishableKey: string, _debugMode: boolean, _applePayMerchantId: string | null, _googlePayMerchantId: string | null, _theme: unknown) => Promise.resolve());
 const mockPresentCheckout = jest.fn((_accountId: unknown, _amount: number) => Promise.resolve('tr_1'));
 const mockPresentCart = jest.fn((_accountId: unknown, _items: unknown[], _shipping: number) => Promise.resolve('tr_2'));
 const mockPresentApplePay = jest.fn((_ownerType: string, _ownerId: string, _amount: number, _currency: string) => Promise.resolve('tr_3'));
 const mockPresentGooglePay = jest.fn((_amountCents: number, _ownerType: string, _ownerId: string, _currencyCode: string) => Promise.resolve('tr_4'));
 const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unknown[]) => Promise.resolve({ status: 'completed', paymentMethodId: 'pm_1' }));
+const mockResetDeviceAttestation = jest.fn(() => Promise.resolve());
 
 const mockPlatform = { OS: 'ios' as 'ios' | 'android' };
 
@@ -21,13 +22,14 @@ jest.mock('react-native', () => ({
       presentApplePay: mockPresentApplePay,
       presentGooglePay: mockPresentGooglePay,
       presentOnboarding: mockPresentOnboarding,
+      resetDeviceAttestation: mockResetDeviceAttestation,
     },
   },
   Platform: mockPlatform,
 }));
 
 // Re-import after mock so we get the mocked NativeModules
-let initialize: (opts: { secretKey: string; publishableKey: string; debugMode?: boolean; applePayMerchantId?: string; googlePayMerchantId?: string }) => Promise<void>;
+let initialize: (opts: { secretKey?: string; publishableKey: string; debugMode?: boolean; applePayMerchantId?: string; googlePayMerchantId?: string }) => Promise<void>;
 let presentCheckout: (opts: { accountId: string; amount: number }) => Promise<string>;
 let presentCart: (opts: {
   accountId: string;
@@ -36,7 +38,8 @@ let presentCart: (opts: {
 }) => Promise<string>;
 let presentApplePay: (opts: { amount: number; currency?: string; owner: { type: 'customer' | 'account'; id: string } }) => Promise<string>;
 let presentGooglePay: (opts: { amountCents: number; owner: { type: 'customer' | 'account'; id: string }; currencyCode?: string }) => Promise<string>;
-let presentOnboarding: (opts: { accountId?: string | null; capabilities?: string[]; showIntroScreen?: boolean; showCompletionScreen?: boolean }) => Promise<unknown>;
+let presentOnboarding: (opts: { accountId?: string | null; capabilities?: string[]; showIntroScreen?: boolean; showCompletionScreen?: boolean; clientSecret?: string | null }) => Promise<unknown>;
+let resetDeviceAttestation: () => Promise<void>;
 
 beforeEach(() => {
   jest.resetModules();
@@ -46,6 +49,7 @@ beforeEach(() => {
   mockPresentApplePay.mockClear();
   mockPresentGooglePay.mockClear();
   mockPresentOnboarding.mockClear();
+  mockResetDeviceAttestation.mockClear();
   mockPlatform.OS = 'ios';
   const native = require('../native');
   initialize = native.initialize;
@@ -54,6 +58,7 @@ beforeEach(() => {
   presentApplePay = native.presentApplePay;
   presentGooglePay = native.presentGooglePay;
   presentOnboarding = native.presentOnboarding;
+  resetDeviceAttestation = native.resetDeviceAttestation;
 });
 
 describe('initialize', () => {
@@ -86,9 +91,15 @@ describe('initialize', () => {
     expect(mockInitialize).toHaveBeenCalledWith('sk_test', 'pk_test', false, null, 'BCR2DN4T...', null);
   });
 
-  it('throws if secretKey is missing', () => {
+  it('allows omitting secretKey on iOS and marshals null (publishable-key-first)', () => {
+    initialize({ publishableKey: 'pk_test' });
+    expect(mockInitialize).toHaveBeenCalledWith(null, 'pk_test', false, null, null, null);
+  });
+
+  it('throws if secretKey is missing on Android', () => {
+    mockPlatform.OS = 'android';
     expect(() => initialize({ secretKey: '', publishableKey: 'pk_test' })).toThrow(/secretKey/);
-    expect(() => (initialize as any)({ publishableKey: 'pk_test' })).toThrow(/secretKey/);
+    expect(() => initialize({ publishableKey: 'pk_test' })).toThrow(/secretKey/);
     expect(mockInitialize).not.toHaveBeenCalled();
   });
 
@@ -308,38 +319,69 @@ describe('presentOnboarding', () => {
   it('calls native presentOnboarding with showIntroScreen=true and showCompletionScreen=true by default', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     const result = await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc', 'bank_account_verification'] });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc', 'bank_account_verification'], true, true);
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc', 'bank_account_verification'], true, true, null);
     expect(result).toEqual({ status: 'completed', paymentMethodId: 'pm_1' });
   });
 
   it('passes null accountId, empty capabilities, and both screen flags=true when options are omitted', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     await presentOnboarding({});
-    expect(mockPresentOnboarding).toHaveBeenCalledWith(null, [], true, true);
+    expect(mockPresentOnboarding).toHaveBeenCalledWith(null, [], true, true, null);
   });
 
   it('passes showIntroScreen=false when explicitly set', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], showIntroScreen: false });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], false, true);
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], false, true, null);
   });
 
   it('passes showCompletionScreen=false when explicitly set', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], showCompletionScreen: false });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], true, false);
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], true, false, null);
   });
 
   it('passes both screen flags=false when both are explicitly set', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], showIntroScreen: false, showCompletionScreen: false });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], false, false);
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], false, false, null);
+  });
+
+  it('passes clientSecret through when provided', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], clientSecret: 'onb_sess_123' });
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], true, true, 'onb_sess_123');
   });
 
   it('behaves the same on Android — merchant IDs are init-only across both platforms', async () => {
     mockPlatform.OS = 'android';
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', googlePayMerchantId: 'BCR2DN4T...' });
     await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'] });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], true, true);
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], true, true, null);
+  });
+});
+
+describe('resetDeviceAttestation', () => {
+  it('forwards to the native module on iOS', async () => {
+    await resetDeviceAttestation();
+    expect(mockResetDeviceAttestation).toHaveBeenCalledTimes(1);
+  });
+
+  it('propagates a native ATTESTATION_FAILED rejection', async () => {
+    const failure = Object.assign(new Error('Re-attestation after reset failed'), {
+      code: 'ATTESTATION_FAILED',
+    });
+    mockResetDeviceAttestation.mockRejectedValueOnce(failure);
+    await expect(resetDeviceAttestation()).rejects.toMatchObject({ code: 'ATTESTATION_FAILED' });
+  });
+
+  it('throws PLATFORM_UNSUPPORTED on Android without touching the native module', () => {
+    mockPlatform.OS = 'android';
+    // The platform guard runs before the bridge call and `resetDeviceAttestation`
+    // is not async, so this throws synchronously rather than rejecting.
+    expect(() => resetDeviceAttestation()).toThrow(
+      expect.objectContaining({ code: 'PLATFORM_UNSUPPORTED' }),
+    );
+    expect(mockResetDeviceAttestation).not.toHaveBeenCalled();
   });
 });

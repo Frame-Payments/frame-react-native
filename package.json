@@ -1,11 +1,12 @@
 {
   "name": "framepayments-react-native",
-  "version": "3.0.7",
+  "version": "3.1.0",
   "description": "React Native SDK for Frame Payments - modal checkout and cart, with API usage via frame-node.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "clean": "rm -rf lib",
+    "build": "npm run clean && tsc",
     "watch": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
@@ -34,7 +35,7 @@
     "react-native": ">=0.81.0"
   },
   "frameNativeVersions": {
-    "ios": "3.0.4",
+    "ios": "4.2.1",
     "android": "2.1.0"
   },
   "devDependencies": {
@@ -65,6 +66,6 @@
   ],
   "dependencies": {
     "@babel/runtime": "^7.28.6",
-    "framepayments": "^2.0.0"
+    "framepayments": "^2.6.1"
   }
 }

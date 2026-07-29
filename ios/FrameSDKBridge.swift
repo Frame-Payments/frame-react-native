@@ -20,7 +20,7 @@ public class FrameSDKBridge: NSObject {
   }
 
   @objc public
-  func initialize(_ secretKey: String, publishableKey: String, debugMode: Bool, applePayMerchantId: NSObject?, googlePayMerchantId: NSObject?, theme: NSDictionary?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+  func initialize(_ secretKey: NSObject?, publishableKey: String, debugMode: Bool, applePayMerchantId: NSObject?, googlePayMerchantId: NSObject?, theme: NSDictionary?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     DispatchQueue.main.async {
       let themeDict = theme as? [String: Any] ?? [:]
       let resolvedTheme = themeDict.isEmpty ? FrameTheme.default : FrameRNTheme.parse(themeDict)
@@ -28,9 +28,9 @@ public class FrameSDKBridge: NSObject {
       // Accepted in the bridge signature so the JS Frame.initialize() API stays cross-platform.
       _ = googlePayMerchantId
       let applePayMerchantIdString = applePayMerchantId as? String
-      FrameNetworking.shared.initializeWithAPIKey(
-        secretKey,
+      FrameNetworking.shared.initialize(
         publishableKey: publishableKey,
+        secretKey: secretKey as? String,
         applePayMerchantId: applePayMerchantIdString,
         theme: resolvedTheme,
         debugMode: debugMode
@@ -62,10 +62,10 @@ public class FrameSDKBridge: NSObject {
   }
 
   @objc public
-  func presentOnboarding(from viewController: UIViewController, accountId: NSObject?, capabilities: NSArray, showIntroScreen: Bool, showCompletionScreen: Bool, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+  func presentOnboarding(from viewController: UIViewController, accountId: NSObject?, capabilities: NSArray, showIntroScreen: Bool, showCompletionScreen: Bool, clientSecret: NSObject?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     let parsedCapabilities = parseCapabilities(capabilities)
     let accountIdString = accountId as? String
-    presentOnboardingOnMain(from: viewController, accountId: accountIdString, capabilities: parsedCapabilities, showIntroScreen: showIntroScreen, showCompletionScreen: showCompletionScreen, resolve: resolve, reject: reject)
+    presentOnboardingOnMain(from: viewController, accountId: accountIdString, capabilities: parsedCapabilities, showIntroScreen: showIntroScreen, showCompletionScreen: showCompletionScreen, clientSecret: clientSecret as? String, resolve: resolve, reject: reject)
   }
 
   @objc public
@@ -125,7 +125,16 @@ public class FrameSDKBridge: NSObject {
         _ = try await DeviceAttestationManager.shared.attestDevice()
         resolve(nil)
       } catch {
-        reject("ATTESTATION_FAILED", "Re-attestation after reset failed: \(error.localizedDescription)", error)
+        // `resetAttestation()` deleted the keychain key, so there is nothing to
+        // roll back to — the device is genuinely unattested until a later
+        // attestation succeeds. Say so, because until then every
+        // `presentApplePay` rejects with `NOT_ATTESTED`; the caller should retry
+        // rather than treat this as a transient no-op.
+        reject(
+          "ATTESTATION_FAILED",
+          "Re-attestation after reset failed: \(error.localizedDescription). The device is now unattested — wallet payments will fail until a retry succeeds.",
+          error
+        )
       }
     }
   }
@@ -226,12 +235,13 @@ public class FrameSDKBridge: NSObject {
     }
   }
 
-  private func presentOnboardingOnMain(from top: UIViewController, accountId: String?, capabilities: [FrameObjects.Capabilities], showIntroScreen: Bool, showCompletionScreen: Bool, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+  private func presentOnboardingOnMain(from top: UIViewController, accountId: String?, capabilities: [FrameObjects.Capabilities], showIntroScreen: Bool, showCompletionScreen: Bool, clientSecret: String?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     // Build the dismiss delegate up-front so onResult captures a non-nil instance directly.
     let delegate = OnboardingDismissDelegate(resolve: resolve)
 
     let hosting = OnboardingHostingController(
       rootView: OnboardingContainerView(
+        clientSecret: clientSecret,
         accountId: accountId,
         requiredCapabilities: capabilities,
         showIntroScreen: showIntroScreen,

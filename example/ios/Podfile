@@ -6,6 +6,7 @@ require Pod::Executable.execute_command('node', ['-p',
   )', __dir__]).strip
 
 platform :ios, '17.0'  # Frame-iOS and FrameReactNative require iOS 17
+project 'FrameExampleTemp.xcodeproj'
 prepare_react_native_project!
 
 linkage = ENV['USE_FRAMEWORKS']

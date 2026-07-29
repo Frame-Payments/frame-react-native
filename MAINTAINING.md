@@ -41,7 +41,7 @@ The Frame iOS and Android SDK versions live in **one place**: the top-level
 }
 ```
 
-- **iOS podspec** (`ios/FrameReactNative.podspec`) reads `frameNativeVersions.ios`
+- **iOS podspec** (`FrameReactNative.podspec`) reads `frameNativeVersions.ios`
   and passes it to RN's `spm_dependency(...)` Podfile hook. `pod install` then
   resolves `frame-ios` automatically via Swift Package Manager.
 - **Android build.gradle** parses `package.json` with `JsonSlurper` and uses
@@ -55,7 +55,7 @@ Bumping a native SDK is therefore a 1- or 2-line edit:
 | Bumping… | Files to edit |
 |---|---|
 | frame-android only | `package.json` (`frameNativeVersions.android`) |
-| frame-ios only     | `package.json` (`frameNativeVersions.ios`) AND `Package.swift` line 26 |
+| frame-ios only     | `package.json` (`frameNativeVersions.ios`) AND `Package.swift` line 30 |
 | Both               | All three places above |
 
 Releases:
@@ -113,7 +113,7 @@ bundle exec pod update
 
 | Platform | Current minimum | Declared in |
 |---|---|---|
-| iOS | 17.0 | `ios/FrameReactNative.podspec`, `Package.swift` |
+| iOS | 17.0 | `FrameReactNative.podspec`, `Package.swift` |
 | Android minSdk | 26 | `android/build.gradle` |
 | Android compileSdk / targetSdk | 36 | `android/build.gradle` |
 | React Native | >= 0.81.0 | `package.json` |

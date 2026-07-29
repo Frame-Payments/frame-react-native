@@ -6,7 +6,8 @@
 //  PKPaymentAuthorizationController + ApplePayAPI + (ChargeIntentsAPI | TransfersAPI)
 //  directly so we can detect the user-cancel path — PKPaymentAuthorizationController's
 //  didFinish fires for both success and cancel, and the underlying SDK's view
-//  model only delivers success, so we re-implement that flow here.
+//  model only delivers success, so we re-implement that flow here. Mirrors
+//  FrameApplePayViewModel step-for-step otherwise.
 //
 //  Supports both:
 //   - `.customer(id)` owner → creates a `ChargeIntent`; resolves with the ChargeIntent id.
@@ -25,17 +26,30 @@ final class ApplePayPresenter: NSObject, PKPaymentAuthorizationControllerDelegat
     case account(String)
   }
 
+  private enum PendingOutcome {
+    case success(String)
+    case failure(code: String, error: Error?)
+  }
+
   private let amount: Int
   private let currency: String
   private let owner: Owner
   private let resolve: (Any?) -> Void
   private let reject: (String, String, Error?) -> Void
 
-  // Set to true once we've delivered a definitive result (success or backend
-  // failure). When didFinish fires without this set, treat as user cancel.
+  // The outcome produced in didAuthorizePayment, held until the Apple Pay sheet
+  // has actually dismissed. Delivery must not happen inline: the JS caller
+  // typically dismisses its own modal on resolution, and on iOS 26+ dismissing
+  // the presenting controller while the Apple Pay sheet is still up strands the
+  // sheet on screen. Delivering from didFinish's dismiss completion means the
+  // sheet is gone before JS reacts. nil at didFinish = user cancel.
+  private var pendingResult: PendingOutcome?
+
+  // Set to true once the promise has been settled — guards against a
+  // double-fired didFinish settling it twice.
   private var didDeliverResult = false
 
-  // Strong self-retain across the async PassKit flow. Released on didFinish.
+  // Strong self-retain across the async PassKit flow. Released after delivery.
   private var retainCycle: ApplePayPresenter?
 
   private static let supportedNetworks: [PKPaymentNetwork] = [
@@ -101,7 +115,10 @@ final class ApplePayPresenter: NSObject, PKPaymentAuthorizationControllerDelegat
       }
 
       guard let paymentMethodId = paymentMethod?.id else {
-        deliverFailure(code: "PAYMENT_METHOD_FAILED", error: methodError)
+        if methodError?.isAssertionRejection == true {
+          DeviceAttestationManager.shared.resetAttestation()
+        }
+        pendingResult = .failure(code: "PAYMENT_METHOD_FAILED", error: methodError)
         return PKPaymentAuthorizationResult(status: .failure, errors: nil)
       }
 
@@ -121,14 +138,17 @@ final class ApplePayPresenter: NSObject, PKPaymentAuthorizationControllerDelegat
         let (chargeIntent, chargeError) = try await ChargeIntentsAPI.createChargeIntent(request: request)
 
         if let chargeIntent {
-          deliverSuccess(id: chargeIntent.id)
+          pendingResult = .success(chargeIntent.id)
           return PKPaymentAuthorizationResult(status: .success, errors: nil)
         } else {
-          deliverFailure(code: "PAYMENT_FAILED", error: chargeError)
+          pendingResult = .failure(code: "PAYMENT_FAILED", error: chargeError)
           return PKPaymentAuthorizationResult(status: .failure, errors: nil)
         }
 
       case .account(let accountId):
+        // The server rejects the transfer outright without a live session for this account.
+        try await SessionManager.shared.ensureSession(accountId: accountId)
+
         let request = TransferRequests.CreateTransferRequest(
           amount: amount,
           accountId: accountId,
@@ -138,40 +158,63 @@ final class ApplePayPresenter: NSObject, PKPaymentAuthorizationControllerDelegat
         let (transfer, transferError) = try await TransfersAPI.createTransfer(request: request)
 
         if let transfer {
-          deliverSuccess(id: transfer.id)
+          pendingResult = .success(transfer.id)
           return PKPaymentAuthorizationResult(status: .success, errors: nil)
         } else {
-          deliverFailure(code: "PAYMENT_FAILED", error: transferError)
+          pendingResult = .failure(code: "PAYMENT_FAILED", error: transferError)
           return PKPaymentAuthorizationResult(status: .failure, errors: nil)
         }
       }
     } catch {
-      deliverFailure(code: "PAYMENT_FAILED", error: error)
+      pendingResult = .failure(code: "PAYMENT_FAILED", error: error)
       return PKPaymentAuthorizationResult(status: .failure, errors: nil)
     }
   }
 
+  // Dismisses the Apple Pay sheet, then settles the JS promise from the dismiss
+  // completion — see `pendingResult` for why delivery is deferred. Unlike the
+  // SDK's view model, a nil pendingResult here is delivered as USER_CANCELED
+  // instead of silently dropped: cancel detection is the reason this presenter
+  // exists.
   func paymentAuthorizationControllerDidFinish(_ controller: PKPaymentAuthorizationController) {
-    controller.dismiss()
-    if !didDeliverResult {
-      reject("USER_CANCELED", "User dismissed Apple Pay sheet without authorizing", nil)
-      didDeliverResult = true
+    controller.dismiss { [weak self] in
+      Task { @MainActor in
+        self?.settleAndRelease()
+      }
     }
+    // `dismiss`'s completion is not guaranteed to run — if the sheet is already
+    // gone (backgrounded, torn down out from under us) UIKit can drop it, which
+    // would leave the JS promise unsettled forever and leak `retainCycle`.
+    // Settle on the next main-actor turn as a backstop; `deliver`'s
+    // `didDeliverResult` guard makes whichever path runs first the only one
+    // that reaches JS.
+    Task { @MainActor [weak self] in
+      self?.settleAndRelease()
+    }
+  }
+
+  /// Settles the JS promise from `pendingResult` and drops the self-retain.
+  /// Idempotent — safe to call from both the dismiss completion and the backstop.
+  @MainActor
+  private func settleAndRelease() {
+    switch pendingResult {
+    case .success(let id):
+      deliver { self.resolve(id) }
+    case .failure(let code, let error):
+      let message = error?.localizedDescription ?? "Apple Pay failed"
+      deliver { self.reject(code, message, error) }
+    case nil:
+      deliver { self.reject("USER_CANCELED", "User dismissed Apple Pay sheet without authorizing", nil) }
+    }
+    pendingResult = nil
     retainCycle = nil
   }
 
   // MARK: - Result delivery
 
-  private func deliverSuccess(id: String) {
+  private func deliver(_ settle: () -> Void) {
     guard !didDeliverResult else { return }
     didDeliverResult = true
-    resolve(id)
-  }
-
-  private func deliverFailure(code: String, error: Error?) {
-    guard !didDeliverResult else { return }
-    didDeliverResult = true
-    let message = error?.localizedDescription ?? "Apple Pay failed"
-    reject(code, message, error)
+    settle()
   }
 }

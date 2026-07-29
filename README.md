@@ -44,6 +44,17 @@ This prevents the **"Helpers are not supported by the default hub"** crash, whic
 
 > Using Swift Package Manager directly instead of CocoaPods? The package's `Package.swift` resolves `frame-ios` transitively, so just add `framepayments-react-native` via **File → Add Package Dependencies** in Xcode.
 
+#### Required Info.plist keys
+
+Onboarding's identity-verification step captures a government ID with the camera. iOS terminates the capture immediately if the usage description is missing, which surfaces as the onboarding flow closing with `status: 'cancelled'`. Add to your app target's `Info.plist`:
+
+```xml
+<key>NSCameraUsageDescription</key>
+<string>We use your camera to complete identity verification</string>
+```
+
+Required for any onboarding flow that runs KYC (`kyc` or `kyc_prefill`) — an applicant without a Social Security Number verifies with a government ID instead, which needs the camera. A library cannot declare this on your behalf; it must live in your own app target.
+
 ### Android setup
 
 No extra steps required. Autolinking handles the native module automatically and pulls in `com.framepayments:framesdk*` from Maven Central.
@@ -89,8 +100,8 @@ Initializes the native SDK. Must be called before any `present*` method. Call on
 
 ```ts
 await Frame.initialize({
-  secretKey: 'sk_sandbox_...',      // your Frame secret key
   publishableKey: 'pk_sandbox_...', // your Frame publishable key
+  secretKey: 'sk_sandbox_...',      // optional on iOS; required on Android
   applePayMerchantId: 'merchant.com.yourapp', // optional — see Apple Pay section
   googlePayMerchantId: 'BCR2DN4T...',         // optional — see Google Pay section
   debugMode: false,                 // set true in development to enable native debug logging
@@ -99,8 +110,8 @@ await Frame.initialize({
 
 | Option | Type | Required | Description |
 |---|---|---|---|
-| `secretKey` | `string` | Yes | Your Frame secret key (`sk_…`). Used for server-style operations. |
-| `publishableKey` | `string` | Yes | Your Frame publishable key (`pk_…`). Used for client-side operations like wallet payments. |
+| `publishableKey` | `string` | Yes | Your Frame publishable key (`pk_…`). The preferred, publishable-key-first way to authenticate the SDK. |
+| `secretKey` | `string` | iOS: No · Android: Yes | Your Frame secret key (`sk_…`). Optional on iOS as of Frame-iOS 4.x — prefer shipping only the publishable key in your app. Still required on Android until frame-android supports publishable-key-first initialization. |
 | `applePayMerchantId` | `string` | No | Apple Pay merchant identifier (`merchant.com.…`). Single source of truth for every Apple Pay surface — `presentApplePay`, the bundled checkout's wallet row, the onboarding wallet attach button. iOS-only; ignored on Android. |
 | `googlePayMerchantId` | `string` | No | Google Pay merchant identifier from the Google Pay & Wallet Console. Single source of truth for every Google Pay surface — `presentGooglePay`, the bundled checkout's wallet row, the onboarding wallet attach button. Android-only; ignored on iOS. |
 | `debugMode` | `boolean` | No | Enables native debug logging and routes wallet flows through sandbox/test environments. Default: `false`. |
@@ -190,6 +201,7 @@ if (result.status === 'completed') {
 | `capabilities` | `OnboardingCapability[]` | No | Which onboarding steps to include (see below) |
 | `showIntroScreen` | `boolean` | No | Show the "Verify Your Identity" welcome screen before the first step. Default `true`. Set to `false` to skip it and open directly on the first capability step. |
 | `showCompletionScreen` | `boolean` | No | Show the "Verification Submitted" confirmation screen after the last step. Default `true`. Set to `false` to complete the flow immediately without the final screen. |
+| `clientSecret` | `string` | No | Onboarding session client secret (`onb_sess_…`) minted server-side via `POST /v1/onboarding_sessions`. When provided, the onboarding flow authenticates with this session instead of the legacy secret-key path — recommended when initializing with only a publishable key. iOS-only; ignored on Android. |
 
 The Apple Pay / Google Pay wallet attach steps are rendered automatically when the corresponding merchant ID was passed to `Frame.initialize`. No per-call merchant params here.
 

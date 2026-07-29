@@ -144,8 +144,11 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     capabilities: ReadableArray,
     showIntroScreen: Boolean,
     showCompletionScreen: Boolean,
+    clientSecret: String?,
     promise: Promise
   ) {
+    // clientSecret is iOS-only (Frame-iOS onboarding sessions); accepted here so
+    // the JS Frame.presentOnboarding() API stays cross-platform.
     val activity = reactApplicationContext.currentActivity ?: run {
       promise.reject("NO_ACTIVITY", "No current activity", null)
       return

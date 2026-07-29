@@ -3,7 +3,7 @@
 //   • Pure-SPM consumers: add framepayments-react-native via Swift Package Manager;
 //     frame-ios resolves transitively from this manifest.
 //   • CocoaPods consumers (the common RN setup): the podspec at
-//     ios/FrameReactNative.podspec declares the same frame-ios SPM dependency via
+//     FrameReactNative.podspec declares the same frame-ios SPM dependency via
 //     RN 0.81+'s `spm_dependency` Podfile hook, so `pod install` resolves it
 //     automatically — no Xcode "Add Package Dependencies" step required.
 //
@@ -27,7 +27,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://github.com/Frame-Payments/frame-ios",
-            from: "3.0.2" // Keep in sync with package.json:frameNativeVersions.ios
+            from: "4.2.1" // Keep in sync with package.json:frameNativeVersions.ios
         )
     ],
     targets: [
