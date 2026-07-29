@@ -125,7 +125,16 @@ public class FrameSDKBridge: NSObject {
         _ = try await DeviceAttestationManager.shared.attestDevice()
         resolve(nil)
       } catch {
-        reject("ATTESTATION_FAILED", "Re-attestation after reset failed: \(error.localizedDescription)", error)
+        // `resetAttestation()` deleted the keychain key, so there is nothing to
+        // roll back to — the device is genuinely unattested until a later
+        // attestation succeeds. Say so, because until then every
+        // `presentApplePay` rejects with `NOT_ATTESTED`; the caller should retry
+        // rather than treat this as a transient no-op.
+        reject(
+          "ATTESTATION_FAILED",
+          "Re-attestation after reset failed: \(error.localizedDescription). The device is now unattested — wallet payments will fail until a retry succeeds.",
+          error
+        )
       }
     }
   }

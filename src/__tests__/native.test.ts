@@ -9,6 +9,7 @@ const mockPresentCart = jest.fn((_accountId: unknown, _items: unknown[], _shippi
 const mockPresentApplePay = jest.fn((_ownerType: string, _ownerId: string, _amount: number, _currency: string) => Promise.resolve('tr_3'));
 const mockPresentGooglePay = jest.fn((_amountCents: number, _ownerType: string, _ownerId: string, _currencyCode: string) => Promise.resolve('tr_4'));
 const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unknown[]) => Promise.resolve({ status: 'completed', paymentMethodId: 'pm_1' }));
+const mockResetDeviceAttestation = jest.fn(() => Promise.resolve());
 
 const mockPlatform = { OS: 'ios' as 'ios' | 'android' };
 
@@ -21,6 +22,7 @@ jest.mock('react-native', () => ({
       presentApplePay: mockPresentApplePay,
       presentGooglePay: mockPresentGooglePay,
       presentOnboarding: mockPresentOnboarding,
+      resetDeviceAttestation: mockResetDeviceAttestation,
     },
   },
   Platform: mockPlatform,
@@ -37,6 +39,7 @@ let presentCart: (opts: {
 let presentApplePay: (opts: { amount: number; currency?: string; owner: { type: 'customer' | 'account'; id: string } }) => Promise<string>;
 let presentGooglePay: (opts: { amountCents: number; owner: { type: 'customer' | 'account'; id: string }; currencyCode?: string }) => Promise<string>;
 let presentOnboarding: (opts: { accountId?: string | null; capabilities?: string[]; showIntroScreen?: boolean; showCompletionScreen?: boolean; clientSecret?: string | null }) => Promise<unknown>;
+let resetDeviceAttestation: () => Promise<void>;
 
 beforeEach(() => {
   jest.resetModules();
@@ -46,6 +49,7 @@ beforeEach(() => {
   mockPresentApplePay.mockClear();
   mockPresentGooglePay.mockClear();
   mockPresentOnboarding.mockClear();
+  mockResetDeviceAttestation.mockClear();
   mockPlatform.OS = 'ios';
   const native = require('../native');
   initialize = native.initialize;
@@ -54,6 +58,7 @@ beforeEach(() => {
   presentApplePay = native.presentApplePay;
   presentGooglePay = native.presentGooglePay;
   presentOnboarding = native.presentOnboarding;
+  resetDeviceAttestation = native.resetDeviceAttestation;
 });
 
 describe('initialize', () => {
@@ -353,5 +358,30 @@ describe('presentOnboarding', () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', googlePayMerchantId: 'BCR2DN4T...' });
     await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'] });
     expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], true, true, null);
+  });
+});
+
+describe('resetDeviceAttestation', () => {
+  it('forwards to the native module on iOS', async () => {
+    await resetDeviceAttestation();
+    expect(mockResetDeviceAttestation).toHaveBeenCalledTimes(1);
+  });
+
+  it('propagates a native ATTESTATION_FAILED rejection', async () => {
+    const failure = Object.assign(new Error('Re-attestation after reset failed'), {
+      code: 'ATTESTATION_FAILED',
+    });
+    mockResetDeviceAttestation.mockRejectedValueOnce(failure);
+    await expect(resetDeviceAttestation()).rejects.toMatchObject({ code: 'ATTESTATION_FAILED' });
+  });
+
+  it('throws PLATFORM_UNSUPPORTED on Android without touching the native module', () => {
+    mockPlatform.OS = 'android';
+    // The platform guard runs before the bridge call and `resetDeviceAttestation`
+    // is not async, so this throws synchronously rather than rejecting.
+    expect(() => resetDeviceAttestation()).toThrow(
+      expect.objectContaining({ code: 'PLATFORM_UNSUPPORTED' }),
+    );
+    expect(mockResetDeviceAttestation).not.toHaveBeenCalled();
   });
 });

@@ -22,10 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Frame-iOS: `3.0.4` → `4.2.0`. Resolved automatically on the next
+- Frame-iOS: `3.0.4` → `4.2.1`. Resolved automatically on the next
   `pod install`; no consumer code or Podfile changes required. Consumers who
   added the Frame-iOS package manually in Xcode (the manual-setup fallback)
-  must bump that pin to `4.2.0` themselves. Onboarding now pulls in Persona's
+  must bump that pin to `4.2.1` themselves. Onboarding now pulls in Persona's
   `PersonaInquirySDK2` transitively for the no-SSN government-ID verification
   step.
 - iOS native bridge: `presentOnboarding` selector gained a trailing

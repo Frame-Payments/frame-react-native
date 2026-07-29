@@ -179,20 +179,35 @@ final class ApplePayPresenter: NSObject, PKPaymentAuthorizationControllerDelegat
   func paymentAuthorizationControllerDidFinish(_ controller: PKPaymentAuthorizationController) {
     controller.dismiss { [weak self] in
       Task { @MainActor in
-        guard let self else { return }
-        switch self.pendingResult {
-        case .success(let id):
-          self.deliver { self.resolve(id) }
-        case .failure(let code, let error):
-          let message = error?.localizedDescription ?? "Apple Pay failed"
-          self.deliver { self.reject(code, message, error) }
-        case nil:
-          self.deliver { self.reject("USER_CANCELED", "User dismissed Apple Pay sheet without authorizing", nil) }
-        }
-        self.pendingResult = nil
-        self.retainCycle = nil
+        self?.settleAndRelease()
       }
     }
+    // `dismiss`'s completion is not guaranteed to run — if the sheet is already
+    // gone (backgrounded, torn down out from under us) UIKit can drop it, which
+    // would leave the JS promise unsettled forever and leak `retainCycle`.
+    // Settle on the next main-actor turn as a backstop; `deliver`'s
+    // `didDeliverResult` guard makes whichever path runs first the only one
+    // that reaches JS.
+    Task { @MainActor [weak self] in
+      self?.settleAndRelease()
+    }
+  }
+
+  /// Settles the JS promise from `pendingResult` and drops the self-retain.
+  /// Idempotent — safe to call from both the dismiss completion and the backstop.
+  @MainActor
+  private func settleAndRelease() {
+    switch pendingResult {
+    case .success(let id):
+      deliver { self.resolve(id) }
+    case .failure(let code, let error):
+      let message = error?.localizedDescription ?? "Apple Pay failed"
+      deliver { self.reject(code, message, error) }
+    case nil:
+      deliver { self.reject("USER_CANCELED", "User dismissed Apple Pay sheet without authorizing", nil) }
+    }
+    pendingResult = nil
+    retainCycle = nil
   }
 
   // MARK: - Result delivery

@@ -257,8 +257,11 @@ export function presentGooglePay(options: PresentGooglePayOptions): Promise<stri
  * explicitly reset — deleting the app does not clear it. Call this to force a
  * fresh attestation (generate key → challenge → attest → verify → persist).
  *
- * iOS-only; resolves once re-attestation completes, or rejects with
- * `ATTESTATION_FAILED` if the backend flow fails.
+ * iOS-only; resolves once re-attestation completes. Rejects with
+ * `ATTESTATION_FAILED` if the backend flow fails — the old key is already gone
+ * by then, so the device stays unattested and wallet payments reject with
+ * `NOT_ATTESTED` until a later attestation succeeds. Retry rather than ignoring
+ * the rejection.
  */
 export function resetDeviceAttestation(): Promise<void> {
   if (Platform.OS !== 'ios') {

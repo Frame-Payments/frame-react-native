@@ -53,7 +53,7 @@ Onboarding's identity-verification step captures a government ID with the camera
 <string>We use your camera to complete identity verification</string>
 ```
 
-Only required if your onboarding flow includes the `identity` capability. A library cannot declare this on your behalf — it must live in your own app target.
+Required for any onboarding flow that runs KYC (`kyc` or `kyc_prefill`) — an applicant without a Social Security Number verifies with a government ID instead, which needs the camera. A library cannot declare this on your behalf; it must live in your own app target.
 
 ### Android setup
 
