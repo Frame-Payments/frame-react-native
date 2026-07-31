@@ -19,14 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   discarded. It is threaded into `OnboardingConfig`, and frame-android's
   `OnboardingContainerView` begins and ends the session around the flow.
 - **Persona no-SSN government-ID verification on Android**, via frame-android
-  3.x — matching the iOS capability added in 3.1.0. Apps must declare camera
-  permission to use it.
+  3.x — matching the iOS capability added in 3.1.0. The camera permission is
+  declared by frame-android's onboarding module and merges into the host app, so
+  no manifest change is required.
 
 ### Changed
 
-- **frame-android: `2.1.0` → `3.0.1`.** Note that `3.0.0` was tagged but never
-  published to Maven Central; `3.0.1` is the first published 3.x release and is
-  API-identical to it.
+- **frame-android: `2.1.0` → `3.0.2`.** Note that `3.0.0` was tagged but never
+  published to Maven Central (its publish workflow failed); `3.0.1` was the first
+  published 3.x release. `3.0.2` additionally fixes government-ID verification
+  never launching the Persona SDK on the publishable-key path — without it, the
+  no-SSN onboarding step mints an inquiry and then silently does nothing.
 - `theme` is documented as supported on both platforms. It has been implemented
   on Android since 2.0.7 — the "no-op on Android" notes in `src/native.ts` and
   `src/types.ts` were stale, and the latter referenced a `Frame.setTheme()`
