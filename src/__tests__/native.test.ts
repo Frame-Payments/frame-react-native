@@ -96,16 +96,21 @@ describe('initialize', () => {
     expect(mockInitialize).toHaveBeenCalledWith(null, 'pk_test', false, null, null, null);
   });
 
-  it('throws if secretKey is missing on Android', () => {
+  it('allows omitting secretKey on Android too and marshals null', () => {
     mockPlatform.OS = 'android';
-    expect(() => initialize({ secretKey: '', publishableKey: 'pk_test' })).toThrow(/secretKey/);
-    expect(() => initialize({ publishableKey: 'pk_test' })).toThrow(/secretKey/);
-    expect(mockInitialize).not.toHaveBeenCalled();
+    initialize({ publishableKey: 'pk_test' });
+    expect(mockInitialize).toHaveBeenCalledWith(null, 'pk_test', false, null, null, null);
   });
 
   it('throws if publishableKey is missing', () => {
     expect(() => initialize({ secretKey: 'sk_test', publishableKey: '' })).toThrow(/publishableKey/);
     expect(() => (initialize as any)({ secretKey: 'sk_test' })).toThrow(/publishableKey/);
+    expect(mockInitialize).not.toHaveBeenCalled();
+  });
+
+  it('throws if publishableKey is missing on Android as well', () => {
+    mockPlatform.OS = 'android';
+    expect(() => initialize({ secretKey: 'sk_test', publishableKey: '' })).toThrow(/publishableKey/);
     expect(mockInitialize).not.toHaveBeenCalled();
   });
 });
@@ -349,6 +354,13 @@ describe('presentOnboarding', () => {
 
   it('passes clientSecret through when provided', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], clientSecret: 'onb_sess_123' });
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], true, true, 'onb_sess_123');
+  });
+
+  it('passes clientSecret through on Android — frame-android 3.x honors it', async () => {
+    mockPlatform.OS = 'android';
+    await initialize({ publishableKey: 'pk_xxx' });
     await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], clientSecret: 'onb_sess_123' });
     expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], true, true, 'onb_sess_123');
   });

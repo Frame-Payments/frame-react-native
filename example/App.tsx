@@ -22,6 +22,7 @@ import Frame from 'framepayments-react-native';
 import { FrameSDK } from 'framepayments';
 
 // Supply via environment variables (e.g. `FRAME_SECRET_KEY=... npm run ios`) — do not commit real keys.
+// Leave FRAME_SECRET_KEY unset to exercise the publishable-key-only path on both platforms.
 const FRAME_SECRET_KEY = process.env.FRAME_SECRET_KEY ?? '';
 const FRAME_PUBLISHABLE_KEY = process.env.FRAME_PUBLISHABLE_KEY ?? '';
 
@@ -66,7 +67,9 @@ export default function App() {
 
   React.useEffect(() => {
     Frame.initialize({
-      secretKey: FRAME_SECRET_KEY,
+      // Omitted entirely when unset, rather than passed as '', so the app runs
+      // the publishable-key-only flow that Frame-iOS 4.x / frame-android 3.x support.
+      ...(FRAME_SECRET_KEY ? { secretKey: FRAME_SECRET_KEY } : {}),
       publishableKey: FRAME_PUBLISHABLE_KEY,
       applePayMerchantId: APPLE_PAY_MERCHANT_ID,
       debugMode: __DEV__,

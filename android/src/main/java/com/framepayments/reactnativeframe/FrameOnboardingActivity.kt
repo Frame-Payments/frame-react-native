@@ -21,9 +21,13 @@ class FrameOnboardingActivity : ComponentActivity() {
     val capabilities = parseCapabilities(capabilitiesJson)
     val showIntroScreen = intent.getBooleanExtra(EXTRA_SHOW_INTRO_SCREEN, true)
     val showCompletionScreen = intent.getBooleanExtra(EXTRA_SHOW_COMPLETION_SCREEN, true)
+    val clientSecret = intent.getStringExtra(EXTRA_CLIENT_SECRET)
 
+    // OnboardingContainerView begins/ends the onboarding session itself from
+    // config.clientSecret, so passing it through here is all that's required.
     val config = OnboardingConfig(
       accountId = accountId,
+      clientSecret = clientSecret,
       requiredCapabilities = capabilities,
       showIntroScreen = showIntroScreen,
       showCompletionScreen = showCompletionScreen
@@ -73,6 +77,7 @@ class FrameOnboardingActivity : ComponentActivity() {
     const val EXTRA_CAPABILITIES_JSON = "capabilities_json"
     const val EXTRA_SHOW_INTRO_SCREEN = "show_intro_screen"
     const val EXTRA_SHOW_COMPLETION_SCREEN = "show_completion_screen"
+    const val EXTRA_CLIENT_SECRET = "client_secret"
     const val EXTRA_PAYMENT_METHOD_ID = "payment_method_id"
     const val REQUEST_CODE = 9003
   }

@@ -38,21 +38,17 @@ function throwCoded(code: string, message: string): never {
   throw err;
 }
 
-// theme is iOS-only today: frame-android does not yet have a matching theme API,
-// so the field is accepted on both platforms but ignored on Android until it does.
-
 let isInitialized = false;
 
 export function initialize(options: {
   /**
    * Frame publishable key (`pk_…`). The preferred, publishable-key-first way to
-   * initialize the SDK on iOS.
+   * initialize the SDK.
    */
   publishableKey: string;
   /**
-   * Frame secret key (`sk_…`). Optional on iOS as of Frame-iOS 4.x — prefer
-   * shipping only the publishable key in your app. Still required on Android
-   * until frame-android supports publishable-key-first initialization.
+   * Frame secret key (`sk_…`). Optional as of Frame-iOS 4.x and frame-android
+   * 3.x — prefer shipping only the publishable key in your app.
    */
   secretKey?: string;
   debugMode?: boolean;
@@ -69,18 +65,14 @@ export function initialize(options: {
    */
   googlePayMerchantId?: string;
   /**
-   * Optional theme applied SDK-wide to Frame's reusable iOS components
-   * (checkout, cart, onboarding). Pass any subset — unspecified tokens fall
-   * back to SDK defaults. No-op on Android until frame-android ships a
-   * matching theme API.
+   * Optional theme applied SDK-wide to Frame's reusable components (checkout,
+   * cart, onboarding) on both iOS and Android. Pass any subset — unspecified
+   * tokens fall back to SDK defaults.
    */
   theme?: FrameTheme;
 }): Promise<void> {
   if (!options?.publishableKey) {
     throwCoded(ErrorCodes.INIT_FAILED, 'Frame.initialize requires publishableKey');
-  }
-  if (Platform.OS === 'android' && !options.secretKey) {
-    throwCoded(ErrorCodes.INIT_FAILED, 'Frame.initialize requires secretKey on Android');
   }
   if (options.theme !== undefined && (typeof options.theme !== 'object' || Array.isArray(options.theme))) {
     throwCoded(ErrorCodes.INIT_FAILED, 'Frame.initialize: theme must be an object');
@@ -176,7 +168,6 @@ export function presentOnboarding(options: {
    * Onboarding session client secret (`onb_sess_…`) minted server-side via
    * `POST /v1/onboarding_sessions`. When provided, the onboarding flow
    * authenticates with this session instead of the legacy secret-key path.
-   * iOS-only — ignored on Android.
    */
   clientSecret?: string | null;
 }): Promise<OnboardingResult> {
