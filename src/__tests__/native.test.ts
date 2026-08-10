@@ -1,6 +1,7 @@
 /**
  * Unit tests for the native module bridge (initialize, presentCheckout, presentCart,
- * presentApplePay, presentGooglePay, presentOnboarding). NativeModules.FrameSDK is mocked.
+ * presentApplePay, presentGooglePay, presentOnboarding, presentAddPaymentMethod,
+ * presentAddPayoutMethod). NativeModules.FrameSDK is mocked.
  */
 
 const mockInitialize = jest.fn((_secretKey: string | null, _publishableKey: string, _debugMode: boolean, _applePayMerchantId: string | null, _googlePayMerchantId: string | null, _theme: unknown) => Promise.resolve());
@@ -9,6 +10,8 @@ const mockPresentCart = jest.fn((_accountId: unknown, _items: unknown[], _shippi
 const mockPresentApplePay = jest.fn((_ownerType: string, _ownerId: string, _amount: number, _currency: string) => Promise.resolve('tr_3'));
 const mockPresentGooglePay = jest.fn((_amountCents: number, _ownerType: string, _ownerId: string, _currencyCode: string) => Promise.resolve('tr_4'));
 const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unknown[]) => Promise.resolve({ status: 'completed', paymentMethodId: 'pm_1' }));
+const mockPresentAddPaymentMethod = jest.fn((_accountId: string, _clientSecret: string | null) => Promise.resolve({ status: 'completed', methodId: 'pm_2' }));
+const mockPresentAddPayoutMethod = jest.fn((_accountId: string, _clientSecret: string | null) => Promise.resolve({ status: 'completed', methodId: 'ba_1' }));
 const mockResetDeviceAttestation = jest.fn(() => Promise.resolve());
 
 const mockPlatform = { OS: 'ios' as 'ios' | 'android' };
@@ -22,6 +25,8 @@ jest.mock('react-native', () => ({
       presentApplePay: mockPresentApplePay,
       presentGooglePay: mockPresentGooglePay,
       presentOnboarding: mockPresentOnboarding,
+      presentAddPaymentMethod: mockPresentAddPaymentMethod,
+      presentAddPayoutMethod: mockPresentAddPayoutMethod,
       resetDeviceAttestation: mockResetDeviceAttestation,
     },
   },
@@ -39,6 +44,8 @@ let presentCart: (opts: {
 let presentApplePay: (opts: { amount: number; currency?: string; owner: { type: 'customer' | 'account'; id: string } }) => Promise<string>;
 let presentGooglePay: (opts: { amountCents: number; owner: { type: 'customer' | 'account'; id: string }; currencyCode?: string }) => Promise<string>;
 let presentOnboarding: (opts: { accountId?: string | null; capabilities?: string[]; showIntroScreen?: boolean; showCompletionScreen?: boolean; clientSecret?: string | null }) => Promise<unknown>;
+let presentAddPaymentMethod: (opts: { accountId: string; clientSecret?: string | null }) => Promise<unknown>;
+let presentAddPayoutMethod: (opts: { accountId: string; clientSecret?: string | null }) => Promise<unknown>;
 let resetDeviceAttestation: () => Promise<void>;
 
 beforeEach(() => {
@@ -49,6 +56,8 @@ beforeEach(() => {
   mockPresentApplePay.mockClear();
   mockPresentGooglePay.mockClear();
   mockPresentOnboarding.mockClear();
+  mockPresentAddPaymentMethod.mockClear();
+  mockPresentAddPayoutMethod.mockClear();
   mockResetDeviceAttestation.mockClear();
   mockPlatform.OS = 'ios';
   const native = require('../native');
@@ -58,6 +67,8 @@ beforeEach(() => {
   presentApplePay = native.presentApplePay;
   presentGooglePay = native.presentGooglePay;
   presentOnboarding = native.presentOnboarding;
+  presentAddPaymentMethod = native.presentAddPaymentMethod;
+  presentAddPayoutMethod = native.presentAddPayoutMethod;
   resetDeviceAttestation = native.resetDeviceAttestation;
 });
 
@@ -370,6 +381,102 @@ describe('presentOnboarding', () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', googlePayMerchantId: 'BCR2DN4T...' });
     await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'] });
     expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], true, true, null);
+  });
+});
+
+describe('presentAddPaymentMethod', () => {
+  it('throws NOT_INITIALIZED if initialize was not called', async () => {
+    try {
+      await presentAddPaymentMethod({ accountId: 'acct_1' });
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('NOT_INITIALIZED');
+    }
+    expect(mockPresentAddPaymentMethod).not.toHaveBeenCalled();
+  });
+
+  it('throws INVALID_ACCOUNT when accountId is missing', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    try {
+      await presentAddPaymentMethod({} as any);
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_ACCOUNT');
+    }
+    expect(mockPresentAddPaymentMethod).not.toHaveBeenCalled();
+  });
+
+  it('throws PLATFORM_UNSUPPORTED on Android without touching the native module', async () => {
+    mockPlatform.OS = 'android';
+    await initialize({ publishableKey: 'pk_xxx' });
+    try {
+      await presentAddPaymentMethod({ accountId: 'acct_1' });
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('PLATFORM_UNSUPPORTED');
+    }
+    expect(mockPresentAddPaymentMethod).not.toHaveBeenCalled();
+  });
+
+  it('calls native presentAddPaymentMethod with accountId and null clientSecret by default', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    const result = await presentAddPaymentMethod({ accountId: 'acct_1' });
+    expect(mockPresentAddPaymentMethod).toHaveBeenCalledWith('acct_1', null);
+    expect(result).toEqual({ status: 'completed', methodId: 'pm_2' });
+  });
+
+  it('passes clientSecret through when provided', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    await presentAddPaymentMethod({ accountId: 'acct_1', clientSecret: 'onb_sess_123' });
+    expect(mockPresentAddPaymentMethod).toHaveBeenCalledWith('acct_1', 'onb_sess_123');
+  });
+});
+
+describe('presentAddPayoutMethod', () => {
+  it('throws NOT_INITIALIZED if initialize was not called', async () => {
+    try {
+      await presentAddPayoutMethod({ accountId: 'acct_1' });
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('NOT_INITIALIZED');
+    }
+    expect(mockPresentAddPayoutMethod).not.toHaveBeenCalled();
+  });
+
+  it('throws INVALID_ACCOUNT when accountId is missing', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    try {
+      await presentAddPayoutMethod({} as any);
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_ACCOUNT');
+    }
+    expect(mockPresentAddPayoutMethod).not.toHaveBeenCalled();
+  });
+
+  it('throws PLATFORM_UNSUPPORTED on Android without touching the native module', async () => {
+    mockPlatform.OS = 'android';
+    await initialize({ publishableKey: 'pk_xxx' });
+    try {
+      await presentAddPayoutMethod({ accountId: 'acct_1' });
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('PLATFORM_UNSUPPORTED');
+    }
+    expect(mockPresentAddPayoutMethod).not.toHaveBeenCalled();
+  });
+
+  it('calls native presentAddPayoutMethod with accountId and null clientSecret by default', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    const result = await presentAddPayoutMethod({ accountId: 'acct_1' });
+    expect(mockPresentAddPayoutMethod).toHaveBeenCalledWith('acct_1', null);
+    expect(result).toEqual({ status: 'completed', methodId: 'ba_1' });
+  });
+
+  it('passes clientSecret through when provided', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    await presentAddPayoutMethod({ accountId: 'acct_1', clientSecret: 'onb_sess_123' });
+    expect(mockPresentAddPayoutMethod).toHaveBeenCalledWith('acct_1', 'onb_sess_123');
   });
 });
 

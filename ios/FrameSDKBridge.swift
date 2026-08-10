@@ -112,6 +112,24 @@ public class FrameSDKBridge: NSObject {
     }
   }
 
+  @objc public
+  func presentAddPaymentMethod(from viewController: UIViewController, accountId: String, clientSecret: NSObject?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    guard !accountId.isEmpty else {
+      reject("INVALID_ACCOUNT", "Frame.presentAddPaymentMethod requires a non-empty accountId", nil)
+      return
+    }
+    presentAddPaymentMethodOnMain(from: viewController, accountId: accountId, clientSecret: clientSecret as? String, resolve: resolve, reject: reject)
+  }
+
+  @objc public
+  func presentAddPayoutMethod(from viewController: UIViewController, accountId: String, clientSecret: NSObject?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    guard !accountId.isEmpty else {
+      reject("INVALID_ACCOUNT", "Frame.presentAddPayoutMethod requires a non-empty accountId", nil)
+      return
+    }
+    presentAddPayoutMethodOnMain(from: viewController, accountId: accountId, clientSecret: clientSecret as? String, resolve: resolve, reject: reject)
+  }
+
   /// Clears the stored App Attest key so the next attestation performs the full
   /// backend flow. App Attest keys persist in the keychain across app reinstalls,
   /// so a key attested against a stale backend environment sticks until explicitly
@@ -280,6 +298,53 @@ public class FrameSDKBridge: NSObject {
       NSLog("[FrameRN][onb] presentation completed; presentationController=\(String(describing: nav.presentationController)) delegate set")
     }
   }
+  private func presentAddPaymentMethodOnMain(from top: UIViewController, accountId: String, clientSecret: String?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+    let delegate = AddMethodDismissDelegate(resolve: resolve)
+    let addPaymentView = FrameAddPaymentMethodView(
+      clientSecret: clientSecret,
+      accountId: accountId,
+      onResult: { [weak top, delegate] result in
+        switch result {
+        case .completed(let id):
+          delegate.finish(.completed(methodId: id.isEmpty ? nil : id))
+        case .cancelled, .failed:
+          delegate.finish(.cancelled)
+        }
+        top?.dismiss(animated: true)
+      }
+    )
+    presentAddMethodHosting(UIHostingController(rootView: addPaymentView), from: top, delegate: delegate)
+  }
+
+  private func presentAddPayoutMethodOnMain(from top: UIViewController, accountId: String, clientSecret: String?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+    let delegate = AddMethodDismissDelegate(resolve: resolve)
+    let addPayoutView = FrameAddPayoutMethodView(
+      clientSecret: clientSecret,
+      accountId: accountId,
+      onResult: { [weak top, delegate] result in
+        switch result {
+        case .completed(let id):
+          delegate.finish(.completed(methodId: id.isEmpty ? nil : id))
+        case .cancelled, .failed:
+          delegate.finish(.cancelled)
+        }
+        top?.dismiss(animated: true)
+      }
+    )
+    presentAddMethodHosting(UIHostingController(rootView: addPayoutView), from: top, delegate: delegate)
+  }
+
+  private func presentAddMethodHosting<V: View>(_ hosting: UIHostingController<V>, from top: UIViewController, delegate: AddMethodDismissDelegate) {
+    hosting.modalPresentationStyle = UIModalPresentationStyle.pageSheet
+    if let sheet = hosting.sheetPresentationController {
+      sheet.detents = [UISheetPresentationController.Detent.large()]
+    }
+    delegate.hostingController = hosting
+    objc_setAssociatedObject(hosting, &addMethodDismissKey, delegate, .OBJC_ASSOCIATION_RETAIN)
+    top.present(hosting, animated: true) {
+      hosting.presentationController?.delegate = delegate
+    }
+  }
 }
 
 // MARK: - OnboardingHostingController
@@ -392,6 +457,44 @@ private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationC
   }
 }
 
+private final class AddMethodDismissDelegate: NSObject, UIAdaptivePresentationControllerDelegate {
+  enum Outcome {
+    case completed(methodId: String?)
+    case cancelled
+  }
+
+  let resolve: RCTPromiseResolveBlock
+  weak var hostingController: UIViewController?
+  var didFinish = false
+
+  init(resolve: @escaping RCTPromiseResolveBlock) {
+    self.resolve = resolve
+  }
+
+  func finish(_ outcome: Outcome) {
+    guard !didFinish else { return }
+    didFinish = true
+    DispatchQueue.main.async { [resolve] in
+      switch outcome {
+      case .completed(let methodId):
+        var payload: [String: Any] = ["status": "completed"]
+        if let methodId { payload["methodId"] = methodId }
+        resolve(payload)
+      case .cancelled:
+        resolve(["status": "cancelled"])
+      }
+    }
+  }
+
+  func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+    // Nested sheets (e.g. the Apple Pay sheet, Plaid Link) propagate this callback up.
+    // Only treat dismissal of this screen's own hosting controller as a cancellation.
+    guard presentationController.presentedViewController === hostingController else { return }
+    finish(.cancelled)
+  }
+}
+
 private var checkoutDismissKey: UInt8 = 0
 private var cartDismissKey: UInt8 = 0
 private var onboardingDismissKey: UInt8 = 0
+private var addMethodDismissKey: UInt8 = 0

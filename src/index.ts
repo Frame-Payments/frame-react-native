@@ -4,6 +4,8 @@
  * React Native SDK for Frame Payments.
  * - Initialize the SDK, then use presentCheckout / presentCart for payment UI.
  * - Use presentOnboarding for KYC, identity verification, and payment method onboarding flows.
+ * - Use presentAddPaymentMethod / presentAddPayoutMethod (iOS-only) to add a payment or payout
+ *   method outside onboarding, at an arbitrary point in your app.
  * - Use presentApplePay / presentGooglePay to launch the platform wallet sheet from your own button UI.
  * - For API calls (customers, charge intents, refunds), use the framepayments (frame-node) package from JS.
  */
@@ -13,6 +15,8 @@ import {
   presentCheckout,
   presentCart,
   presentOnboarding,
+  presentAddPaymentMethod,
+  presentAddPayoutMethod,
   presentApplePay,
   presentGooglePay,
   resetDeviceAttestation,
@@ -23,6 +27,8 @@ export {
   presentCheckout,
   presentCart,
   presentOnboarding,
+  presentAddPaymentMethod,
+  presentAddPayoutMethod,
   presentApplePay,
   presentGooglePay,
   resetDeviceAttestation,
@@ -37,6 +43,7 @@ export type {
   OnboardingCapability,
   OnboardingResult,
   OnboardingResultStatus,
+  AddMethodResult,
   WalletOwner,
   ApplePayOwner,
   PresentApplePayOptions,
@@ -51,12 +58,14 @@ export type {
 export { ErrorCodes } from './errors';
 export type { FrameErrorShape, FrameErrorCode } from './errors';
 
-/** Default export for Frame.initialize(), Frame.presentCheckout(), Frame.presentCart(), Frame.presentOnboarding(), Frame.presentApplePay(), Frame.presentGooglePay() */
+/** Default export for Frame.initialize(), Frame.presentCheckout(), Frame.presentCart(), Frame.presentOnboarding(), Frame.presentAddPaymentMethod(), Frame.presentAddPayoutMethod(), Frame.presentApplePay(), Frame.presentGooglePay() */
 export default {
   initialize,
   presentCheckout,
   presentCart,
   presentOnboarding,
+  presentAddPaymentMethod,
+  presentAddPayoutMethod,
   presentApplePay,
   presentGooglePay,
   resetDeviceAttestation,

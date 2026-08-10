@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.0] - 2026-08-10
+
+### Added
+
+- **`Frame.presentAddPaymentMethod` / `Frame.presentAddPayoutMethod`**, backed by
+  frame-ios 4.3.0's new `FrameAddPaymentMethodView` / `FrameAddPayoutMethodView`.
+  Presents the same card/bank-account entry screens used during onboarding, but
+  standalone — call it at any point after a user already has an account, without
+  running the full onboarding flow. iOS-only for now; frame-android has no
+  equivalent standalone screen yet, so both throw `PLATFORM_UNSUPPORTED` on
+  Android. Use `Frame.presentOnboarding` with the relevant capability there.
+- **`idv` onboarding capability**, matching frame-ios 4.3.0's new
+  government-ID-verification capability. Gates the existing no-SSN Persona step
+  in `Frame.presentOnboarding` the same way other capabilities do — no new
+  bridge method needed. iOS-only; frame-android has no matching capability yet
+  and silently ignores the string if passed.
+
+### Changed
+
+- **frame-ios: `4.2.1` → `4.3.0`.** Also ships an internal fix for broken
+  privacy-policy/terms-of-service links and an address-autofill fix in the
+  bundled checkout/onboarding forms; neither required an RN-side change.
+
 ## [3.2.0] - 2026-07-29
 
 ### Added
