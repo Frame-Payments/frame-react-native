@@ -63,6 +63,16 @@ RCT_EXTERN_METHOD(presentApplePay:(NSString *)ownerType
 RCT_EXTERN_METHOD(resetDeviceAttestation:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(presentAddPaymentMethod:(NSString *)accountId
+                  clientSecret:(id)clientSecret
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(presentAddPayoutMethod:(NSString *)accountId
+                  clientSecret:(id)clientSecret
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end
 
 @implementation FrameSDK
@@ -118,6 +128,28 @@ RCT_EXTERN_METHOD(resetDeviceAttestation:(RCTPromiseResolveBlock)resolve
 
 - (void)resetDeviceAttestation:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
   [[[ObjCFrameSDKBridge alloc] init] resetDeviceAttestation:resolve rejecter:reject];
+}
+
+- (void)presentAddPaymentMethod:(NSString *)accountId clientSecret:(id)clientSecret resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    UIViewController *topVC = FrameGetTopViewController();
+    if (!topVC) {
+      reject(@"NO_ROOT_VC", @"Could not find root view controller to present add-payment-method", nil);
+      return;
+    }
+    [[[ObjCFrameSDKBridge alloc] init] presentAddPaymentMethodFrom:topVC accountId:accountId clientSecret:clientSecret resolver:resolve rejecter:reject];
+  });
+}
+
+- (void)presentAddPayoutMethod:(NSString *)accountId clientSecret:(id)clientSecret resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    UIViewController *topVC = FrameGetTopViewController();
+    if (!topVC) {
+      reject(@"NO_ROOT_VC", @"Could not find root view controller to present add-payout-method", nil);
+      return;
+    }
+    [[[ObjCFrameSDKBridge alloc] init] presentAddPayoutMethodFrom:topVC accountId:accountId clientSecret:clientSecret resolver:resolve rejecter:reject];
+  });
 }
 
 @end

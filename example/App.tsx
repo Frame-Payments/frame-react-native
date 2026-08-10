@@ -184,6 +184,36 @@ export default function App() {
     }
   };
 
+  const handleAddPaymentMethod = async () => {
+    setLoading('addPaymentMethod');
+    try {
+      const result = await Frame.presentAddPaymentMethod({ accountId: DEMO_ACCOUNT_ID });
+      Alert.alert(
+        result.status === 'completed' ? 'Payment method added' : 'Cancelled',
+        result.methodId ? `Payment method: ${result.methodId}` : undefined,
+      );
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? String(e));
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleAddPayoutMethod = async () => {
+    setLoading('addPayoutMethod');
+    try {
+      const result = await Frame.presentAddPayoutMethod({ accountId: DEMO_ACCOUNT_ID });
+      Alert.alert(
+        result.status === 'completed' ? 'Payout method added' : 'Cancelled',
+        result.methodId ? `Payout method: ${result.methodId}` : undefined,
+      );
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? String(e));
+    } finally {
+      setLoading(null);
+    }
+  };
+
   const handleListCustomers = async () => {
     setLoading('customers');
     try {
@@ -307,6 +337,34 @@ export default function App() {
           <Text style={styles.buttonText}>Onboarding (KYC + bank)</Text>
         )}
       </TouchableOpacity>
+
+      {Platform.OS === 'ios' && (
+        <>
+          <TouchableOpacity
+            style={[styles.button, (loading === 'addPaymentMethod' || !!initError) && styles.buttonDisabled]}
+            onPress={handleAddPaymentMethod}
+            disabled={!!loading || !!initError}
+          >
+            {loading === 'addPaymentMethod' ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Add payment method</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, (loading === 'addPayoutMethod' || !!initError) && styles.buttonDisabled]}
+            onPress={handleAddPayoutMethod}
+            disabled={!!loading || !!initError}
+          >
+            {loading === 'addPayoutMethod' ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Add payout method</Text>
+            )}
+          </TouchableOpacity>
+        </>
+      )}
 
       <TouchableOpacity
         style={[styles.button, styles.buttonSecondary, (loading === 'customers' || !!initError) && styles.buttonDisabled]}

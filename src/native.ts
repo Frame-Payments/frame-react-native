@@ -4,6 +4,7 @@
 
 import { NativeModules, Platform } from 'react-native';
 import type {
+  AddMethodResult,
   FrameCartItem,
   FrameTheme,
   OnboardingCapability,
@@ -180,6 +181,62 @@ export function presentOnboarding(options: {
       options.showCompletionScreen ?? true,
       options.clientSecret ?? null
     )
+  );
+}
+
+/**
+ * Presents a standalone "add a payment method" screen, outside the onboarding flow.
+ * Use this to prompt an existing user to add a card at an arbitrary point in your app.
+ *
+ * iOS-only for now — frame-android has no standalone equivalent yet; use
+ * `presentOnboarding` with `card_verification` on Android.
+ */
+export function presentAddPaymentMethod(options: {
+  accountId: string;
+  /**
+   * Onboarding session client secret (`onb_sess_…`) minted server-side via
+   * `POST /v1/onboarding_sessions`, scoping the request to `accountId`. Omit this
+   * only for legacy integrations that still authenticate with a secret key.
+   */
+  clientSecret?: string | null;
+}): Promise<AddMethodResult> {
+  guardInitialized();
+  if (Platform.OS !== 'ios') {
+    throwCoded('PLATFORM_UNSUPPORTED', 'Frame.presentAddPaymentMethod is iOS-only.');
+  }
+  if (!options?.accountId) {
+    throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentAddPaymentMethod requires accountId');
+  }
+  return wrapPromise(
+    FrameSDK.presentAddPaymentMethod(options.accountId, options.clientSecret ?? null)
+  );
+}
+
+/**
+ * Presents a standalone "add a payout bank account" screen, outside the onboarding flow.
+ * Use this to prompt an existing user to add a payout account at an arbitrary point in your app.
+ *
+ * iOS-only for now — frame-android has no standalone equivalent yet; use
+ * `presentOnboarding` with `bank_account_verification` on Android.
+ */
+export function presentAddPayoutMethod(options: {
+  accountId: string;
+  /**
+   * Onboarding session client secret (`onb_sess_…`) minted server-side via
+   * `POST /v1/onboarding_sessions`, scoping the request to `accountId`. Omit this
+   * only for legacy integrations that still authenticate with a secret key.
+   */
+  clientSecret?: string | null;
+}): Promise<AddMethodResult> {
+  guardInitialized();
+  if (Platform.OS !== 'ios') {
+    throwCoded('PLATFORM_UNSUPPORTED', 'Frame.presentAddPayoutMethod is iOS-only.');
+  }
+  if (!options?.accountId) {
+    throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentAddPayoutMethod requires accountId');
+  }
+  return wrapPromise(
+    FrameSDK.presentAddPayoutMethod(options.accountId, options.clientSecret ?? null)
   );
 }
 
