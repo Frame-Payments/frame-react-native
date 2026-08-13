@@ -9,8 +9,7 @@ const mockPresentCheckout = jest.fn((_accountId: unknown, _amount: number) => Pr
 const mockPresentCart = jest.fn((_accountId: unknown, _items: unknown[], _shipping: number) => Promise.resolve('tr_2'));
 const mockPresentApplePay = jest.fn((_ownerType: string, _ownerId: string, _amount: number, _currency: string) => Promise.resolve('tr_3'));
 const mockPresentGooglePay = jest.fn((_amountCents: number, _ownerType: string, _ownerId: string, _currencyCode: string) => Promise.resolve('tr_4'));
-// Mirrors the iOS shape as of frame-ios 4.3.6: onboarding resolves the account id,
-// not a payment method id. Android still resolves `paymentMethodId`.
+// Mirrors the iOS shape: onboarding resolves accountId as of frame-ios 4.3.6.
 const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unknown[]) => Promise.resolve({ status: 'completed', accountId: 'acct_1' }));
 const mockPresentAddPaymentMethod = jest.fn((_accountId: string, _clientSecret: string | null) => Promise.resolve({ status: 'completed', methodId: 'pm_2' }));
 const mockPresentAddPayoutMethod = jest.fn((_accountId: string, _clientSecret: string | null) => Promise.resolve({ status: 'completed', methodId: 'ba_1' }));

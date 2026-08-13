@@ -267,11 +267,7 @@ public class FrameSDKBridge: NSObject {
         onResult: { [delegate, weak top] result in
           switch result {
           case .completed(let id):
-            // As of frame-ios 4.3.6 this id is the onboarded ACCOUNT id, not a
-            // payment method id (frame-ios 613de9d changed the payload without
-            // changing `FrameResult.completed(id:)`). Callers need it to scope
-            // follow-up flows — checkout loads payment methods per account.
-            // Covers both a pre-existing account and one created during onboarding.
+            // As of frame-ios 4.3.6 this is the account id, not a payment method id.
             delegate.finish(.completed(accountId: id.isEmpty ? nil : id))
           case .cancelled:
             delegate.finish(.cancelled)

@@ -81,30 +81,12 @@ export type OnboardingCapability =
 
 export type OnboardingResultStatus = 'completed' | 'cancelled';
 
-/**
- * Result returned from presentOnboarding.
- *
- * The two platforms return different resources on completion, so which field is
- * populated depends on where you're running:
- *
- *  - iOS (frame-ios >= 4.3.6) resolves `accountId` — the onboarded account, whether
- *    it pre-existed or was created during the flow. Use it to scope follow-up calls
- *    (checkout loads payment methods per account).
- *  - Android (frame-android 3.0.2) resolves `paymentMethodId` — the payment method
- *    added during the flow, if any.
- *
- * Check for the field you need rather than assuming one is present. iOS stopped
- * returning a payment method id in frame-ios 4.3.6; Android has no matching account
- * id yet, and the fields will converge once frame-android returns one.
- */
+/** Result returned from presentOnboarding */
 export interface OnboardingResult {
   status: OnboardingResultStatus;
-  /** iOS only. Present when status === 'completed' — the onboarded account's id. */
+  /** iOS only (frame-ios >= 4.3.6): the onboarded account's id. */
   accountId?: string;
-  /**
-   * Android only. Present when status === 'completed' and a payment method was
-   * created/verified. iOS no longer populates this as of frame-ios 4.3.6.
-   */
+  /** Android only: the payment method added during the flow. */
   paymentMethodId?: string;
 }
 
