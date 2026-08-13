@@ -267,7 +267,12 @@ public class FrameSDKBridge: NSObject {
         onResult: { [delegate, weak top] result in
           switch result {
           case .completed(let id):
-            delegate.finish(.completed(paymentMethodId: id.isEmpty ? nil : id))
+            // As of frame-ios 4.3.6 this id is the onboarded ACCOUNT id, not a
+            // payment method id (frame-ios 613de9d changed the payload without
+            // changing `FrameResult.completed(id:)`). Callers need it to scope
+            // follow-up flows — checkout loads payment methods per account.
+            // Covers both a pre-existing account and one created during onboarding.
+            delegate.finish(.completed(accountId: id.isEmpty ? nil : id))
           case .cancelled:
             delegate.finish(.cancelled)
           case .failed:
@@ -421,7 +426,7 @@ private final class CartDismissDelegate: NSObject, UIAdaptivePresentationControl
 
 private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationControllerDelegate {
   enum Outcome {
-    case completed(paymentMethodId: String?)
+    case completed(accountId: String?)
     case cancelled
   }
 
@@ -438,9 +443,9 @@ private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationC
     didFinish = true
     DispatchQueue.main.async { [resolve] in
       switch outcome {
-      case .completed(let paymentMethodId):
+      case .completed(let accountId):
         var payload: [String: Any] = ["status": "completed"]
-        if let paymentMethodId { payload["paymentMethodId"] = paymentMethodId }
+        if let accountId { payload["accountId"] = accountId }
         resolve(payload)
       case .cancelled:
         resolve(["status": "cancelled"])

@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **frame-ios: `4.3.0` → `4.3.6`.**
+- **BREAKING (iOS): `presentOnboarding` now resolves `accountId` instead of
+  `paymentMethodId`.** frame-ios 4.3.6 changed what `OnboardingContainerView`
+  emits on success — the onboarded account's id rather than the selected payment
+  method's — without changing the `FrameResult.completed(id:)` signature, so this
+  would otherwise have compiled clean and mislabeled the value at runtime. Use
+  `result.accountId` to scope follow-up calls (checkout loads payment methods per
+  account).
+
+  Android is unaffected and still resolves `paymentMethodId`: frame-android 3.0.2
+  genuinely returns a payment method id. The two platforms therefore return
+  different resources for the same call — check for the field you need rather
+  than assuming one is present. They will converge once frame-android also
+  returns an account id.
+
+  frame-ios 4.3.6 also adds `SessionManager.pause()` / `resume()` for Sonar
+  session upkeep across app backgrounding. Not wired up here — the bridge
+  registers no `UIApplication` lifecycle observers — so a backgrounded session
+  can still expire silently; tracked separately. Session creation and the
+  per-view refresh remain automatic and needed no RN change.
+
 ## [3.3.0] - 2026-08-10
 
 ### Added
