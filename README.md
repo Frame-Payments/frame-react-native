@@ -191,7 +191,9 @@ const result = await Frame.presentOnboarding({
 });
 
 if (result.status === 'completed') {
-  console.log('Payment method created:', result.paymentMethodId);
+  // iOS resolves the onboarded account id; Android resolves a payment method id.
+  console.log('Onboarded account (iOS):', result.accountId);
+  console.log('Payment method (Android):', result.paymentMethodId);
 }
 ```
 
@@ -240,7 +242,12 @@ const result = await Frame.presentOnboarding({
 | Field | Type | Description |
 |---|---|---|
 | `status` | `'completed' \| 'cancelled'` | Whether the user finished or dismissed the flow |
-| `paymentMethodId` | `string \| undefined` | Set when a payment method was created or verified during the flow |
+| `accountId` | `string \| undefined` | **iOS only.** The onboarded account's id — whether it pre-existed or was created during the flow. Use it to scope follow-up calls (checkout loads payment methods per account). |
+| `paymentMethodId` | `string \| undefined` | **Android only.** Set when a payment method was created or verified during the flow. iOS stopped returning this in frame-ios 4.3.6. |
+
+> **Platform difference:** the two SDKs return different resources on completion, so check
+> for the field you need rather than assuming one is present. The fields will converge once
+> frame-android also returns an account id.
 
 ---
 

@@ -84,7 +84,9 @@ export type OnboardingResultStatus = 'completed' | 'cancelled';
 /** Result returned from presentOnboarding */
 export interface OnboardingResult {
   status: OnboardingResultStatus;
-  /** Present when status === 'completed' and a payment method was created/verified */
+  /** iOS only (frame-ios >= 4.3.6): the onboarded account's id. */
+  accountId?: string;
+  /** Android only: the payment method added during the flow. */
   paymentMethodId?: string;
 }
 

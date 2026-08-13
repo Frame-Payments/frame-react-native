@@ -172,9 +172,15 @@ export default function App() {
       const result = await Frame.presentOnboarding({
         capabilities: ['kyc', 'kyc_prefill', 'age_verification', 'phone_verification', 'card_verification', 'bank_account_verification'],
       });
+      // iOS returns the onboarded account id; Android returns a payment method id.
+      const detail = result.accountId
+        ? `Account: ${result.accountId}`
+        : result.paymentMethodId
+          ? `Payment method: ${result.paymentMethodId}`
+          : undefined;
       Alert.alert(
         result.status === 'completed' ? 'Onboarding complete' : 'Onboarding cancelled',
-        result.paymentMethodId ? `Payment method: ${result.paymentMethodId}` : undefined,
+        detail,
       );
     } catch (e: any) {
       if (e.code === 'USER_CANCELED') return;

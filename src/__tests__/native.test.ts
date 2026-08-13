@@ -9,7 +9,8 @@ const mockPresentCheckout = jest.fn((_accountId: unknown, _amount: number) => Pr
 const mockPresentCart = jest.fn((_accountId: unknown, _items: unknown[], _shipping: number) => Promise.resolve('tr_2'));
 const mockPresentApplePay = jest.fn((_ownerType: string, _ownerId: string, _amount: number, _currency: string) => Promise.resolve('tr_3'));
 const mockPresentGooglePay = jest.fn((_amountCents: number, _ownerType: string, _ownerId: string, _currencyCode: string) => Promise.resolve('tr_4'));
-const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unknown[]) => Promise.resolve({ status: 'completed', paymentMethodId: 'pm_1' }));
+// Mirrors the iOS shape: onboarding resolves accountId as of frame-ios 4.3.6.
+const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unknown[]) => Promise.resolve({ status: 'completed', accountId: 'acct_1' }));
 const mockPresentAddPaymentMethod = jest.fn((_accountId: string, _clientSecret: string | null) => Promise.resolve({ status: 'completed', methodId: 'pm_2' }));
 const mockPresentAddPayoutMethod = jest.fn((_accountId: string, _clientSecret: string | null) => Promise.resolve({ status: 'completed', methodId: 'ba_1' }));
 const mockResetDeviceAttestation = jest.fn(() => Promise.resolve());
@@ -336,7 +337,7 @@ describe('presentOnboarding', () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     const result = await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc', 'bank_account_verification'] });
     expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc', 'bank_account_verification'], true, true, null);
-    expect(result).toEqual({ status: 'completed', paymentMethodId: 'pm_1' });
+    expect(result).toEqual({ status: 'completed', accountId: 'acct_1' });
   });
 
   it('passes null accountId, empty capabilities, and both screen flags=true when options are omitted', async () => {
