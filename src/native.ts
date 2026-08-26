@@ -241,6 +241,38 @@ export function presentAddPayoutMethod(options: {
 }
 
 /**
+ * Presents a standalone "choose the primary payout account" screen, outside the
+ * onboarding flow. Lists the account's saved ACH payout methods, lets the user add a
+ * new one, and elects the chosen method as the account's payout destination.
+ *
+ * Where {@link presentAddPayoutMethod} only adds a bank, this also makes it primary.
+ * On success `methodId` is the newly *elected* payout method. Requires frame-ios 4.4.1+.
+ *
+ * iOS-only — frame-android has no standalone equivalent yet.
+ */
+export function presentSelectPayoutMethod(options: {
+  accountId: string;
+  /**
+   * Onboarding session client secret (`onb_sess_…`) minted server-side via
+   * `POST /v1/onboarding_sessions`, scoping the request to `accountId`. Electing a
+   * payout method requires a caller scoped to the account, so a publishable key is
+   * rejected. Omit this only for legacy integrations that authenticate with a secret key.
+   */
+  clientSecret?: string | null;
+}): Promise<AddMethodResult> {
+  guardInitialized();
+  if (Platform.OS !== 'ios') {
+    throwCoded('PLATFORM_UNSUPPORTED', 'Frame.presentSelectPayoutMethod is iOS-only.');
+  }
+  if (!options?.accountId) {
+    throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentSelectPayoutMethod requires accountId');
+  }
+  return wrapPromise(
+    FrameSDK.presentSelectPayoutMethod(options.accountId, options.clientSecret ?? null)
+  );
+}
+
+/**
  * Presents the Apple Pay sheet and creates a charge from the resulting wallet
  * payment method. Resolves with the created resource's id string on success,
  * or rejects with `USER_CANCELED` if the sheet is dismissed.

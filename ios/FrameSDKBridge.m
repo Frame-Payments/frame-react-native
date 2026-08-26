@@ -73,6 +73,11 @@ RCT_EXTERN_METHOD(presentAddPayoutMethod:(NSString *)accountId
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(presentSelectPayoutMethod:(NSString *)accountId
+                  clientSecret:(id)clientSecret
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end
 
 @implementation FrameSDK
@@ -149,6 +154,17 @@ RCT_EXTERN_METHOD(presentAddPayoutMethod:(NSString *)accountId
       return;
     }
     [[[ObjCFrameSDKBridge alloc] init] presentAddPayoutMethodFrom:topVC accountId:accountId clientSecret:clientSecret resolver:resolve rejecter:reject];
+  });
+}
+
+- (void)presentSelectPayoutMethod:(NSString *)accountId clientSecret:(id)clientSecret resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    UIViewController *topVC = FrameGetTopViewController();
+    if (!topVC) {
+      reject(@"NO_ROOT_VC", @"Could not find root view controller to present select-payout-method", nil);
+      return;
+    }
+    [[[ObjCFrameSDKBridge alloc] init] presentSelectPayoutMethodFrom:topVC accountId:accountId clientSecret:clientSecret resolver:resolve rejecter:reject];
   });
 }
 
