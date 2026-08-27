@@ -4,7 +4,7 @@ PODS:
   - fast_float (8.0.0)
   - FBLazyVector (0.83.9)
   - fmt (12.1.0)
-  - FrameReactNative (3.3.0):
+  - FrameReactNative (3.4.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -2789,7 +2789,7 @@ SPEC CHECKSUMS:
   fast_float: b32c788ed9c6a8c584d114d0047beda9664e7cc6
   FBLazyVector: 3bcb3055086e5d90a12f0fe1668e79f6eceabc17
   fmt: 530618a01105dae0fa3a2f27c81ae11fa8f67eac
-  FrameReactNative: 459b46f565f49c6541f2c78202a73c301ff6e785
+  FrameReactNative: 7450fe4de21a56559a0bd2c7fc76e3d1cff65b70
   glog: 5683914934d5b6e4240e497e0f4a3b42d1854183
   hermes-engine: 27c8fc1e2d46ca1ab496d36d2e12c953231000e2
   PersonaInquirySDK2: b034d2a88d349deaf56db726e7f45c3c9dd8935d
