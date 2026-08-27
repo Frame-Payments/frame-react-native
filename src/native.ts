@@ -71,6 +71,19 @@ export function initialize(options: {
    * tokens fall back to SDK defaults.
    */
   theme?: FrameTheme;
+  /**
+   * The Frame account this app run belongs to, when your app already knows it at
+   * launch (e.g. a signed-in user). The Sonar fraud-detection session is then created
+   * already bound to the account, so one session covers the whole app run instead of
+   * an unscoped one being created and bound on first flow entry.
+   *
+   * Omit it when the account isn't known yet — the session is created unscoped and
+   * adopted onto the account later, keeping the same session ID either way. You still
+   * pass accountId to each present* call regardless; this only affects session setup.
+   *
+   * iOS-only today — ignored on Android, which has no Sonar session surface.
+   */
+  accountId?: string;
 }): Promise<void> {
   if (!options?.publishableKey) {
     throwCoded(ErrorCodes.INIT_FAILED, 'Frame.initialize requires publishableKey');
@@ -85,7 +98,8 @@ export function initialize(options: {
       options.debugMode ?? false,
       options.applePayMerchantId ?? null,
       options.googlePayMerchantId ?? null,
-      options.theme ?? null
+      options.theme ?? null,
+      options.accountId ?? null
     )
   ).then(() => {
     isInitialized = true;

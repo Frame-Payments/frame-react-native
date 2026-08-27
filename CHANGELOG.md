@@ -59,12 +59,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Lenient response decoding.** A single malformed optional field no longer fails
     an entire API model, so a backend change to one unused field can't break an
     unrelated screen.
-  - **Config consumers now run concurrently at init** instead of serially, and card
-    tokenization waits for Evervault configuration rather than racing it. Note the
-    new `GET /v1/config/all` does *not* currently reduce the number of startup
-    requests — the individual `/v1/config/*` endpoints are still each called
-    unconditionally, so init makes one more request than before, not fewer. Tracked
-    in FRA-6358; see Known issues.
+  - **One config request per launch instead of six.** `GET /v1/config/all` marks each
+    block fresh and the five consumers then resolve from that cache rather than
+    re-requesting their own endpoints. 4.4.1 shipped the aggregate call but no
+    cache-first read, so init actually made one *extra* request; 4.4.2 fixed it
+    (FRA-6358). Freshness is process-scoped, not keychain-scoped, so each launch
+    still refetches once and a rotated credential is picked up. Consumers also now
+    run concurrently instead of serially, and card tokenization waits for Evervault
+    configuration rather than racing it.
   - **Mapbox address autocomplete** on billing-address fields, and country-aware
     subregion (state/province) validation for non-US addresses. The Mapbox token is
     served by the Frame API — no host-app configuration and no new dependency.
@@ -73,20 +75,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Known issues
 
-- **Auth-token precedence changed upstream and is unverified against the live API.**
-  frame-ios 4.4.1 reordered token selection so an active onboarding-session token
-  (`onb_sess_…`) now outranks an explicit publishable-key request. Account-scoped
-  reads need this to receive `profile`, but merchant-level endpoints
-  (`terms_of_service`, `device_attestation`) are documented upstream as accepting
-  only a `pk_`. If the latter is still true, those calls could fail mid-onboarding.
-  No RN-side change can affect this — it is entirely inside the native SDK.
+- **Auth-token precedence still favours the onboarding session over an explicit
+  publishable-key request.** frame-ios 4.4.1 reordered token selection so an active
+  `onb_sess_…` outranks a `.publishable` request. Account-scoped reads need that to
+  receive `profile`, but merchant-level endpoints (`terms_of_service`,
+  `device_attestation`) are documented upstream as accepting only a `pk_`.
 
-  **This now has a confirmed reproduction (FRA-6358).** The standalone add/select
-  method screens can leave the onboarding-session token set after they close, and
-  because that token outranks the publishable key, checkout's 3D Secure confirm then
-  authenticates as the stale session and fails. Entering checkout after visiting
-  `presentSelectPayoutMethod` reproduces it; a fresh launch does not. Fixed upstream
-  in frame-ios 4.4.2, which this release pins.
+  The leak that made this bite in practice is fixed in 4.4.2 (FRA-6358) — sessions
+  no longer outlive the screen that opened them, so checkout after
+  `presentSelectPayoutMethod` works. The ordering itself is unchanged, so the
+  narrower risk remains for calls made *during* an onboarding session. Worth
+  confirming on device that terms-of-service and device-attestation succeed
+  mid-onboarding. Entirely inside the native SDK; no RN-side change can affect it.
 - **Sonar session upkeep across app backgrounding is still not wired up.** frame-ios
   4.3.6 added `SessionManager.pause()` / `resume()`, but the bridge registers no
   `UIApplication` lifecycle observers, so a backgrounded session can still expire

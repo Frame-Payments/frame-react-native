@@ -20,7 +20,7 @@ public class FrameSDKBridge: NSObject {
   }
 
   @objc public
-  func initialize(_ secretKey: NSObject?, publishableKey: String, debugMode: Bool, applePayMerchantId: NSObject?, googlePayMerchantId: NSObject?, theme: NSDictionary?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+  func initialize(_ secretKey: NSObject?, publishableKey: String, debugMode: Bool, applePayMerchantId: NSObject?, googlePayMerchantId: NSObject?, theme: NSDictionary?, accountId: NSObject?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     DispatchQueue.main.async {
       let themeDict = theme as? [String: Any] ?? [:]
       let resolvedTheme = themeDict.isEmpty ? FrameTheme.default : FrameRNTheme.parse(themeDict)
@@ -28,9 +28,14 @@ public class FrameSDKBridge: NSObject {
       // Accepted in the bridge signature so the JS Frame.initialize() API stays cross-platform.
       _ = googlePayMerchantId
       let applePayMerchantIdString = applePayMerchantId as? String
+      // Passing the account through at init lets frame-iOS create the Sonar session already bound
+      // to it, so one session covers the whole app run instead of an unscoped one being created
+      // and then adopted on first flow entry.
+      let accountIdString = (accountId as? String).flatMap { $0.isEmpty ? nil : $0 }
       FrameNetworking.shared.initialize(
         publishableKey: publishableKey,
         secretKey: secretKey as? String,
+        accountId: accountIdString,
         applePayMerchantId: applePayMerchantIdString,
         theme: resolvedTheme,
         debugMode: debugMode

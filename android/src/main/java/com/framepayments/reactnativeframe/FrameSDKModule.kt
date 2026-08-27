@@ -39,6 +39,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     applePayMerchantId: String?,
     googlePayMerchantId: String?,
     theme: ReadableMap?,
+    accountId: String?,
     promise: Promise
   ) {
     try {
@@ -46,6 +47,9 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       // applePayMerchantId is iOS-only; accepted in the bridge signature so the JS Frame.initialize()
       // API stays cross-platform, but ignored here. frame-android has no Apple Pay surface.
       @Suppress("UNUSED_PARAMETER") val ignoredApplePayMerchantId = applePayMerchantId
+      // accountId is iOS-only; it binds frame-iOS's Sonar session at init. frame-android has no
+      // Sonar session surface, so it's accepted here only to keep Frame.initialize() cross-platform.
+      @Suppress("UNUSED_PARAMETER") val ignoredAccountId = accountId
       // frame-android still declares secretKey as a non-null String, but only uses a non-empty
       // value to emit its "you shipped a secret key" warning. Passing "" is the supported
       // publishable-key-only path, so JS can omit secretKey on Android just like on iOS.

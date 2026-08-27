@@ -4,7 +4,7 @@
  * presentAddPayoutMethod, presentSelectPayoutMethod). NativeModules.FrameSDK is mocked.
  */
 
-const mockInitialize = jest.fn((_secretKey: string | null, _publishableKey: string, _debugMode: boolean, _applePayMerchantId: string | null, _googlePayMerchantId: string | null, _theme: unknown) => Promise.resolve());
+const mockInitialize = jest.fn((_secretKey: string | null, _publishableKey: string, _debugMode: boolean, _applePayMerchantId: string | null, _googlePayMerchantId: string | null, _theme: unknown, _accountId: string | null) => Promise.resolve());
 const mockPresentCheckout = jest.fn((_accountId: unknown, _amount: number) => Promise.resolve('tr_1'));
 const mockPresentCart = jest.fn((_accountId: unknown, _items: unknown[], _shipping: number) => Promise.resolve('tr_2'));
 const mockPresentApplePay = jest.fn((_ownerType: string, _ownerId: string, _amount: number, _currency: string) => Promise.resolve('tr_3'));
@@ -38,7 +38,7 @@ jest.mock('react-native', () => ({
 }));
 
 // Re-import after mock so we get the mocked NativeModules
-let initialize: (opts: { secretKey?: string; publishableKey: string; debugMode?: boolean; applePayMerchantId?: string; googlePayMerchantId?: string }) => Promise<void>;
+let initialize: (opts: { secretKey?: string; publishableKey: string; debugMode?: boolean; applePayMerchantId?: string; googlePayMerchantId?: string; accountId?: string }) => Promise<void>;
 let presentCheckout: (opts: { accountId: string; amount: number }) => Promise<string>;
 let presentCart: (opts: {
   accountId: string;
@@ -80,15 +80,15 @@ beforeEach(() => {
 });
 
 describe('initialize', () => {
-  it('calls native FrameSDK.initialize with all six positional args', () => {
+  it('calls native FrameSDK.initialize with all seven positional args', () => {
     initialize({ secretKey: 'sk_test_xxx', publishableKey: 'pk_test_xxx', debugMode: true });
     expect(mockInitialize).toHaveBeenCalledTimes(1);
-    expect(mockInitialize).toHaveBeenCalledWith('sk_test_xxx', 'pk_test_xxx', true, null, null, null);
+    expect(mockInitialize).toHaveBeenCalledWith('sk_test_xxx', 'pk_test_xxx', true, null, null, null, null);
   });
 
   it('defaults debugMode to false and both merchant IDs to null', () => {
     initialize({ secretKey: 'sk_test_yyy', publishableKey: 'pk_test_yyy' });
-    expect(mockInitialize).toHaveBeenCalledWith('sk_test_yyy', 'pk_test_yyy', false, null, null, null);
+    expect(mockInitialize).toHaveBeenCalledWith('sk_test_yyy', 'pk_test_yyy', false, null, null, null, null);
   });
 
   it('forwards applePayMerchantId to native init', () => {
@@ -97,7 +97,7 @@ describe('initialize', () => {
       publishableKey: 'pk_test',
       applePayMerchantId: 'merchant.com.example',
     });
-    expect(mockInitialize).toHaveBeenCalledWith('sk_test', 'pk_test', false, 'merchant.com.example', null, null);
+    expect(mockInitialize).toHaveBeenCalledWith('sk_test', 'pk_test', false, 'merchant.com.example', null, null, null);
   });
 
   it('forwards googlePayMerchantId to native init', () => {
@@ -106,18 +106,27 @@ describe('initialize', () => {
       publishableKey: 'pk_test',
       googlePayMerchantId: 'BCR2DN4T...',
     });
-    expect(mockInitialize).toHaveBeenCalledWith('sk_test', 'pk_test', false, null, 'BCR2DN4T...', null);
+    expect(mockInitialize).toHaveBeenCalledWith('sk_test', 'pk_test', false, null, 'BCR2DN4T...', null, null);
+  });
+
+  it('forwards accountId to native init so the Sonar session is bound at load', () => {
+    initialize({
+      secretKey: 'sk_test',
+      publishableKey: 'pk_test',
+      accountId: 'acct_123',
+    });
+    expect(mockInitialize).toHaveBeenCalledWith('sk_test', 'pk_test', false, null, null, null, 'acct_123');
   });
 
   it('allows omitting secretKey on iOS and marshals null (publishable-key-first)', () => {
     initialize({ publishableKey: 'pk_test' });
-    expect(mockInitialize).toHaveBeenCalledWith(null, 'pk_test', false, null, null, null);
+    expect(mockInitialize).toHaveBeenCalledWith(null, 'pk_test', false, null, null, null, null);
   });
 
   it('allows omitting secretKey on Android too and marshals null', () => {
     mockPlatform.OS = 'android';
     initialize({ publishableKey: 'pk_test' });
-    expect(mockInitialize).toHaveBeenCalledWith(null, 'pk_test', false, null, null, null);
+    expect(mockInitialize).toHaveBeenCalledWith(null, 'pk_test', false, null, null, null, null);
   });
 
   it('throws if publishableKey is missing', () => {

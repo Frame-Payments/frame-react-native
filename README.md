@@ -104,6 +104,7 @@ await Frame.initialize({
   secretKey: 'sk_sandbox_...',      // optional — prefer publishable-key-only
   applePayMerchantId: 'merchant.com.yourapp', // optional — see Apple Pay section
   googlePayMerchantId: 'BCR2DN4T...',         // optional — see Google Pay section
+  accountId: 'acct_...',            // optional — pass if known at launch (iOS only)
   debugMode: false,                 // set true in development to enable native debug logging
 });
 ```
@@ -114,6 +115,7 @@ await Frame.initialize({
 | `secretKey` | `string` | No | Your Frame secret key (`sk_…`). Optional as of Frame-iOS 4.x and frame-android 3.x — prefer shipping only the publishable key in your app. |
 | `applePayMerchantId` | `string` | No | Apple Pay merchant identifier (`merchant.com.…`). Single source of truth for every Apple Pay surface — `presentApplePay`, the bundled checkout's wallet row, the onboarding wallet attach button. iOS-only; ignored on Android. |
 | `googlePayMerchantId` | `string` | No | Google Pay merchant identifier from the Google Pay & Wallet Console. Single source of truth for every Google Pay surface — `presentGooglePay`, the bundled checkout's wallet row, the onboarding wallet attach button. Android-only; ignored on iOS. |
+| `accountId` | `string` | No | The Frame account this app run belongs to, when your app already knows it at launch (e.g. a signed-in user). The Sonar fraud-detection session is then created already bound to the account, so one session covers the whole app run instead of an unscoped one being created and bound on first flow entry. Omit it when the account isn't known yet — the session is created unscoped and adopted onto the account later, keeping the same session ID either way. You still pass `accountId` to each `present*` call regardless. iOS-only; ignored on Android. |
 | `debugMode` | `boolean` | No | Enables native debug logging and routes wallet flows through sandbox/test environments. Default: `false`. |
 
 ---
