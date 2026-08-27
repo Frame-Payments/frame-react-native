@@ -27,7 +27,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://github.com/Frame-Payments/frame-ios",
-            from: "4.4.1" // Keep in sync with package.json:frameNativeVersions.ios
+            from: "4.4.2" // Keep in sync with package.json:frameNativeVersions.ios
         )
     ],
     targets: [

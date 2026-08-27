@@ -23,8 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **frame-ios: `4.3.0` → `4.4.1`** (via `4.3.6`; the intermediate bump was never
-  released on its own, so its notes are folded in below).
+- **frame-ios: `4.3.0` → `4.4.2`** (via `4.3.6` and `4.4.1`; neither intermediate
+  bump was released on its own, so their notes are folded in below).
+- **4.4.2 fixes the onboarding-session token leak (FRA-6358).** The standalone
+  add/select-method screens gated session teardown on the host having supplied a
+  `clientSecret`, so a session the flow minted itself was never cleared — and because
+  the token is a process-wide singleton that outranks the publishable key, every
+  later `pk_`-authenticated request (checkout 3DS confirm, terms of service, device
+  attestation) went out as the stale session. Checkout entered after
+  `presentSelectPayoutMethod` failed; a fresh launch worked. The fix is internal to
+  the native SDK — the public initializers the bridge calls are unchanged, so no
+  RN-side change was required.
 - **BREAKING (iOS): `presentOnboarding` now resolves `accountId` instead of
   `paymentMethodId`.** frame-ios 4.3.6 changed what `OnboardingContainerView`
   emits on success — the onboarded account's id rather than the selected payment
@@ -50,10 +59,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Lenient response decoding.** A single malformed optional field no longer fails
     an entire API model, so a backend change to one unused field can't break an
     unrelated screen.
-  - **One config fetch at init.** `GET /v1/config/all` warms the cache and the five
-    config consumers then run concurrently instead of serially, cutting startup
-    round-trips. Card tokenization now waits for Evervault configuration rather than
-    racing it.
+  - **Config consumers now run concurrently at init** instead of serially, and card
+    tokenization waits for Evervault configuration rather than racing it. Note the
+    new `GET /v1/config/all` does *not* currently reduce the number of startup
+    requests — the individual `/v1/config/*` endpoints are still each called
+    unconditionally, so init makes one more request than before, not fewer. Tracked
+    in FRA-6358; see Known issues.
   - **Mapbox address autocomplete** on billing-address fields, and country-aware
     subregion (state/province) validation for non-US addresses. The Mapbox token is
     served by the Frame API — no host-app configuration and no new dependency.
@@ -68,8 +79,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reads need this to receive `profile`, but merchant-level endpoints
   (`terms_of_service`, `device_attestation`) are documented upstream as accepting
   only a `pk_`. If the latter is still true, those calls could fail mid-onboarding.
-  No RN-side change can affect this — it is entirely inside the native SDK. If you
-  hit it, report it against frame-ios rather than working around it in the bridge.
+  No RN-side change can affect this — it is entirely inside the native SDK.
+
+  **This now has a confirmed reproduction (FRA-6358).** The standalone add/select
+  method screens can leave the onboarding-session token set after they close, and
+  because that token outranks the publishable key, checkout's 3D Secure confirm then
+  authenticates as the stale session and fails. Entering checkout after visiting
+  `presentSelectPayoutMethod` reproduces it; a fresh launch does not. Fixed upstream
+  in frame-ios 4.4.2, which this release pins.
 - **Sonar session upkeep across app backgrounding is still not wired up.** frame-ios
   4.3.6 added `SessionManager.pause()` / `resume()`, but the bridge registers no
   `UIApplication` lifecycle observers, so a backgrounded session can still expire
