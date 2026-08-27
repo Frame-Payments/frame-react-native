@@ -205,12 +205,19 @@ export default function App() {
     }
   };
 
-  const handleAddPayoutMethod = async () => {
-    setLoading('addPayoutMethod');
+  // Lists the account's saved ACH payout methods and elects the chosen one as the
+  // account's payout destination. Where presentAddPayoutMethod only adds a bank, this
+  // also makes it primary, so `methodId` is the newly elected method.
+  //
+  // No clientSecret is passed here because this demo authenticates with a secret key.
+  // A publishable-key-only integration must pass an `onb_sess_...` secret minted by its
+  // server — the election endpoint is account-scoped and rejects a pk_.
+  const handleSelectPayoutMethod = async () => {
+    setLoading('selectPayoutMethod');
     try {
-      const result = await Frame.presentAddPayoutMethod({ accountId: DEMO_ACCOUNT_ID });
+      const result = await Frame.presentSelectPayoutMethod({ accountId: DEMO_ACCOUNT_ID });
       Alert.alert(
-        result.status === 'completed' ? 'Payout method added' : 'Cancelled',
+        result.status === 'completed' ? 'Primary payout method set' : 'Cancelled',
         result.methodId ? `Payout method: ${result.methodId}` : undefined,
       );
     } catch (e: any) {
@@ -359,14 +366,14 @@ export default function App() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.button, (loading === 'addPayoutMethod' || !!initError) && styles.buttonDisabled]}
-            onPress={handleAddPayoutMethod}
+            style={[styles.button, (loading === 'selectPayoutMethod' || !!initError) && styles.buttonDisabled]}
+            onPress={handleSelectPayoutMethod}
             disabled={!!loading || !!initError}
           >
-            {loading === 'addPayoutMethod' ? (
+            {loading === 'selectPayoutMethod' ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Add payout method</Text>
+              <Text style={styles.buttonText}>Select payout method</Text>
             )}
           </TouchableOpacity>
         </>

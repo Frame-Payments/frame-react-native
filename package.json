@@ -1,6 +1,6 @@
 {
   "name": "framepayments-react-native",
-  "version": "3.3.0",
+  "version": "3.4.0",
   "description": "React Native SDK for Frame Payments - modal checkout and cart, with API usage via frame-node.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -35,7 +35,7 @@
     "react-native": ">=0.81.0"
   },
   "frameNativeVersions": {
-    "ios": "4.3.6",
+    "ios": "4.4.2",
     "android": "3.0.2"
   },
   "devDependencies": {

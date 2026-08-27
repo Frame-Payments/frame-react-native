@@ -1,10 +1,10 @@
 /**
  * Unit tests for the native module bridge (initialize, presentCheckout, presentCart,
  * presentApplePay, presentGooglePay, presentOnboarding, presentAddPaymentMethod,
- * presentAddPayoutMethod). NativeModules.FrameSDK is mocked.
+ * presentAddPayoutMethod, presentSelectPayoutMethod). NativeModules.FrameSDK is mocked.
  */
 
-const mockInitialize = jest.fn((_secretKey: string | null, _publishableKey: string, _debugMode: boolean, _applePayMerchantId: string | null, _googlePayMerchantId: string | null, _theme: unknown) => Promise.resolve());
+const mockInitialize = jest.fn((_secretKey: string | null, _publishableKey: string, _debugMode: boolean, _applePayMerchantId: string | null, _googlePayMerchantId: string | null, _theme: unknown, _accountId: string | null) => Promise.resolve());
 const mockPresentCheckout = jest.fn((_accountId: unknown, _amount: number) => Promise.resolve('tr_1'));
 const mockPresentCart = jest.fn((_accountId: unknown, _items: unknown[], _shipping: number) => Promise.resolve('tr_2'));
 const mockPresentApplePay = jest.fn((_ownerType: string, _ownerId: string, _amount: number, _currency: string) => Promise.resolve('tr_3'));
@@ -13,6 +13,8 @@ const mockPresentGooglePay = jest.fn((_amountCents: number, _ownerType: string, 
 const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unknown[]) => Promise.resolve({ status: 'completed', accountId: 'acct_1' }));
 const mockPresentAddPaymentMethod = jest.fn((_accountId: string, _clientSecret: string | null) => Promise.resolve({ status: 'completed', methodId: 'pm_2' }));
 const mockPresentAddPayoutMethod = jest.fn((_accountId: string, _clientSecret: string | null) => Promise.resolve({ status: 'completed', methodId: 'ba_1' }));
+// On completion the id is the newly *elected* payout method (frame-ios 4.4.1+).
+const mockPresentSelectPayoutMethod = jest.fn((_accountId: string, _clientSecret: string | null) => Promise.resolve({ status: 'completed', methodId: 'ba_2' }));
 const mockResetDeviceAttestation = jest.fn(() => Promise.resolve());
 
 const mockPlatform = { OS: 'ios' as 'ios' | 'android' };
@@ -28,6 +30,7 @@ jest.mock('react-native', () => ({
       presentOnboarding: mockPresentOnboarding,
       presentAddPaymentMethod: mockPresentAddPaymentMethod,
       presentAddPayoutMethod: mockPresentAddPayoutMethod,
+      presentSelectPayoutMethod: mockPresentSelectPayoutMethod,
       resetDeviceAttestation: mockResetDeviceAttestation,
     },
   },
@@ -35,7 +38,7 @@ jest.mock('react-native', () => ({
 }));
 
 // Re-import after mock so we get the mocked NativeModules
-let initialize: (opts: { secretKey?: string; publishableKey: string; debugMode?: boolean; applePayMerchantId?: string; googlePayMerchantId?: string }) => Promise<void>;
+let initialize: (opts: { secretKey?: string; publishableKey: string; debugMode?: boolean; applePayMerchantId?: string; googlePayMerchantId?: string; accountId?: string }) => Promise<void>;
 let presentCheckout: (opts: { accountId: string; amount: number }) => Promise<string>;
 let presentCart: (opts: {
   accountId: string;
@@ -47,6 +50,7 @@ let presentGooglePay: (opts: { amountCents: number; owner: { type: 'customer' | 
 let presentOnboarding: (opts: { accountId?: string | null; capabilities?: string[]; showIntroScreen?: boolean; showCompletionScreen?: boolean; clientSecret?: string | null }) => Promise<unknown>;
 let presentAddPaymentMethod: (opts: { accountId: string; clientSecret?: string | null }) => Promise<unknown>;
 let presentAddPayoutMethod: (opts: { accountId: string; clientSecret?: string | null }) => Promise<unknown>;
+let presentSelectPayoutMethod: (opts: { accountId: string; clientSecret?: string | null }) => Promise<unknown>;
 let resetDeviceAttestation: () => Promise<void>;
 
 beforeEach(() => {
@@ -59,6 +63,7 @@ beforeEach(() => {
   mockPresentOnboarding.mockClear();
   mockPresentAddPaymentMethod.mockClear();
   mockPresentAddPayoutMethod.mockClear();
+  mockPresentSelectPayoutMethod.mockClear();
   mockResetDeviceAttestation.mockClear();
   mockPlatform.OS = 'ios';
   const native = require('../native');
@@ -70,19 +75,20 @@ beforeEach(() => {
   presentOnboarding = native.presentOnboarding;
   presentAddPaymentMethod = native.presentAddPaymentMethod;
   presentAddPayoutMethod = native.presentAddPayoutMethod;
+  presentSelectPayoutMethod = native.presentSelectPayoutMethod;
   resetDeviceAttestation = native.resetDeviceAttestation;
 });
 
 describe('initialize', () => {
-  it('calls native FrameSDK.initialize with all six positional args', () => {
+  it('calls native FrameSDK.initialize with all seven positional args', () => {
     initialize({ secretKey: 'sk_test_xxx', publishableKey: 'pk_test_xxx', debugMode: true });
     expect(mockInitialize).toHaveBeenCalledTimes(1);
-    expect(mockInitialize).toHaveBeenCalledWith('sk_test_xxx', 'pk_test_xxx', true, null, null, null);
+    expect(mockInitialize).toHaveBeenCalledWith('sk_test_xxx', 'pk_test_xxx', true, null, null, null, null);
   });
 
   it('defaults debugMode to false and both merchant IDs to null', () => {
     initialize({ secretKey: 'sk_test_yyy', publishableKey: 'pk_test_yyy' });
-    expect(mockInitialize).toHaveBeenCalledWith('sk_test_yyy', 'pk_test_yyy', false, null, null, null);
+    expect(mockInitialize).toHaveBeenCalledWith('sk_test_yyy', 'pk_test_yyy', false, null, null, null, null);
   });
 
   it('forwards applePayMerchantId to native init', () => {
@@ -91,7 +97,7 @@ describe('initialize', () => {
       publishableKey: 'pk_test',
       applePayMerchantId: 'merchant.com.example',
     });
-    expect(mockInitialize).toHaveBeenCalledWith('sk_test', 'pk_test', false, 'merchant.com.example', null, null);
+    expect(mockInitialize).toHaveBeenCalledWith('sk_test', 'pk_test', false, 'merchant.com.example', null, null, null);
   });
 
   it('forwards googlePayMerchantId to native init', () => {
@@ -100,18 +106,27 @@ describe('initialize', () => {
       publishableKey: 'pk_test',
       googlePayMerchantId: 'BCR2DN4T...',
     });
-    expect(mockInitialize).toHaveBeenCalledWith('sk_test', 'pk_test', false, null, 'BCR2DN4T...', null);
+    expect(mockInitialize).toHaveBeenCalledWith('sk_test', 'pk_test', false, null, 'BCR2DN4T...', null, null);
+  });
+
+  it('forwards accountId to native init so the Sonar session is bound at load', () => {
+    initialize({
+      secretKey: 'sk_test',
+      publishableKey: 'pk_test',
+      accountId: 'acct_123',
+    });
+    expect(mockInitialize).toHaveBeenCalledWith('sk_test', 'pk_test', false, null, null, null, 'acct_123');
   });
 
   it('allows omitting secretKey on iOS and marshals null (publishable-key-first)', () => {
     initialize({ publishableKey: 'pk_test' });
-    expect(mockInitialize).toHaveBeenCalledWith(null, 'pk_test', false, null, null, null);
+    expect(mockInitialize).toHaveBeenCalledWith(null, 'pk_test', false, null, null, null, null);
   });
 
   it('allows omitting secretKey on Android too and marshals null', () => {
     mockPlatform.OS = 'android';
     initialize({ publishableKey: 'pk_test' });
-    expect(mockInitialize).toHaveBeenCalledWith(null, 'pk_test', false, null, null, null);
+    expect(mockInitialize).toHaveBeenCalledWith(null, 'pk_test', false, null, null, null, null);
   });
 
   it('throws if publishableKey is missing', () => {
@@ -478,6 +493,61 @@ describe('presentAddPayoutMethod', () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     await presentAddPayoutMethod({ accountId: 'acct_1', clientSecret: 'onb_sess_123' });
     expect(mockPresentAddPayoutMethod).toHaveBeenCalledWith('acct_1', 'onb_sess_123');
+  });
+});
+
+describe('presentSelectPayoutMethod', () => {
+  it('throws NOT_INITIALIZED if initialize was not called', async () => {
+    try {
+      await presentSelectPayoutMethod({ accountId: 'acct_1' });
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('NOT_INITIALIZED');
+    }
+    expect(mockPresentSelectPayoutMethod).not.toHaveBeenCalled();
+  });
+
+  it('throws INVALID_ACCOUNT when accountId is missing', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    try {
+      await presentSelectPayoutMethod({} as any);
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_ACCOUNT');
+    }
+    expect(mockPresentSelectPayoutMethod).not.toHaveBeenCalled();
+  });
+
+  it('throws PLATFORM_UNSUPPORTED on Android without touching the native module', async () => {
+    mockPlatform.OS = 'android';
+    await initialize({ publishableKey: 'pk_xxx' });
+    try {
+      await presentSelectPayoutMethod({ accountId: 'acct_1' });
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('PLATFORM_UNSUPPORTED');
+    }
+    expect(mockPresentSelectPayoutMethod).not.toHaveBeenCalled();
+  });
+
+  it('calls native presentSelectPayoutMethod with accountId and null clientSecret by default', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    const result = await presentSelectPayoutMethod({ accountId: 'acct_1' });
+    expect(mockPresentSelectPayoutMethod).toHaveBeenCalledWith('acct_1', null);
+    expect(result).toEqual({ status: 'completed', methodId: 'ba_2' });
+  });
+
+  it('passes clientSecret through when provided', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    await presentSelectPayoutMethod({ accountId: 'acct_1', clientSecret: 'onb_sess_123' });
+    expect(mockPresentSelectPayoutMethod).toHaveBeenCalledWith('acct_1', 'onb_sess_123');
+  });
+
+  it('surfaces cancellation as status cancelled with no methodId', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    mockPresentSelectPayoutMethod.mockResolvedValueOnce({ status: 'cancelled' } as any);
+    const result = await presentSelectPayoutMethod({ accountId: 'acct_1' });
+    expect(result).toEqual({ status: 'cancelled' });
   });
 });
 

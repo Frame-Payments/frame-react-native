@@ -104,6 +104,7 @@ await Frame.initialize({
   secretKey: 'sk_sandbox_...',      // optional — prefer publishable-key-only
   applePayMerchantId: 'merchant.com.yourapp', // optional — see Apple Pay section
   googlePayMerchantId: 'BCR2DN4T...',         // optional — see Google Pay section
+  accountId: 'acct_...',            // optional — pass if known at launch (iOS only)
   debugMode: false,                 // set true in development to enable native debug logging
 });
 ```
@@ -114,6 +115,7 @@ await Frame.initialize({
 | `secretKey` | `string` | No | Your Frame secret key (`sk_…`). Optional as of Frame-iOS 4.x and frame-android 3.x — prefer shipping only the publishable key in your app. |
 | `applePayMerchantId` | `string` | No | Apple Pay merchant identifier (`merchant.com.…`). Single source of truth for every Apple Pay surface — `presentApplePay`, the bundled checkout's wallet row, the onboarding wallet attach button. iOS-only; ignored on Android. |
 | `googlePayMerchantId` | `string` | No | Google Pay merchant identifier from the Google Pay & Wallet Console. Single source of truth for every Google Pay surface — `presentGooglePay`, the bundled checkout's wallet row, the onboarding wallet attach button. Android-only; ignored on iOS. |
+| `accountId` | `string` | No | The Frame account this app run belongs to, when your app already knows it at launch (e.g. a signed-in user). The Sonar fraud-detection session is then created already bound to the account, so one session covers the whole app run instead of an unscoped one being created and bound on first flow entry. Omit it when the account isn't known yet — the session is created unscoped and adopted onto the account later, keeping the same session ID either way. You still pass `accountId` to each `present*` call regardless. iOS-only; ignored on Android. |
 | `debugMode` | `boolean` | No | Enables native debug logging and routes wallet flows through sandbox/test environments. Default: `false`. |
 
 ---
@@ -236,6 +238,7 @@ const result = await Frame.presentOnboarding({
 | `bank_account_verification` | Bank account verification |
 | `bank_account_send` | Enable bank account send |
 | `bank_account_receive` | Enable bank account receive |
+| `idv` | Government-issued photo ID verification (Persona). **iOS only** — frame-android has no matching capability yet and silently ignores the string. |
 
 **Returns:** `OnboardingResult`
 
@@ -248,6 +251,41 @@ const result = await Frame.presentOnboarding({
 > **Platform difference:** the two SDKs return different resources on completion, so check
 > for the field you need rather than assuming one is present. The fields will converge once
 > frame-android also returns an account id.
+
+---
+
+### `Frame.presentSelectPayoutMethod(options)` (iOS)
+
+Presents a standalone "choose the primary payout account" screen, outside the onboarding flow. Lists the account's saved ACH payout methods, lets the user add a new one, and elects the chosen method as the account's payout destination.
+
+Use this when a user already has an account and you want them to pick or change which bank gets paid out — without running the full onboarding flow. Where `Frame.presentAddPayoutMethod` only *adds* a bank, this also makes it primary.
+
+```ts
+const result = await Frame.presentSelectPayoutMethod({
+  accountId: 'acct_123',
+  clientSecret: onboardingSessionSecret, // 'onb_sess_…', minted server-side
+});
+
+if (result.status === 'completed') {
+  console.log('primary payout method is now', result.methodId);
+}
+```
+
+| Option | Type | Required | Description |
+|---|---|---|---|
+| `accountId` | `string` | yes | The Frame account whose payout method is being set. |
+| `clientSecret` | `string \| null` | recommended | Onboarding-session secret (`onb_sess_…`) from your server's `POST /v1/onboarding_sessions`. Electing a payout method is an account-scoped write, so a publishable key is rejected by the API. Omit only for legacy integrations that still authenticate with a secret key. |
+
+**Returns:** `AddMethodResult`
+
+| Field | Type | Description |
+|---|---|---|
+| `status` | `'completed' \| 'cancelled'` | Whether the user finished or dismissed the screen |
+| `methodId` | `string \| undefined` | On completion, the id of the newly **elected** payout method |
+
+> **iOS only.** Requires frame-ios 4.4.1+. frame-android 3.0.2 has no equivalent screen, so this
+> throws `PLATFORM_UNSUPPORTED` on Android — use `Frame.presentOnboarding` with
+> `bank_account_verification` there.
 
 ---
 

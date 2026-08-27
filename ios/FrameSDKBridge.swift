@@ -20,7 +20,7 @@ public class FrameSDKBridge: NSObject {
   }
 
   @objc public
-  func initialize(_ secretKey: NSObject?, publishableKey: String, debugMode: Bool, applePayMerchantId: NSObject?, googlePayMerchantId: NSObject?, theme: NSDictionary?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+  func initialize(_ secretKey: NSObject?, publishableKey: String, debugMode: Bool, applePayMerchantId: NSObject?, googlePayMerchantId: NSObject?, theme: NSDictionary?, accountId: NSObject?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     DispatchQueue.main.async {
       let themeDict = theme as? [String: Any] ?? [:]
       let resolvedTheme = themeDict.isEmpty ? FrameTheme.default : FrameRNTheme.parse(themeDict)
@@ -28,9 +28,14 @@ public class FrameSDKBridge: NSObject {
       // Accepted in the bridge signature so the JS Frame.initialize() API stays cross-platform.
       _ = googlePayMerchantId
       let applePayMerchantIdString = applePayMerchantId as? String
+      // Passing the account through at init lets frame-iOS create the Sonar session already bound
+      // to it, so one session covers the whole app run instead of an unscoped one being created
+      // and then adopted on first flow entry.
+      let accountIdString = (accountId as? String).flatMap { $0.isEmpty ? nil : $0 }
       FrameNetworking.shared.initialize(
         publishableKey: publishableKey,
         secretKey: secretKey as? String,
+        accountId: accountIdString,
         applePayMerchantId: applePayMerchantIdString,
         theme: resolvedTheme,
         debugMode: debugMode
@@ -128,6 +133,18 @@ public class FrameSDKBridge: NSObject {
       return
     }
     presentAddPayoutMethodOnMain(from: viewController, accountId: accountId, clientSecret: clientSecret as? String, resolve: resolve, reject: reject)
+  }
+
+  /// Presents the standalone "choose the primary payout account" screen. Where
+  /// `presentAddPayoutMethod` only adds a bank, this also elects it as the account's
+  /// payout destination. Added in frame-ios 4.4.1.
+  @objc public
+  func presentSelectPayoutMethod(from viewController: UIViewController, accountId: String, clientSecret: NSObject?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    guard !accountId.isEmpty else {
+      reject("INVALID_ACCOUNT", "Frame.presentSelectPayoutMethod requires a non-empty accountId", nil)
+      return
+    }
+    presentSelectPayoutMethodOnMain(from: viewController, accountId: accountId, clientSecret: clientSecret as? String, resolve: resolve, reject: reject)
   }
 
   /// Clears the stored App Attest key so the next attestation performs the full
@@ -333,6 +350,25 @@ public class FrameSDKBridge: NSObject {
       }
     )
     presentAddMethodHosting(UIHostingController(rootView: addPayoutView), from: top, delegate: delegate)
+  }
+
+  private func presentSelectPayoutMethodOnMain(from top: UIViewController, accountId: String, clientSecret: String?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+    let delegate = AddMethodDismissDelegate(resolve: resolve)
+    // On `.completed` the id is the newly *elected* payout method, not merely an added one.
+    let selectPayoutView = FrameSelectPayoutMethodView(
+      clientSecret: clientSecret,
+      accountId: accountId,
+      onResult: { [weak top, delegate] result in
+        switch result {
+        case .completed(let id):
+          delegate.finish(.completed(methodId: id.isEmpty ? nil : id))
+        case .cancelled, .failed:
+          delegate.finish(.cancelled)
+        }
+        top?.dismiss(animated: true)
+      }
+    )
+    presentAddMethodHosting(UIHostingController(rootView: selectPayoutView), from: top, delegate: delegate)
   }
 
   private func presentAddMethodHosting<V: View>(_ hosting: UIHostingController<V>, from top: UIViewController, delegate: AddMethodDismissDelegate) {

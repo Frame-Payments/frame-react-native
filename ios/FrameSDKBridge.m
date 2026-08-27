@@ -31,6 +31,7 @@ RCT_EXTERN_METHOD(initialize:(id)secretKey
                   applePayMerchantId:(id)applePayMerchantId
                   googlePayMerchantId:(id)googlePayMerchantId
                   theme:(NSDictionary *)theme
+                  accountId:(id)accountId
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
@@ -73,6 +74,11 @@ RCT_EXTERN_METHOD(presentAddPayoutMethod:(NSString *)accountId
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(presentSelectPayoutMethod:(NSString *)accountId
+                  clientSecret:(id)clientSecret
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end
 
 @implementation FrameSDK
@@ -84,8 +90,8 @@ RCT_EXTERN_METHOD(presentAddPayoutMethod:(NSString *)accountId
   return YES;
 }
 
-- (void)initialize:(id)secretKey publishableKey:(NSString *)publishableKey debugMode:(BOOL)debugMode applePayMerchantId:(id)applePayMerchantId googlePayMerchantId:(id)googlePayMerchantId theme:(NSDictionary *)theme resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
-  [[[ObjCFrameSDKBridge alloc] init] initialize:secretKey publishableKey:publishableKey debugMode:debugMode applePayMerchantId:applePayMerchantId googlePayMerchantId:googlePayMerchantId theme:theme resolver:resolve rejecter:reject];
+- (void)initialize:(id)secretKey publishableKey:(NSString *)publishableKey debugMode:(BOOL)debugMode applePayMerchantId:(id)applePayMerchantId googlePayMerchantId:(id)googlePayMerchantId theme:(NSDictionary *)theme accountId:(id)accountId resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+  [[[ObjCFrameSDKBridge alloc] init] initialize:secretKey publishableKey:publishableKey debugMode:debugMode applePayMerchantId:applePayMerchantId googlePayMerchantId:googlePayMerchantId theme:theme accountId:accountId resolver:resolve rejecter:reject];
 }
 
 - (void)presentCheckout:(id)accountId amount:(NSNumber *)amount resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
@@ -149,6 +155,17 @@ RCT_EXTERN_METHOD(presentAddPayoutMethod:(NSString *)accountId
       return;
     }
     [[[ObjCFrameSDKBridge alloc] init] presentAddPayoutMethodFrom:topVC accountId:accountId clientSecret:clientSecret resolver:resolve rejecter:reject];
+  });
+}
+
+- (void)presentSelectPayoutMethod:(NSString *)accountId clientSecret:(id)clientSecret resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    UIViewController *topVC = FrameGetTopViewController();
+    if (!topVC) {
+      reject(@"NO_ROOT_VC", @"Could not find root view controller to present select-payout-method", nil);
+      return;
+    }
+    [[[ObjCFrameSDKBridge alloc] init] presentSelectPayoutMethodFrom:topVC accountId:accountId clientSecret:clientSecret resolver:resolve rejecter:reject];
   });
 }
 

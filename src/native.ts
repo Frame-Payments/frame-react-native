@@ -71,6 +71,19 @@ export function initialize(options: {
    * tokens fall back to SDK defaults.
    */
   theme?: FrameTheme;
+  /**
+   * The Frame account this app run belongs to, when your app already knows it at
+   * launch (e.g. a signed-in user). The Sonar fraud-detection session is then created
+   * already bound to the account, so one session covers the whole app run instead of
+   * an unscoped one being created and bound on first flow entry.
+   *
+   * Omit it when the account isn't known yet — the session is created unscoped and
+   * adopted onto the account later, keeping the same session ID either way. You still
+   * pass accountId to each present* call regardless; this only affects session setup.
+   *
+   * iOS-only today — ignored on Android, which has no Sonar session surface.
+   */
+  accountId?: string;
 }): Promise<void> {
   if (!options?.publishableKey) {
     throwCoded(ErrorCodes.INIT_FAILED, 'Frame.initialize requires publishableKey');
@@ -85,7 +98,8 @@ export function initialize(options: {
       options.debugMode ?? false,
       options.applePayMerchantId ?? null,
       options.googlePayMerchantId ?? null,
-      options.theme ?? null
+      options.theme ?? null,
+      options.accountId ?? null
     )
   ).then(() => {
     isInitialized = true;
@@ -237,6 +251,38 @@ export function presentAddPayoutMethod(options: {
   }
   return wrapPromise(
     FrameSDK.presentAddPayoutMethod(options.accountId, options.clientSecret ?? null)
+  );
+}
+
+/**
+ * Presents a standalone "choose the primary payout account" screen, outside the
+ * onboarding flow. Lists the account's saved ACH payout methods, lets the user add a
+ * new one, and elects the chosen method as the account's payout destination.
+ *
+ * Where {@link presentAddPayoutMethod} only adds a bank, this also makes it primary.
+ * On success `methodId` is the newly *elected* payout method. Requires frame-ios 4.4.1+.
+ *
+ * iOS-only — frame-android has no standalone equivalent yet.
+ */
+export function presentSelectPayoutMethod(options: {
+  accountId: string;
+  /**
+   * Onboarding session client secret (`onb_sess_…`) minted server-side via
+   * `POST /v1/onboarding_sessions`, scoping the request to `accountId`. Electing a
+   * payout method requires a caller scoped to the account, so a publishable key is
+   * rejected. Omit this only for legacy integrations that authenticate with a secret key.
+   */
+  clientSecret?: string | null;
+}): Promise<AddMethodResult> {
+  guardInitialized();
+  if (Platform.OS !== 'ios') {
+    throwCoded('PLATFORM_UNSUPPORTED', 'Frame.presentSelectPayoutMethod is iOS-only.');
+  }
+  if (!options?.accountId) {
+    throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentSelectPayoutMethod requires accountId');
+  }
+  return wrapPromise(
+    FrameSDK.presentSelectPayoutMethod(options.accountId, options.clientSecret ?? null)
   );
 }
 

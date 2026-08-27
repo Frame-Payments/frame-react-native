@@ -5,30 +5,93 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.4.0] - 2026-08-26
+
+### Added
+
+- **`Frame.presentSelectPayoutMethod`**, backed by frame-ios 4.4.1's new
+  `FrameSelectPayoutMethodView`. Presents a standalone "choose the primary payout
+  account" screen: it lists the account's saved ACH payout methods, lets the user
+  add a new one, and elects the chosen method as the account's payout destination.
+  Where `presentAddPayoutMethod` only adds a bank, this also makes it primary — on
+  success `methodId` is the newly *elected* method.
+
+  Election is an account-scoped write (`POST /v1/accounts/:id/elect_payout_method`),
+  so it needs an onboarding-session client secret (`onb_sess_…`) or a secret key; a
+  publishable key is rejected by the API. iOS-only — frame-android 3.0.2 has no
+  equivalent screen, so this throws `PLATFORM_UNSUPPORTED` on Android.
 
 ### Changed
 
-- **frame-ios: `4.3.0` → `4.3.6`.**
+- **frame-ios: `4.3.0` → `4.4.2`** (via `4.3.6` and `4.4.1`; neither intermediate
+  bump was released on its own, so their notes are folded in below).
+- **4.4.2 fixes the onboarding-session token leak (FRA-6358).** The standalone
+  add/select-method screens gated session teardown on the host having supplied a
+  `clientSecret`, so a session the flow minted itself was never cleared — and because
+  the token is a process-wide singleton that outranks the publishable key, every
+  later `pk_`-authenticated request (checkout 3DS confirm, terms of service, device
+  attestation) went out as the stale session. Checkout entered after
+  `presentSelectPayoutMethod` failed; a fresh launch worked. The fix is internal to
+  the native SDK — the public initializers the bridge calls are unchanged, so no
+  RN-side change was required.
 - **BREAKING (iOS): `presentOnboarding` now resolves `accountId` instead of
   `paymentMethodId`.** frame-ios 4.3.6 changed what `OnboardingContainerView`
   emits on success — the onboarded account's id rather than the selected payment
   method's — without changing the `FrameResult.completed(id:)` signature, so this
   would otherwise have compiled clean and mislabeled the value at runtime. Use
   `result.accountId` to scope follow-up calls (checkout loads payment methods per
-  account).
+  account). Still true in 4.4.1: verified that `OnboardingContainerView` emits the
+  account id. (The upstream doc comment on `FrameResult` still says "PaymentMethod
+  id" — that comment is stale, not the behavior.)
 
   Android is unaffected and still resolves `paymentMethodId`: frame-android 3.0.2
   genuinely returns a payment method id. The two platforms therefore return
   different resources for the same call — check for the field you need rather
   than assuming one is present. They will converge once frame-android also
   returns an account id.
+- The rest of the 4.4.1 delta arrives with no RN-side change — all of it lives
+  inside the native SDK:
+  - **Charge-time 3D Secure now works.** 4.4.1 adds the full flow: confirm the
+    charge intent, present the issuer challenge in a web view, then poll to a
+    terminal status. Previously the "3DS" path in checkout could not complete.
+    Card transfers are now created with `confirm: false` so a card the issuer wants
+    to challenge is no longer rejected before the challenge can run.
+  - **Lenient response decoding.** A single malformed optional field no longer fails
+    an entire API model, so a backend change to one unused field can't break an
+    unrelated screen.
+  - **One config request per launch instead of six.** `GET /v1/config/all` marks each
+    block fresh and the five consumers then resolve from that cache rather than
+    re-requesting their own endpoints. 4.4.1 shipped the aggregate call but no
+    cache-first read, so init actually made one *extra* request; 4.4.2 fixed it
+    (FRA-6358). Freshness is process-scoped, not keychain-scoped, so each launch
+    still refetches once and a rotated credential is picked up. Consumers also now
+    run concurrently instead of serially, and card tokenization waits for Evervault
+    configuration rather than racing it.
+  - **Mapbox address autocomplete** on billing-address fields, and country-aware
+    subregion (state/province) validation for non-US addresses. The Mapbox token is
+    served by the Frame API — no host-app configuration and no new dependency.
 
-  frame-ios 4.3.6 also adds `SessionManager.pause()` / `resume()` for Sonar
-  session upkeep across app backgrounding. Not wired up here — the bridge
-  registers no `UIApplication` lifecycle observers — so a backgrounded session
-  can still expire silently; tracked separately. Session creation and the
-  per-view refresh remain automatic and needed no RN change.
+  No new CocoaPods/SPM dependency, and the iOS deployment target stays at 17.0.
+
+### Known issues
+
+- **Auth-token precedence still favours the onboarding session over an explicit
+  publishable-key request.** frame-ios 4.4.1 reordered token selection so an active
+  `onb_sess_…` outranks a `.publishable` request. Account-scoped reads need that to
+  receive `profile`, but merchant-level endpoints (`terms_of_service`,
+  `device_attestation`) are documented upstream as accepting only a `pk_`.
+
+  The leak that made this bite in practice is fixed in 4.4.2 (FRA-6358) — sessions
+  no longer outlive the screen that opened them, so checkout after
+  `presentSelectPayoutMethod` works. The ordering itself is unchanged, so the
+  narrower risk remains for calls made *during* an onboarding session. Worth
+  confirming on device that terms-of-service and device-attestation succeed
+  mid-onboarding. Entirely inside the native SDK; no RN-side change can affect it.
+- **Sonar session upkeep across app backgrounding is still not wired up.** frame-ios
+  4.3.6 added `SessionManager.pause()` / `resume()`, but the bridge registers no
+  `UIApplication` lifecycle observers, so a backgrounded session can still expire
+  silently; tracked separately. Session creation and the per-view refresh remain
+  automatic and needed no RN change.
 
 ## [3.3.0] - 2026-08-10
 
