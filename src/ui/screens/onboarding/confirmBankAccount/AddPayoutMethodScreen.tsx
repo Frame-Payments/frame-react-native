@@ -80,6 +80,7 @@ export function AddPayoutMethodScreen({
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text
+          testID="onboarding.ach.title"
           style={[
             styles.heading,
             {
@@ -97,6 +98,7 @@ export function AddPayoutMethodScreen({
           <View style={styles.plaidBlock}>
             <Button
               text="Connect Bank Account"
+              testID="onboarding.ach.plaid"
               enabled={!state.isPerformingAction}
               isLoading={state.isPerformingAction}
               onPress={handlePlaid}
@@ -112,6 +114,7 @@ export function AddPayoutMethodScreen({
         {!manual ? (
           <Button
             text="Enter manually"
+            testID="onboarding.ach.manual"
             variant="secondary"
             onPress={() => onChangeManualMode(true)}
           />
@@ -132,6 +135,7 @@ export function AddPayoutMethodScreen({
                 Bank Details
               </Text>
               <ValidatedTextField
+                testID="onboarding.ach.routing"
                 prompt="Routing Number"
                 value={state.ach.routingNumber}
                 onChangeText={(v) => onChangeAchField('routingNumber', v)}
@@ -140,6 +144,7 @@ export function AddPayoutMethodScreen({
                 characterLimit={9}
               />
               <ValidatedTextField
+                testID="onboarding.ach.account_number"
                 prompt="Account Number"
                 value={state.ach.accountNumber}
                 onChangeText={(v) => onChangeAchField('accountNumber', v)}
@@ -172,6 +177,7 @@ export function AddPayoutMethodScreen({
                 Billing Address
               </Text>
               <BillingAddressDetailView
+                testID="onboarding.ach.address"
                 address={state.address}
                 errors={state.fieldErrors}
                 onChangeField={onChangeAddressField}
@@ -185,6 +191,7 @@ export function AddPayoutMethodScreen({
         <View style={styles.footer}>
           <Button
             text="Add Bank Account"
+            testID="onboarding.ach.submit"
             enabled={!state.isPerformingAction}
             isLoading={state.isPerformingAction}
             onPress={handleManualSubmit}

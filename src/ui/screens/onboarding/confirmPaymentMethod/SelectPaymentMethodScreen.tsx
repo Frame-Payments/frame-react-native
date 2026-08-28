@@ -54,6 +54,7 @@ export function SelectPaymentMethodScreen({
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text
+          testID="onboarding.pm.title"
           style={[
             styles.heading,
             {
@@ -93,7 +94,7 @@ export function SelectPaymentMethodScreen({
             >
               Saved Payment Methods
             </Text>
-            <View style={styles.list}>
+            <View style={styles.list} testID="onboarding.pm.saved_list">
               {state.savedPaymentMethods.map((pm) => (
                 <PaymentMethodRow
                   key={pm.id}
@@ -134,6 +135,7 @@ export function SelectPaymentMethodScreen({
       <View style={styles.footer}>
         <Button
           text="Continue"
+          testID="onboarding.pm.continue"
           enabled={!state.isPerformingAction}
           isLoading={state.isPerformingAction}
           onPress={onContinue}

@@ -18,12 +18,19 @@ import {
   Image,
   useColorScheme,
 } from 'react-native';
+import { LogBox } from 'react-native';
 import Frame, { FrameProvider, isNotFoundError, toToastMessage } from 'framepayments-react-native';
+
+// The LogBox toast anchors to the bottom and covers the CTA on the Frame
+// screens, intercepting the tap. Silence the toast for manual and automated
+// testing — warnings still reach the console.
+LogBox.ignoreAllLogs(true);
 import { FrameSDK } from 'framepayments';
 
 // Supply via environment variables (e.g. `FRAME_SECRET_KEY=... npm run ios`) — do not commit real keys.
 const FRAME_SECRET_KEY = process.env.FRAME_SECRET_KEY;
 const FRAME_PUBLISHABLE_KEY = process.env.FRAME_PUBLISHABLE_KEY;
+const FRAME_BASE_URL = process.env.FRAME_BASE_URL;
 
 // Apple Pay merchant ID registered in the example app's entitlements. Mirrors the native iOS example.
 const APPLE_PAY_MERCHANT_ID = 'merchant.com.framepayments.example';
@@ -32,7 +39,18 @@ const APPLE_PAY_MERCHANT_ID = 'merchant.com.framepayments.example';
 const GOOGLE_PAY_MERCHANT_ID = 'BCR2DN4T_TEST_STUB';
 
 // Demo owners. Swap which one the wallet buttons use to exercise either flow:
-const DEMO_ACCOUNT_ID = 'ENTER_AN_ACCOUNT_ID';
+const DEMO_ACCOUNT_ID = process.env.FRAME_ACCOUNT_ID ?? 'ENTER_AN_ACCOUNT_ID';
+
+// Onboarding capabilities. The SDK derives the screen flow from this list (see
+// onboardingSelectors.ts), so being able to swap it without recompiling is what
+// makes every step combination reachable. Default is the full set.
+const DEMO_CAPABILITIES = (
+  process.env.FRAME_CAPABILITIES ??
+  'kyc,kyc_prefill,age_verification,phone_verification,card_verification,bank_account_verification'
+)
+  .split(',')
+  .map((c) => c.trim())
+  .filter(Boolean) as any[];
 
 // Server-side SDK, standing in for YOUR backend. It needs a secret key, so it's
 // built lazily: a publishable-key-only app (the recommended mobile setup) boots
@@ -49,7 +67,13 @@ function getFrameSDK(): FrameSDK {
         'call secret-keyed endpoints directly. To exercise it in this demo, set FRAME_SECRET_KEY in example/.env.',
     );
   }
-  if (!_frameSDK) _frameSDK = new FrameSDK({ apiKey: FRAME_SECRET_KEY });
+  if (!_frameSDK)
+    _frameSDK = new FrameSDK({
+      apiKey: FRAME_SECRET_KEY,
+      // Without this, the example's "backend" SDK hits production even when
+      // FRAME_BASE_URL points at QA — and the minted session is then useless.
+      ...(FRAME_BASE_URL ? { baseURL: FRAME_BASE_URL } : {}),
+    });
   return _frameSDK;
 }
 
@@ -90,6 +114,7 @@ export default function App() {
       // server-minted onb_sess_ token (see handleOnboarding).
       publishableKey: FRAME_PUBLISHABLE_KEY,
       secretKey: FRAME_SECRET_KEY,
+      baseUrl: FRAME_BASE_URL,
       debugMode: __DEV__,
       applePayMerchantId: APPLE_PAY_MERCHANT_ID,
       googlePayMerchantId: GOOGLE_PAY_MERCHANT_ID,
@@ -214,7 +239,7 @@ export default function App() {
       const result = await Frame.presentOnboarding({
         accountId: session ? DEMO_ACCOUNT_ID : undefined,
         clientSecret: session?.client_secret,
-        capabilities: ['kyc', 'kyc_prefill', 'age_verification', 'phone_verification', 'card_verification', 'bank_account_verification'],
+        capabilities: DEMO_CAPABILITIES,
       });
       Alert.alert(
         result.status === 'completed' ? 'Onboarding complete' : 'Onboarding cancelled',
@@ -352,6 +377,7 @@ export default function App() {
         style={[styles.button, (loading === 'onboarding' || !!initError) && styles.buttonDisabled]}
         onPress={handleOnboarding}
         disabled={!!loading || !!initError}
+        testID="example.onboarding"
       >
         {loading === 'onboarding' ? (
           <ActivityIndicator color="#fff" />

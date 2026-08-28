@@ -1,0 +1,15 @@
+# Page object: "Select A Payout Method".
+# Inputs: none — "Bank Account (ACH)" comes pre-selected.
+appId: org.reactjs.native.example.FrameExample
+name: page:select-payout-method
+---
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.payout.title"
+    timeout: 60000
+- assertVisible:
+    id: "onboarding.payout.add_new"
+- takeScreenshot:
+    path: 07-select-payout-method
+- tapOn:
+    id: "onboarding.payout.continue"

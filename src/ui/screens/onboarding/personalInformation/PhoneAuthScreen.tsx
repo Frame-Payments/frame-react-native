@@ -65,6 +65,7 @@ export function PhoneAuthScreen({
       keyboardShouldPersistTaps="handled"
     >
       <Text
+        testID="onboarding.phone.title"
         style={[
           styles.heading,
           {
@@ -92,6 +93,7 @@ export function PhoneAuthScreen({
 
       <View style={styles.field}>
         <PhoneNumberField
+          testID="onboarding.phone.number"
           phoneNumber={state.phoneNumber}
           selectedAlpha2={state.phoneCountry.alpha2}
           onChangeCountry={(c) => onChangePhoneCountry(c.alpha2Code, c.callingCode.replace(/^\+/, ''))}
@@ -122,6 +124,7 @@ export function PhoneAuthScreen({
       <View style={styles.footer}>
         <Button
           text="Continue"
+          testID="onboarding.phone.continue"
           enabled={!state.isPerformingAction}
           isLoading={state.isPerformingAction}
           onPress={onSubmit}

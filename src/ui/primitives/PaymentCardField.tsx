@@ -162,6 +162,7 @@ export const PaymentCardField = forwardRef<PaymentCardFieldHandle, PaymentCardFi
                   },
                 ]}
                 accessibilityLabel="Card number"
+                testID={testID ? `${testID}.number` : undefined}
               />
               {state.brand ? (
                 <Text style={[styles.brand, { color: theme.colors.textSecondary }]}>{brandShortLabel(state.brand)}</Text>
@@ -193,6 +194,7 @@ export const PaymentCardField = forwardRef<PaymentCardFieldHandle, PaymentCardFi
                 },
               ]}
               accessibilityLabel="Card expiration"
+              testID={testID ? `${testID}.expiry` : undefined}
             />
           </View>
           <View style={[styles.divider, styles.dividerVertical, { backgroundColor: theme.colors.surfaceStroke }]} />
@@ -217,6 +219,7 @@ export const PaymentCardField = forwardRef<PaymentCardFieldHandle, PaymentCardFi
                 },
               ]}
               accessibilityLabel="Card security code"
+              testID={testID ? `${testID}.cvc` : undefined}
             />
           </View>
         </View>

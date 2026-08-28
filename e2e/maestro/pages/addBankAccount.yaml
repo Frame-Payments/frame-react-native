@@ -1,0 +1,43 @@
+# Page object: "Add Bank Account" plus the "Bank Details" block.
+# One screen (AddPayoutMethodScreen): "Enter manually" swaps the body.
+# Inputs: ROUTING, ACCOUNT_NUMBER
+appId: org.reactjs.native.example.FrameExample
+name: page:add-bank-account
+---
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.ach.title"
+    timeout: 60000
+# 🚨 DO NOT tap onboarding.ach.plaid. Known defect: react-native-plaid-link-sdk
+# resolves in JS (it sits in the repo ROOT node_modules, which Metro watches via
+# watchFolders), so isPlaidAvailable() returns true and the "Connect Bank
+# Account" button renders — but the native pod is never installed, because the
+# Podfile reads example/node_modules. Tapping it hangs on an infinite spinner,
+# with no error and no timeout. Working around it here would hide the bug; it is
+# reported in the README instead.
+- tapOn:
+    id: "onboarding.ach.manual"
+- tapOn:
+    id: "onboarding.ach.routing"
+- inputText: ${ROUTING}
+- tapOn:
+    id: "onboarding.ach.account_number"
+- inputText: ${ACCOUNT_NUMBER}
+# Maestro's `hideKeyboard` does not work here: iOS numeric keyboards expose no
+# standard dismiss action. The SDK renders its own "Done" bar (KeyboardAccessory,
+# mounted inside the BottomSheet) for exactly that reason — tapping it is the
+# gesture a real user makes.
+- tapOn:
+    id: "frame.keyboard.done"
+# "Checking" comes pre-selected. Each dropdown option is addressable as
+# onboarding.ach.account_type.option.<checking|savings> for when a scenario needs
+# to switch.
+- assertVisible:
+    id: "onboarding.ach.account_type"
+- assertVisible:
+    id: "onboarding.ach.address.line1"
+    text: ".+"
+- takeScreenshot:
+    path: 08-bank-details
+- tapOn:
+    id: "onboarding.ach.submit"

@@ -1,0 +1,41 @@
+# Page object: "Personal Information".
+# Inputs: none — the screen arrives pre-filled from the account profile.
+appId: org.reactjs.native.example.FrameExample
+name: page:personal-information
+---
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.personal.title"
+    timeout: 60000
+# The prefill IS the behaviour under test here: if the backend stops returning
+# the profile, the screen comes up empty and the scenario has to fail rather than
+# type its way through. `text: ".+"` matches the field's VALUE, not the copy — so
+# this does not break when wording changes.
+- assertVisible:
+    id: "onboarding.personal.first_name"
+    text: ".+"
+- assertVisible:
+    id: "onboarding.personal.last_name"
+    text: ".+"
+- assertVisible:
+    id: "onboarding.personal.email"
+    text: ".+"
+- assertVisible:
+    id: "onboarding.personal.dob.year"
+    text: ".+"
+- assertVisible:
+    id: "onboarding.personal.address.line1"
+    text: ".+"
+- takeScreenshot:
+    path: 04-personal-information
+# 🚨 onboarding.personal.no_ssn opens the no-SSN path via Persona (document +
+# selfie, needs a camera). Out of scope — do not tap.
+#
+# Continue lives at the end of the ScrollView, not in a fixed footer.
+- scrollUntilVisible:
+    element:
+      id: "onboarding.personal.continue"
+    direction: DOWN
+    timeout: 30000
+- tapOn:
+    id: "onboarding.personal.continue"

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
     "test": "jest",
+    "e2e:onboarding": "bash e2e/maestro/helpers/run.sh",
     "typedoc": "typedoc",
     "typedoc:json": "typedoc --json dist-docs/frame-react-native-types.json",
     "prepare": "npm run build",

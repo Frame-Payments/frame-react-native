@@ -74,7 +74,7 @@ export function BottomSheet({
           Done bar here gives all of them a dismissible numeric keyboard from one
           place. It is absolutely positioned and only renders while the keyboard
           is up, so it costs no layout the rest of the time. */}
-      <KeyboardAccessory />
+      <KeyboardAccessory testID="frame.keyboard.done" />
     </SafeAreaView>
   );
 }

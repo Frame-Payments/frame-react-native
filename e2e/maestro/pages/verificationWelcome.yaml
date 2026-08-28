@@ -1,0 +1,23 @@
+# Page object: the "Verify Your Identity" intro screen.
+# Inputs: none.
+appId: org.reactjs.native.example.FrameExample
+name: page:verification-welcome
+---
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.welcome.title"
+    timeout: 60000
+- takeScreenshot:
+    path: 01-verification-welcome
+# Continue starts disabled and only enables once the account prefetch finishes
+# (VerificationWelcomeScreen.accountLoaded). Without waiting for the enabled
+# state, the tap lands on a disabled TouchableOpacity and is swallowed
+# silently — the flow carries on and fails two screens later, with the wrong
+# symptom.
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.welcome.continue"
+      enabled: true
+    timeout: 60000
+- tapOn:
+    id: "onboarding.welcome.continue"

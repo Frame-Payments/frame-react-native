@@ -1,0 +1,35 @@
+# Page object: the terminal screen plus the native Alert that proves the SDK
+# contract.
+# Inputs: ACCOUNT_ID — the account id setup-session.sh minted.
+appId: org.reactjs.native.example.FrameExample
+name: page:verification-submitted
+---
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.submitted.title"
+    timeout: 120000
+- takeScreenshot:
+    path: 09-verification-submitted
+- tapOn:
+    id: "onboarding.submitted.done"
+
+# The assertion that matters most in this scenario: the Alert proves
+# presentOnboarding() resolved with status 'completed' AND with the right account
+# id — the SDK's public contract, not just its UI.
+#
+# TRACKED DEBT: the only two text selectors in the flow. UIAlertController is a
+# system component and takes no testID, so there is no id to aim at. Mitigating
+# factors: the "Onboarding complete" copy comes from example/App.tsx (ours, not
+# the SDK's), and the "Account: <id>" being matched is DATA from the minted
+# session, not copy.
+- extendedWaitUntil:
+    visible: "Onboarding complete"
+    timeout: 60000
+- assertVisible: "Account: ${ACCOUNT_ID}"
+- takeScreenshot:
+    path: 10-sdk-result-alert
+- tapOn: "OK"
+
+# Back on the merchant home: proves the SDK modal was unmounted.
+- assertVisible:
+    id: "example.onboarding"

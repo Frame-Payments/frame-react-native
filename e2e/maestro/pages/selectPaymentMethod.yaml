@@ -1,0 +1,37 @@
+# Page object: "Select A Payment Method". Appears twice in the happy path.
+# Inputs: EXPECT = add_new | saved
+appId: org.reactjs.native.example.FrameExample
+name: page:select-payment-method
+---
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.pm.title"
+    timeout: 60000
+
+# First pass: no saved method, the "Debit/Credit Card" radio comes pre-selected
+# and Continue leads to the card form.
+- runFlow:
+    when:
+      true: ${EXPECT == 'add_new'}
+    commands:
+      - assertVisible:
+          id: "onboarding.pm.__add_new__"
+      - takeScreenshot:
+          path: 05-select-payment-method
+
+# Second pass: the "Saved Payment Methods" section only renders when
+# savedPaymentMethods.length > 0, so the list being present proves the card was
+# persisted — without depending on copy or on the id the backend generated.
+- runFlow:
+    when:
+      true: ${EXPECT == 'saved'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: "onboarding.pm.saved_list"
+          timeout: 30000
+      - takeScreenshot:
+          path: 06-saved-payment-method
+
+- tapOn:
+    id: "onboarding.pm.continue"

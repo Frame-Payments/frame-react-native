@@ -43,6 +43,7 @@ export function DropDown<T extends string>({ options, selected, onSelect, prompt
         }}
         accessibilityRole="button"
         accessibilityState={{ selected: isSelected }}
+        testID={testID ? `${testID}.option.${item.value}` : undefined}
         style={({ pressed }) => [
           styles.row,
           { borderBottomColor: theme.colors.surfaceStroke, opacity: pressed ? 0.7 : 1 },

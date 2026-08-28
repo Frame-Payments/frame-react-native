@@ -81,6 +81,7 @@ export function CustomerInformationScreen({
       keyboardShouldPersistTaps="handled"
     >
       <Text
+        testID="onboarding.personal.title"
         style={[
           styles.heading,
           {
@@ -100,6 +101,7 @@ export function CustomerInformationScreen({
         <View style={styles.row}>
           <View style={styles.cell}>
             <ValidatedTextField
+              testID="onboarding.personal.first_name"
               prompt="First Name"
               value={state.customerFirstName}
               onChangeText={onChangeFirstName}
@@ -112,6 +114,7 @@ export function CustomerInformationScreen({
           <View style={dividerStyle} />
           <View style={styles.cell}>
             <ValidatedTextField
+              testID="onboarding.personal.last_name"
               prompt="Last Name"
               value={state.customerLastName}
               onChangeText={onChangeLastName}
@@ -124,6 +127,7 @@ export function CustomerInformationScreen({
         </View>
         <View style={[dividerStyle, styles.horizontalDivider]} />
         <ValidatedTextField
+          testID="onboarding.personal.email"
           prompt="Email Address"
           value={state.customerEmail}
           onChangeText={onChangeEmail}
@@ -141,6 +145,7 @@ export function CustomerInformationScreen({
           <Text style={[styles.sectionLabel, sectionLabelStyle]}>Birthday</Text>
           <View style={containerStyle}>
             <DobInputField
+              testID="onboarding.personal.dob"
               month={state.dobMonth}
               day={state.dobDay}
               year={state.dobYear}
@@ -178,6 +183,7 @@ export function CustomerInformationScreen({
             </View>
             <View style={styles.ssnField}>
               <ValidatedTextField
+                testID="onboarding.personal.ssn"
                 prompt="SSN"
                 value={state.ssnLast4}
                 onChangeText={onChangeSsn}
@@ -194,6 +200,7 @@ export function CustomerInformationScreen({
             <View style={styles.noSsnButton}>
               <Button
                 text="I don't have a social security number"
+                testID="onboarding.personal.no_ssn"
                 variant="secondary"
                 enabled={!state.isPerformingAction}
                 isLoading={state.isPerformingAction}
@@ -228,6 +235,7 @@ export function CustomerInformationScreen({
       {/* Current Address */}
       <Text style={[styles.sectionLabel, sectionLabelStyle]}>Current Address</Text>
       <BillingAddressDetailView
+        testID="onboarding.personal.address"
         address={state.address}
         errors={state.fieldErrors}
         onChangeField={onChangeAddressField}
@@ -237,6 +245,7 @@ export function CustomerInformationScreen({
       <View style={styles.footer}>
         <Button
           text="Continue"
+          testID="onboarding.personal.continue"
           enabled={!state.isPerformingAction}
           isLoading={state.isPerformingAction}
           onPress={onSubmit}

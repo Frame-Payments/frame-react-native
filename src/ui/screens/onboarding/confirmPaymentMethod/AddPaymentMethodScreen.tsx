@@ -110,6 +110,7 @@ export function AddPaymentMethodScreen({
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text
+          testID="onboarding.card.title"
           style={[
             styles.heading,
             {
@@ -149,7 +150,7 @@ export function AddPaymentMethodScreen({
             >
               Card Information
             </Text>
-            <PaymentCardField ref={cardFieldRef} />
+            <PaymentCardField ref={cardFieldRef} testID="onboarding.card" />
           </View>
         ) : null}
 
@@ -168,6 +169,7 @@ export function AddPaymentMethodScreen({
             Billing Address
           </Text>
           <BillingAddressDetailView
+            testID="onboarding.card.address"
             address={state.address}
             errors={state.fieldErrors}
             onChangeField={onChangeAddressField}
@@ -178,6 +180,7 @@ export function AddPaymentMethodScreen({
       <View style={styles.footer}>
         <Button
           text="Continue"
+          testID="onboarding.card.continue"
           enabled={!state.isPerformingAction}
           isLoading={state.isPerformingAction}
           onPress={handleSubmit}

@@ -1,0 +1,86 @@
+# Onboarding, happy path, end to end: from an empty account to the Alert that
+# hands back the account id. Persona that APPROVES KYC.
+#
+# This file is the user's journey. No selectors, no hosts, no keys and no ids
+# here — every screen is a page object under ../pages, and the data comes from
+# ../helpers/fixtures.js. If you need to know HOW a screen is driven, open its
+# page object.
+#
+# Precondition: helpers/setup-session.sh has already run (account minted,
+# example/.env rewritten, Metro up with the bundle for the right environment).
+# Use helpers/run.sh.
+appId: org.reactjs.native.example.FrameExample
+name: onboarding-happy-path
+tags:
+  - onboarding
+  - happy-path
+---
+# Scenario data. The three session variables arrive via `maestro test -e`;
+# fixtures.js fails loudly if any is missing, rather than running against junk.
+- runScript:
+    file: ../helpers/fixtures.js
+    env:
+      ACCOUNT_ID: ${ACCOUNT_ID}
+      SCREEN_PHONE: ${SCREEN_PHONE}
+      BASE_URL: ${BASE_URL}
+
+# Video of the whole run, recorded by Maestro itself at
+# <artifacts>/startRecording/onboarding.mp4. It is the evidence screenshots
+# cannot give: it shows the UI being driven, and on a red run it shows what the
+# screen did BEFORE the step that failed.
+- startRecording: onboarding
+
+- launchApp:
+    clearState: true
+
+# 1. Merchant app -> opens the SDK's onboarding
+- runFlow: ../pages/exampleHome.yaml
+
+# 2. "Verify Your Identity" intro
+- runFlow: ../pages/verificationWelcome.yaml
+
+# 3. Phone -> OTP
+- runFlow:
+    file: ../pages/phoneAuth.yaml
+    env:
+      PHONE: ${output.session.phone}
+- runFlow:
+    file: ../pages/verifyPhone.yaml
+    env:
+      OTP: ${output.otp.valid}
+
+# 4. Personal information (pre-filled from the account)
+- runFlow: ../pages/personalInformation.yaml
+
+# 5. Payment method: pick "add", fill the card, and come back to the same
+#    screen — now with the saved card pre-selected.
+- runFlow:
+    file: ../pages/selectPaymentMethod.yaml
+    env:
+      EXPECT: add_new
+- runFlow:
+    file: ../pages/addPaymentMethod.yaml
+    env:
+      PAN: ${output.card.pan}
+      EXPIRY: ${output.card.expiry}
+      CVC: ${output.card.cvc}
+- runFlow:
+    file: ../pages/selectPaymentMethod.yaml
+    env:
+      EXPECT: saved
+
+# 6. Payout method: manual ACH
+- runFlow: ../pages/selectPayoutMethod.yaml
+- runFlow:
+    file: ../pages/addBankAccount.yaml
+    env:
+      ROUTING: ${output.ach.routing}
+      ACCOUNT_NUMBER: ${output.ach.accountNumber}
+
+# 7. Success screen plus the Alert carrying the SDK's result
+- runFlow:
+    file: ../pages/verificationSubmitted.yaml
+    env:
+      ACCOUNT_ID: ${output.session.accountId}
+
+- stopRecording

@@ -1,0 +1,10 @@
+# Maestro workspace config.
+#
+# Divergence from the original design: `appId` is NOT a workspace-level key in
+# Maestro — it lives in the header of each runnable flow (flows/*.yaml). Only
+# `flows` and the tag filters belong here.
+flows:
+  - flows/*.yaml
+
+# Tags available today: `onboarding`, `happy-path`.
+# To run a subset: maestro test --include-tags happy-path e2e/maestro

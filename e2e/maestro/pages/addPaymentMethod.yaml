@@ -1,0 +1,36 @@
+# Page object: the card form ("Add New Payment Method").
+# Inputs: PAN, EXPIRY (MMYY, digits only), CVC
+appId: org.reactjs.native.example.FrameExample
+name: page:add-payment-method
+---
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.card.title"
+    timeout: 60000
+# TRACKED DEBT: the "Set up Apple Pay" button at the top has no selector —
+# ApplePayButton wraps a native component and does not forward testID. An
+# `onboarding.card.apple_pay` would fix it. Not used by this scenario.
+#
+# Billing Address arrives pre-filled from the account address.
+- assertVisible:
+    id: "onboarding.card.address.line1"
+    text: ".+"
+- tapOn:
+    id: "onboarding.card.number"
+- inputText: ${PAN}
+- tapOn:
+    id: "onboarding.card.expiry"
+- inputText: ${EXPIRY}
+- tapOn:
+    id: "onboarding.card.cvc"
+- inputText: ${CVC}
+# Maestro's `hideKeyboard` does not work here: iOS numeric keyboards expose no
+# standard dismiss action. The SDK renders its own "Done" bar (KeyboardAccessory,
+# mounted inside the BottomSheet) for exactly that reason — tapping it is the
+# gesture a real user makes.
+- tapOn:
+    id: "frame.keyboard.done"
+- takeScreenshot:
+    path: 05b-card-form
+- tapOn:
+    id: "onboarding.card.continue"

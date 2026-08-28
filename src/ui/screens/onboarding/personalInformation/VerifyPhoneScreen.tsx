@@ -144,6 +144,7 @@ export function VerifyPhoneScreen({
     <View style={styles.container}>
       <View style={styles.content}>
         <Text
+          testID="onboarding.otp.title"
           style={[
             styles.heading,
             {
@@ -169,6 +170,7 @@ export function VerifyPhoneScreen({
           We've sent a verification code to your phone. Enter it below.
         </Text>
         <OtpInputField
+          testID="onboarding.otp.field"
           value={state.otpCode}
           onChange={onChangeOtp}
           disabled={submitting}
@@ -189,6 +191,7 @@ export function VerifyPhoneScreen({
         ) : null}
         <Button
           text="Resend code"
+          testID="onboarding.otp.resend"
           variant="secondary"
           enabled={!submitting}
           onPress={onCancelOtp}
@@ -198,6 +201,7 @@ export function VerifyPhoneScreen({
       <View style={styles.footer}>
         <Button
           text="Continue"
+          testID="onboarding.otp.continue"
           enabled={!submitting && state.otpCode.length === 6}
           isLoading={submitting}
           onPress={onSubmit}

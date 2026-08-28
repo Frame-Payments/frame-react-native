@@ -46,6 +46,10 @@ export function BillingAddressDetailView({
     }
   }, [international, address.country, onChangeField]);
 
+  // Sub-field selectors, same shape as DobInputField / OtpInputField: the
+  // caller names the block once and each field derives `<block>.<field>`.
+  const sub = (field: string) => (testID ? `${testID}.${field}` : undefined);
+
   const isUS = address.country === 'US';
   const postalLabel = !international || isUS ? 'Zip code' : 'Postal code';
   const stateLabel = !international || isUS ? 'State' : 'State / province / region';
@@ -58,12 +62,14 @@ export function BillingAddressDetailView({
         onChangeText={(v) => onChangeField('line1', v)}
         error={errors['address.line1']}
         autoCapitalize="words"
+        testID={sub('line1')}
       />
       <ValidatedTextField
         prompt="Address line 2 (optional)"
         value={address.line2}
         onChangeText={(v) => onChangeField('line2', v)}
         autoCapitalize="words"
+        testID={sub('line2')}
       />
       <View style={styles.row}>
         <View style={styles.cell}>
@@ -73,6 +79,7 @@ export function BillingAddressDetailView({
             onChangeText={(v) => onChangeField('city', v)}
             error={errors['address.city']}
             autoCapitalize="words"
+            testID={sub('city')}
           />
         </View>
         <View style={styles.cell}>
@@ -83,6 +90,7 @@ export function BillingAddressDetailView({
             error={errors['address.state']}
             autoCapitalize={!international || isUS ? 'characters' : 'words'}
             characterLimit={!international || isUS ? 2 : undefined}
+            testID={sub('state')}
           />
         </View>
       </View>
@@ -92,11 +100,13 @@ export function BillingAddressDetailView({
         onChangeText={(v) => onChangeField('postalCode', v)}
         error={errors['address.postalCode']}
         keyboardType={!international || isUS ? 'number-pad' : 'default'}
+        testID={sub('postal_code')}
       />
       {international ? (
         <CountryPicker
           selectedAlpha2={address.country}
           onSelect={(c) => onChangeField('country', c.alpha2Code)}
+          testID={sub('country')}
         />
       ) : null}
     </View>

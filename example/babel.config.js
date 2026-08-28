@@ -9,7 +9,7 @@ module.exports = {
     // FRAME_* keys via `include` so no other env vars leak into the bundle.
     [
       'transform-inline-environment-variables',
-      { include: ['FRAME_PUBLISHABLE_KEY', 'FRAME_SECRET_KEY'] },
+      { include: ['FRAME_PUBLISHABLE_KEY', 'FRAME_SECRET_KEY', 'FRAME_BASE_URL', 'FRAME_ACCOUNT_ID', 'FRAME_CAPABILITIES'] },
     ],
   ],
 };

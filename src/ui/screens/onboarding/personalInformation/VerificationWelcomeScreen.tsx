@@ -27,6 +27,7 @@ export function VerificationWelcomeScreen({
       <View style={styles.spacer} />
       <Icon name="shield-icon" size={96} />
       <Text
+        testID="onboarding.welcome.title"
         style={[
           styles.title,
           {
@@ -53,7 +54,7 @@ export function VerificationWelcomeScreen({
       </Text>
       <View style={styles.spacer} />
       <View style={styles.footer}>
-        <Button text="Continue" enabled={accountLoaded} onPress={onContinue} />
+        <Button text="Continue" testID="onboarding.welcome.continue" enabled={accountLoaded} onPress={onContinue} />
       </View>
     </View>
   );

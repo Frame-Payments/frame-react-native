@@ -1,0 +1,33 @@
+# Page object: "Enter Your Phone Number".
+# Inputs: PHONE — digits only, no country code.
+appId: org.reactjs.native.example.FrameExample
+name: page:phone-auth
+---
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.phone.title"
+    timeout: 60000
+# The country picker sits at +1 by default (DEFAULT_PHONE_COUNTRY = US) and this
+# scenario never changes it. `onboarding.phone.number.country` exists for the day
+# an international case shows up.
+- assertVisible:
+    id: "onboarding.phone.number.country"
+- tapOn:
+    id: "onboarding.phone.number"
+# The field arrives empty: prefillFromAccount() does not fill the phone, and
+# launchApp runs with clearState. There used to be a defensive `eraseText` here,
+# removed because it cost 3s to do nothing. If prefill ever starts filling it,
+# inputText will concatenate and the number goes invalid — the scenario still
+# fails, just with a less obvious message (phone validation error, or "Sandbox
+# persona not found" at the OTP step).
+- inputText: ${PHONE}
+- takeScreenshot:
+    path: 02-phone-auth
+# Maestro's `hideKeyboard` does not work here: iOS numeric keyboards expose no
+# standard dismiss action. The SDK renders its own "Done" bar (KeyboardAccessory,
+# mounted inside the BottomSheet) for exactly that reason — tapping it is the
+# gesture a real user makes.
+- tapOn:
+    id: "frame.keyboard.done"
+- tapOn:
+    id: "onboarding.phone.continue"

@@ -1,0 +1,7 @@
+# Written by helpers/setup-session.sh on every run (carries the account id of
+# the minted session). Ephemeral — the session expires after 30 min.
+.session.env
+# Evidence screenshots, one directory per run.
+artifacts/
+# Metro log from the instance the setup starts in the background.
+metro.log

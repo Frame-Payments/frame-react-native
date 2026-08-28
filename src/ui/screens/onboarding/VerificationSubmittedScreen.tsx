@@ -22,6 +22,7 @@ export function VerificationSubmittedScreen({ onDone }: VerificationSubmittedScr
       <View style={styles.spacer} />
       <Icon name="person-check" size={96} />
       <Text
+        testID="onboarding.submitted.title"
         style={[
           styles.title,
           {
@@ -48,7 +49,7 @@ export function VerificationSubmittedScreen({ onDone }: VerificationSubmittedScr
       </Text>
       <View style={styles.spacer} />
       <View style={styles.footer}>
-        <Button text="Done" onPress={onDone} />
+        <Button text="Done" testID="onboarding.submitted.done" onPress={onDone} />
       </View>
     </View>
   );

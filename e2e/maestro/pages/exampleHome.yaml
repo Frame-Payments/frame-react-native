@@ -1,0 +1,17 @@
+# Page object: the example app's home — the "merchant" integrating the SDK.
+# Inputs: none.
+appId: org.reactjs.native.example.FrameExample
+name: page:example-home
+---
+# First launch after a `--reset-cache`: Metro may still be building the bundle.
+# setup-session.sh already warms it with a GET on /index.bundle, but the margin
+# stays here because this is the only point in the flow where a cold bundle is
+# expected.
+- extendedWaitUntil:
+    visible:
+      id: "example.onboarding"
+    timeout: 240000
+- takeScreenshot:
+    path: 00-merchant-home
+- tapOn:
+    id: "example.onboarding"

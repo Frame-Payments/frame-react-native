@@ -1,0 +1,54 @@
+# Page object: "Enter Verification Code".
+# Inputs: OTP — 6 digits.
+appId: org.reactjs.native.example.FrameExample
+name: page:verify-phone
+---
+# The screen has three branches (state.verifyPhoneUi). With no Prove SDK linked
+# into the example app it goes straight to the Frame API OTP branch; if Prove is
+# ever added, the 'loading_prove' branch appears first and this wait still holds,
+# because it waits on the OTP title rather than on the screen mounting.
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.otp.title"
+    timeout: 60000
+# One tapOn, on the first slot, then six separate `inputText` calls.
+#
+# Why not a single `inputText` of "123456": OtpInputField advances focus inside a
+# requestAnimationFrame on every digit (OtpInputField.onSlotChange), and XCUITest
+# delivers all six characters in one burst. On a real run the slots ended up as
+# "1 2 4 5 6" with the sixth empty — digit 3 lost. What settles the race is the
+# natural latency between Maestro commands (~0.9s), not the tap.
+#
+# Why not one tapOn per slot (the previous version): the tap is unnecessary,
+# because the field moves focus itself. And every tapOn costs ~1.5s in an
+# XCUITest hierarchy scan — six of them added 9s of pure waste. Same strategy as
+# frame-cypress (`otpInput.eq(index).type(digit)`), minus the lookup a browser
+# does not charge for and XCUITest does.
+#
+# Each slot stays addressable as onboarding.otp.field.<0..5> for the invalid and
+# expired code scenarios.
+- tapOn:
+    id: "onboarding.otp.field.0"
+- inputText: ${OTP.charAt(0)}
+- inputText: ${OTP.charAt(1)}
+- inputText: ${OTP.charAt(2)}
+- inputText: ${OTP.charAt(3)}
+- inputText: ${OTP.charAt(4)}
+- inputText: ${OTP.charAt(5)}
+- takeScreenshot:
+    path: 03-verify-phone
+# Maestro's `hideKeyboard` does not work here: iOS numeric keyboards expose no
+# standard dismiss action. The SDK renders its own "Done" bar (KeyboardAccessory,
+# mounted inside the BottomSheet) for exactly that reason — tapping it is the
+# gesture a real user makes.
+- tapOn:
+    id: "frame.keyboard.done"
+# Continue stays disabled until the code has 6 digits — waiting for the enabled
+# state is what proves all six slots received it.
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.otp.continue"
+      enabled: true
+    timeout: 30000
+- tapOn:
+    id: "onboarding.otp.continue"
