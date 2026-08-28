@@ -3,6 +3,9 @@ import type { FrameTheme } from './types';
 export interface FrameConfig {
   secretKey?: string;
   publishableKey?: string;
+  /** Override the API host. Defaults to https://api.framepayments.com.
+   *  Lets QA point the SDK at qa/staging or a local mock server. */
+  baseUrl?: string;
   debugMode: boolean;
   applePayMerchantId?: string;
   googlePayMerchantId?: string;
@@ -45,6 +48,7 @@ function deepFreezeClone<T>(value: T): T {
 export function setConfig(config: FrameConfig): void {
   state.secretKey = config.secretKey;
   state.publishableKey = config.publishableKey;
+  state.baseUrl = config.baseUrl;
   state.debugMode = config.debugMode;
   state.applePayMerchantId = config.applePayMerchantId;
   state.googlePayMerchantId = config.googlePayMerchantId;
@@ -56,6 +60,7 @@ export function getConfig(): Readonly<FrameConfig> {
   return {
     secretKey: state.secretKey,
     publishableKey: state.publishableKey,
+    baseUrl: state.baseUrl,
     debugMode: state.debugMode,
     applePayMerchantId: state.applePayMerchantId,
     googlePayMerchantId: state.googlePayMerchantId,
@@ -69,6 +74,10 @@ export function isInitialized(): boolean {
 
 export function getPublishableKey(): string | undefined {
   return state.publishableKey;
+}
+
+export function getBaseUrl(): string | undefined {
+  return state.baseUrl;
 }
 
 export function getSecretKey(): string | undefined {
@@ -106,6 +115,7 @@ export function getIpAddress(): string | undefined {
 export function resetConfig(): void {
   state.secretKey = undefined;
   state.publishableKey = undefined;
+  state.baseUrl = undefined;
   state.debugMode = false;
   state.applePayMerchantId = undefined;
   state.googlePayMerchantId = undefined;

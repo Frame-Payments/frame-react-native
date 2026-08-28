@@ -1,6 +1,6 @@
 import { FrameSDK } from 'framepayments';
 import { Platform } from 'react-native';
-import { getIpAddress, getPublishableKey, getSecretKey } from './config';
+import { getBaseUrl, getIpAddress, getPublishableKey, getSecretKey } from './config';
 import { getActiveOnboardingSession, __registerOnboardingSessionApplier } from './auth';
 import { frameError, ErrorCodes } from './errors';
 import { attachNetworkLogger, resetNetworkLogger } from './debug/networkLogger';
@@ -21,6 +21,13 @@ const SDK_VERSION = '4.0.4';
 // hits this host. Exported so idv.ts stays in lockstep rather than hardcoding
 // its own copy.
 export const FRAME_API_BASE_URL = 'https://api.framepayments.com';
+
+// The host every request must hit: the `baseUrl` override when configured,
+// otherwise the production default. Both the framepayments client and the
+// hand-rolled IDV calls in idv.ts read this, so the two never drift.
+export function frameApiBaseUrl(): string {
+  return getBaseUrl() ?? FRAME_API_BASE_URL;
+}
 
 // The User-Agent every SDK request sends, matching the native Frame iOS /
 // Android SDKs (see getClient below for why the exact strings matter to the
@@ -68,6 +75,7 @@ function getClient(): FrameSDK {
   sdk = new FrameSDK({
     apiKey,
     publishableKey,
+    baseURL: frameApiBaseUrl(),
     defaultHeaders: Object.keys(defaultHeaders).length > 0 ? defaultHeaders : undefined,
   });
   attachNetworkLogger(sdk);

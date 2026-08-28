@@ -97,6 +97,7 @@ function throwCoded(code: string, message: string): never {
 export function initialize(options: {
   publishableKey: string;
   secretKey?: string;
+  baseUrl?: string;
   debugMode?: boolean;
   applePayMerchantId?: string;
   googlePayMerchantId?: string;
@@ -132,6 +133,7 @@ export function initialize(options: {
 async function runInitialize(options: {
   publishableKey: string;
   secretKey?: string;
+  baseUrl?: string;
   debugMode?: boolean;
   applePayMerchantId?: string;
   googlePayMerchantId?: string;
@@ -163,6 +165,7 @@ async function runInitialize(options: {
   setConfig({
     secretKey: options.secretKey,
     publishableKey: options.publishableKey,
+    baseUrl: options.baseUrl,
     debugMode: options.debugMode ?? false,
     applePayMerchantId: options.applePayMerchantId,
     googlePayMerchantId: options.googlePayMerchantId,

@@ -1,6 +1,6 @@
 import { getActiveOnboardingSession } from './auth';
 import { getIpAddress } from './config';
-import { FRAME_API_BASE_URL, frameUserAgent } from './client';
+import { frameApiBaseUrl, frameUserAgent } from './client';
 import { ErrorCodes, frameError } from './errors';
 
 // The framepayments SDK has no API surface for the `/v1/idv/*` endpoints and
@@ -38,7 +38,7 @@ export async function createIdvSession(): Promise<{ inquiryId: string }> {
   }
   let response: Response;
   try {
-    response = await fetch(`${FRAME_API_BASE_URL}/v1/idv/session`, {
+    response = await fetch(`${frameApiBaseUrl()}/v1/idv/session`, {
       method: 'POST',
       headers: idvHeaders(),
       body: JSON.stringify({}),
@@ -83,7 +83,7 @@ export type IdvCompletionStatus = 'verified' | 'not_verified' | 'pending';
 export async function completeIdvSession(inquiryId: string): Promise<IdvCompletionStatus> {
   let response: Response;
   try {
-    response = await fetch(`${FRAME_API_BASE_URL}/v1/idv/complete`, {
+    response = await fetch(`${frameApiBaseUrl()}/v1/idv/complete`, {
       method: 'POST',
       headers: idvHeaders(),
       body: JSON.stringify({ inquiry_id: inquiryId }),
