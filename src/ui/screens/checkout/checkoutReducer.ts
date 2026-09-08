@@ -46,6 +46,15 @@ export interface CheckoutFieldErrors {
 export interface CheckoutState {
   // Loaded saved payment methods. null = not loaded yet; [] = loaded empty.
   accountPaymentOptions: ReadonlyArray<FramePaymentMethod> | null;
+  /**
+   * Whether the saved-methods fetch has settled. The card / billing / save-card
+   * block is held back until it flips, so a returning user doesn't see that form
+   * flash before their saved card is auto-selected. iOS
+   * `didLoadAccountPaymentMethods` (FrameCheckoutViewModel.swift:40).
+   */
+  didLoadPaymentOptions: boolean;
+  /** The user explicitly picked "Enter New Payment Method". */
+  userChoseNewCard: boolean;
   selectedAccountPaymentOptionId: string | null;
   customerName: string;
   customerEmail: string;
@@ -76,6 +85,8 @@ export type CheckoutAction =
 export function initialCheckoutState(addressMode: AddressMode = 'required'): CheckoutState {
   return {
     accountPaymentOptions: null,
+    didLoadPaymentOptions: false,
+    userChoseNewCard: false,
     selectedAccountPaymentOptionId: null,
     customerName: '',
     customerEmail: '',
@@ -97,10 +108,33 @@ export function initialCheckoutState(addressMode: AddressMode = 'required'): Che
 
 export function checkoutReducer(state: CheckoutState, action: CheckoutAction): CheckoutState {
   switch (action.type) {
-    case 'SET_PAYMENT_OPTIONS':
-      return { ...state, accountPaymentOptions: action.options };
+    case 'SET_PAYMENT_OPTIONS': {
+      // Auto-select the first saved method, matching iOS
+      // (FrameCheckoutViewModel.swift:122-126). Only when nothing is selected
+      // and the card field is untouched, so a user who has started typing a new
+      // card isn't switched out from under them.
+      const shouldAutoSelect =
+        state.selectedAccountPaymentOptionId === null &&
+        !state.cardComplete &&
+        !state.userChoseNewCard &&
+        action.options.length > 0;
+      return {
+        ...state,
+        accountPaymentOptions: action.options,
+        didLoadPaymentOptions: true,
+        selectedAccountPaymentOptionId: shouldAutoSelect
+          ? (action.options[0]?.id ?? null)
+          : state.selectedAccountPaymentOptionId,
+      };
+    }
     case 'SELECT_SAVED_OPTION':
-      return { ...state, selectedAccountPaymentOptionId: action.id };
+      return {
+        ...state,
+        selectedAccountPaymentOptionId: action.id,
+        // Picking "Enter New Payment Method" is a deliberate choice; remember it
+        // so a late-arriving options list doesn't auto-select over it.
+        userChoseNewCard: action.id === null,
+      };
     case 'SET_CUSTOMER_NAME':
       return {
         ...state,

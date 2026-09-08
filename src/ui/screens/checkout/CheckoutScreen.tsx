@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFrameTheme } from '../../theme/ThemeContext';
 import { BottomSheet } from '../../primitives/BottomSheet';
 import { Button } from '../../primitives/Button';
@@ -9,6 +9,7 @@ import { PaymentCardField, type PaymentCardFieldHandle } from '../../primitives/
 import { ApplePayButton } from '../../primitives/ApplePayButton';
 import { GooglePayButton } from '../../primitives/GooglePayButton';
 import { CountryPicker } from '../../primitives/CountryPicker';
+import { Checkbox } from '../../primitives/Checkbox';
 import { Icon, type IconName } from '../../assets';
 import { convertCentsToCurrencyString } from '../../../currency';
 import { addressFormatForCountry } from '../../../addressFormat';
@@ -202,7 +203,7 @@ export function CheckoutScreen({
                   subtitle={savedMethodSubtitle(pm) ?? undefined}
                   selected={vm.state.selectedAccountPaymentOptionId === pm.id}
                   onPress={() => vm.dispatch({ type: 'SELECT_SAVED_OPTION', id: pm.id })}
-                  icon={<Icon name={brandIconName(pm.card?.brand)} width={40} height={28} />}
+                  icon={<Icon name={savedMethodIconName(pm)} width={40} height={28} />}
                 />
               ))}
               <PaymentMethodRow
@@ -264,7 +265,11 @@ export function CheckoutScreen({
           </View>
         </View>
 
-        {!vm.isUsingSaved ? (
+        {/* Held back until the saved-methods fetch settles, so a returning
+            user doesn't see this form flash before their saved card is
+            auto-selected. iOS gates on didLoadAccountPaymentMethods
+            (FrameCheckoutView.swift:83-85). */}
+        {vm.state.didLoadPaymentOptions && !vm.isUsingSaved ? (
           <>
             <View style={styles.section}>
               <Text
@@ -385,23 +390,27 @@ export function CheckoutScreen({
               </View>
             ) : null}
 
-            <View style={styles.saveCardRow}>
-              <Text
-                style={{
-                  color: theme.colors.textSecondary,
-                  fontSize: theme.fonts.headline.size,
-                  fontWeight: theme.fontWeights.headline,
-                  lineHeight: theme.fontLineHeights.headline,
-                  flex: 1,
-                }}
-              >
-                Save this card for future payments
-              </Text>
-              <Switch
-                value={vm.state.saveCard}
-                onValueChange={(v) => vm.dispatch({ type: 'SET_SAVE_CARD', value: v })}
-              />
-            </View>
+            {/* A checkbox, not a switch: iOS applies iOSCheckboxToggleStyle to
+                this control (FrameCheckoutView.swift:400-411), and Checkbox
+                already exists here to match it. */}
+            <Checkbox
+              style={styles.saveCardRow}
+              value={vm.state.saveCard}
+              onValueChange={(v) => vm.dispatch({ type: 'SET_SAVE_CARD', value: v })}
+              accessibilityLabel="Save this card for future payments"
+              label={
+                <Text
+                  style={{
+                    color: theme.colors.textSecondary,
+                    fontSize: theme.fonts.headline.size,
+                    fontWeight: theme.fontWeights.headline,
+                    lineHeight: theme.fontLineHeights.headline,
+                  }}
+                >
+                  Save this card for future payments
+                </Text>
+              }
+            />
           </>
         ) : null}
 
@@ -418,7 +427,23 @@ export function CheckoutScreen({
   );
 }
 
-function savedMethodTitle(pm: { card?: { brand?: string; last_four?: string } | undefined; type?: string }): string {
+interface SavedMethod {
+  card?: { brand?: string; last_four?: string; exp_month?: string; exp_year?: string };
+  ach?: { last_four?: string; account_type?: string };
+  type?: string;
+}
+
+function isAch(pm: SavedMethod): boolean {
+  return pm.type === 'ach' || pm.ach !== undefined;
+}
+
+function savedMethodTitle(pm: SavedMethod): string {
+  // ACH rows used to fall through to 'Saved card' with a credit-card icon,
+  // because only the card branch existed. iOS branches on the type
+  // (FramePaymentMethodRow.swift:73-80).
+  if (isAch(pm)) {
+    return pm.ach?.last_four ? `Bank •••• ${pm.ach.last_four}` : 'Bank account';
+  }
   if (pm.card && pm.card.last_four) {
     const brand = pm.card.brand ? prettyBrand(pm.card.brand) : 'Card';
     return `${brand} •••• ${pm.card.last_four}`;
@@ -426,11 +451,19 @@ function savedMethodTitle(pm: { card?: { brand?: string; last_four?: string } | 
   return 'Saved card';
 }
 
-function savedMethodSubtitle(pm: { card?: { exp_month?: string; exp_year?: string } | undefined }): string | null {
+function savedMethodSubtitle(pm: SavedMethod): string | null {
+  if (isAch(pm)) {
+    const type = pm.ach?.account_type;
+    return type ? `${type.charAt(0).toUpperCase()}${type.slice(1)} Account` : null;
+  }
   if (pm.card?.exp_month && pm.card?.exp_year) {
-    return `Exp ${pm.card.exp_month}/${pm.card.exp_year}`;
+    return `Exp. ${pm.card.exp_month}/${pm.card.exp_year}`;
   }
   return null;
+}
+
+function savedMethodIconName(pm: SavedMethod): IconName {
+  return isAch(pm) ? 'bank-icon' : brandIconName(pm.card?.brand);
 }
 
 function brandIconName(brand: string | undefined): IconName {

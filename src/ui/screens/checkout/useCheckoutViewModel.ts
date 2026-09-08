@@ -77,10 +77,10 @@ export function useCheckoutViewModel({
   // The ref flips synchronously inside the callback so the second tap bails.
   const performingRef = useRef(false);
 
-  // Load saved payment methods for the account. This is a secret-keyed call, so
-  // a publishable-key-only client skips it rather than firing an unauthorized
-  // request — the user can still enter a new card. (Checkout submit is likewise
-  // gated by requireSecretKeyFor below.)
+  // Prefill the customer fields from the account, then load its saved payment
+  // methods. Both are secret-keyed calls, so a publishable-key-only client skips
+  // them rather than firing unauthorized requests — the user can still enter a
+  // new card. (Checkout submit is likewise gated by requireSecretKeyFor below.)
   useEffect(() => {
     if (!hasSecretKey()) {
       dispatch({ type: 'SET_PAYMENT_OPTIONS', options: [] });
@@ -88,6 +88,30 @@ export function useCheckoutViewModel({
     }
     let cancelled = false;
     (async () => {
+      // Name and email come off the account so a returning customer doesn't
+      // retype them. Mirrors iOS loadAccountDetails
+      // (FrameCheckoutViewModel.swift:88-108), which reads
+      // profile.individual.name / .email. Non-fatal — the fields stay editable.
+      try {
+        const account = await client.sdk.accounts.get(accountId);
+        if (cancelled) return;
+        const individual = (account?.profile as { individual?: unknown } | null | undefined)
+          ?.individual as
+          | { name?: { first_name?: unknown; last_name?: unknown }; email?: unknown }
+          | undefined;
+        if (individual) {
+          const first = typeof individual.name?.first_name === 'string' ? individual.name.first_name : '';
+          const last = typeof individual.name?.last_name === 'string' ? individual.name.last_name : '';
+          const full = `${first} ${last}`.trim();
+          if (full) dispatch({ type: 'SET_CUSTOMER_NAME', value: full });
+          if (typeof individual.email === 'string' && individual.email) {
+            dispatch({ type: 'SET_CUSTOMER_EMAIL', value: individual.email });
+          }
+        }
+      } catch {
+        // Prefill is a convenience; the user types the fields instead.
+      }
+
       try {
         const resp = await client.sdk.accounts.getPaymentMethods(accountId);
         if (cancelled) return;

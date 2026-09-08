@@ -209,3 +209,50 @@ describe('validateForSubmit', () => {
     expect(validateForSubmit(stateWith('')).fieldErrors.addressPostalCode).toBeDefined();
   });
 });
+
+describe('saved-method loading', () => {
+  const savedCard = { id: 'pm_1' } as never;
+  const otherCard = { id: 'pm_2' } as never;
+
+  it('holds didLoadPaymentOptions false until the fetch settles', () => {
+    expect(initialCheckoutState().didLoadPaymentOptions).toBe(false);
+    const loaded = checkoutReducer(initialCheckoutState(), {
+      type: 'SET_PAYMENT_OPTIONS',
+      options: [],
+    });
+    expect(loaded.didLoadPaymentOptions).toBe(true);
+  });
+
+  it('auto-selects the first saved method', () => {
+    const s = checkoutReducer(initialCheckoutState(), {
+      type: 'SET_PAYMENT_OPTIONS',
+      options: [savedCard, otherCard],
+    });
+    expect(s.selectedAccountPaymentOptionId).toBe('pm_1');
+  });
+
+  it('does not auto-select when the user has started typing a card', () => {
+    let s = checkoutReducer(initialCheckoutState(), { type: 'SET_CARD_COMPLETE', value: true });
+    s = checkoutReducer(s, { type: 'SET_PAYMENT_OPTIONS', options: [savedCard] });
+    expect(s.selectedAccountPaymentOptionId).toBeNull();
+  });
+
+  it('does not auto-select over a deliberate "Enter New Payment Method" choice', () => {
+    // A late-arriving options list must not undo an explicit pick.
+    let s = checkoutReducer(initialCheckoutState(), { type: 'SELECT_SAVED_OPTION', id: null });
+    s = checkoutReducer(s, { type: 'SET_PAYMENT_OPTIONS', options: [savedCard] });
+    expect(s.selectedAccountPaymentOptionId).toBeNull();
+  });
+
+  it('leaves an existing selection alone', () => {
+    let s = checkoutReducer(initialCheckoutState(), { type: 'SELECT_SAVED_OPTION', id: 'pm_2' });
+    s = checkoutReducer(s, { type: 'SET_PAYMENT_OPTIONS', options: [savedCard, otherCard] });
+    expect(s.selectedAccountPaymentOptionId).toBe('pm_2');
+  });
+
+  it('selects nothing when the account has no saved methods', () => {
+    const s = checkoutReducer(initialCheckoutState(), { type: 'SET_PAYMENT_OPTIONS', options: [] });
+    expect(s.selectedAccountPaymentOptionId).toBeNull();
+    expect(s.didLoadPaymentOptions).toBe(true);
+  });
+});
