@@ -257,11 +257,17 @@ export function OnboardingRoot({
               onConfirmFrameOtp={() => vm.confirmFrameOtp().catch(surfaceError)}
               onProveResult={(result) => {
                 if (result.status === 'success') {
-                  // Re-fetch account so Prove's server-side identity prefill
-                  // lands in the customer-information screen. Mirrors iOS
-                  // OnboardingContainerViewModel.sendOTPVerification.
+                  // Prove's own success is not the verification. iOS passes a
+                  // confirmHandler that POSTs confirmVerification(accountId:
+                  // verificationId:) once the Prove SDK succeeds
+                  // (OnboardingContainerViewModel.swift:472-475); without it the
+                  // account's phone stays unverified. Confirm first, then
+                  // re-fetch the account so Prove's server-side identity prefill
+                  // lands in the customer-information screen (iOS
+                  // sendOTPVerification does the same refresh).
                   void vm
-                    .refreshAccountAfterPhoneVerify()
+                    .confirmProveVerification()
+                    .then(() => vm.refreshAccountAfterPhoneVerify())
                     .catch(() => {})
                     .finally(() => {
                       vm.goTo('personal_information', 'customer_information');

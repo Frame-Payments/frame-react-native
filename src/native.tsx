@@ -319,7 +319,6 @@ export async function presentCheckout(options: PresentCheckoutOptions): Promise<
       showGooglePay={googlePayReady}
       onSuccess={(id) => api.complete(id)}
       onClose={() => api.cancel()}
-      onFail={(err) => api.fail(err)}
     />
   ));
 }
@@ -381,7 +380,6 @@ export async function presentCart(options: PresentCartOptions): Promise<string> 
       cartOptions={options}
       onComplete={(id) => api.complete(id)}
       onCancel={() => api.cancel()}
-      onFail={(err) => api.fail(err)}
     />
   ));
 }
@@ -486,12 +484,10 @@ function CartCheckoutBridge({
   cartOptions,
   onComplete,
   onCancel,
-  onFail,
 }: {
   cartOptions: PresentCartOptions;
   onComplete: (id: string) => void;
   onCancel: () => void;
-  onFail: (err: unknown) => void;
 }) {
   const [stage, setStage] = useState<'cart' | 'checkout'>('cart');
   const [applePayReady, setApplePayReady] = useState(false);
@@ -541,7 +537,6 @@ function CartCheckoutBridge({
       showGooglePay={googlePayReady}
       onSuccess={onComplete}
       onClose={() => setStage('cart')}
-      onFail={onFail}
     />
   );
 }

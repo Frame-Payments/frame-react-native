@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useFrameTheme } from '../../theme/ThemeContext';
 import { BottomSheet } from '../../primitives/BottomSheet';
@@ -11,6 +11,11 @@ import { GooglePayButton } from '../../primitives/GooglePayButton';
 import { CountryPicker } from '../../primitives/CountryPicker';
 import { Icon, type IconName } from '../../assets';
 import { convertCentsToCurrencyString } from '../../../currency';
+import { showToast } from '../../primitives/toastCenter';
+import { toToastMessage } from '../../../api-errors';
+import { isFrameError, normalizeToFrameError, ErrorCodes } from '../../../errors';
+import { presentApplePayFlow } from '../../../applePay';
+import { presentGooglePayFlow } from '../../../googlePay';
 import { useCheckoutViewModel } from './useCheckoutViewModel';
 import type { AddressMode } from './checkoutReducer';
 
@@ -22,12 +27,20 @@ export interface CheckoutScreenProps {
   title?: string;
   onSuccess: (transferId: string) => void;
   onClose: () => void;
-  onFail: (error: unknown) => void;
-  // Wallet buttons fire callbacks; the host wires these into Frame.presentApplePay
-  // / Frame.presentGooglePay from outside the modal (the wallet flow runs as
-  // its own modal, not embedded in Checkout).
+  /**
+   * Render the Apple Pay button. Checkout runs the wallet charge itself against
+   * `accountId` / `amount` / `currency`, matching iOS's embedded
+   * `FrameApplePayButton(mode: .charge(...), owner: .account(...))`
+   * (`Sources/Frame/Views/FrameCheckoutView.swift:164-167`) — the host does not
+   * wire a callback.
+   */
   showApplePay?: boolean;
+  /** Render the Google Pay button. See {@link CheckoutScreenProps.showApplePay}. */
   showGooglePay?: boolean;
+  /**
+   * Overrides the built-in wallet charge. Only used by tests; production
+   * callers leave these unset so checkout drives the wallet flow in-modal.
+   */
   onApplePay?: () => void;
   onGooglePay?: () => void;
 }
@@ -40,7 +53,6 @@ export function CheckoutScreen({
   title = 'Checkout',
   onSuccess,
   onClose,
-  onFail,
   showApplePay = false,
   showGooglePay = false,
   onApplePay,
@@ -50,25 +62,74 @@ export function CheckoutScreen({
   const cardFieldRef = useRef<PaymentCardFieldHandle | null>(null);
   const vm = useCheckoutViewModel({ accountId, amount, currency, addressMode, cardFieldRef });
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const [walletBusy, setWalletBusy] = useState(false);
 
-  const showWalletRow = (showApplePay && onApplePay) || (showGooglePay && onGooglePay);
+  const showWalletRow = showApplePay || showGooglePay;
 
   async function handlePay() {
     try {
       const transferId = await vm.submit();
       onSuccess(transferId);
     } catch (err) {
-      onFail(err);
+      // Every error — card declined, validation, transport — surfaces as a
+      // toast and leaves the sheet open so the user can correct the input and
+      // retry. Tearing the modal down here would discard the entered card and
+      // address for what is often a transient failure. Mirrors iOS
+      // `FrameCheckoutView.swift:428-436`.
+      showToast(toToastMessage(err));
     }
   }
+
+  // Runs the wallet charge in-modal, exactly as iOS's embedded
+  // FrameApplePayButton does. A cancel is silent; any other failure toasts and
+  // keeps checkout open so the user can retry or fall through to card entry
+  // (`FrameCheckoutView.swift:176-191`).
+  async function runWallet(charge: () => Promise<string>, fallback: string) {
+    if (walletBusy) return;
+    setWalletBusy(true);
+    try {
+      onSuccess(await charge());
+    } catch (err) {
+      const code = isFrameError(err) ? err.code : normalizeToFrameError(err).code;
+      if (code !== ErrorCodes.USER_CANCELED) showToast(toToastMessage(err, fallback));
+    } finally {
+      setWalletBusy(false);
+    }
+  }
+
+  const handleApplePay =
+    onApplePay ??
+    (() =>
+      void runWallet(
+        () =>
+          presentApplePayFlow({
+            amount,
+            currency: currency.toLowerCase(),
+            owner: { type: 'account', id: accountId },
+          }),
+        'Apple Pay could not complete. Please try again or use a card.',
+      ));
+
+  const handleGooglePay =
+    onGooglePay ??
+    (() =>
+      void runWallet(
+        () =>
+          presentGooglePayFlow({
+            amountCents: amount,
+            currencyCode: currency.toUpperCase(),
+            owner: { type: 'account', id: accountId },
+          }),
+        'Google Pay could not complete. Please try again or use a card.',
+      ));
 
   return (
     <BottomSheet title={title} onClose={onClose}>
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {showWalletRow ? (
           <View style={styles.walletSection}>
-            {showApplePay && onApplePay ? <ApplePayButton onPress={onApplePay} /> : null}
-            {showGooglePay && onGooglePay ? <GooglePayButton onPress={onGooglePay} /> : null}
+            {showApplePay ? <ApplePayButton onPress={handleApplePay} /> : null}
+            {showGooglePay ? <GooglePayButton onPress={handleGooglePay} /> : null}
             <View style={styles.orRow}>
               <View style={[styles.orLine, { backgroundColor: theme.colors.surfaceStroke }]} />
               <Text style={[styles.orLabel, { color: theme.colors.textSecondary }]}>Or</Text>

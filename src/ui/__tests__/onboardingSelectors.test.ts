@@ -89,7 +89,7 @@ describe('computeFlow — capability → step mapping', () => {
 
   it('creator_shield routes to personal_information (mirrors native SDK behavior; no dedicated screen)', () => {
     expect(computeFlow(['creator_shield'])).toContain('personal_information');
-    expect(entrySubStep('personal_information', ['creator_shield'])).toBe('phone_auth');
+    expect(entrySubStep('personal_information')).toBe('phone_auth');
   });
 
   it('full-stack: kyc + card_verification + bank_account_send', () => {
@@ -129,33 +129,27 @@ describe('computeFlow — capability → step mapping', () => {
 
 describe('entrySubStep', () => {
   it('verification_welcome has null sub-step', () => {
-    expect(entrySubStep('verification_welcome', [])).toBeNull();
+    expect(entrySubStep('verification_welcome')).toBeNull();
   });
 
-  it('personal_information defaults to phone_auth when any phone-touching capability present', () => {
-    expect(entrySubStep('personal_information', ['kyc'])).toBe('phone_auth');
-    expect(entrySubStep('personal_information', ['kyc_prefill'])).toBe('phone_auth');
-    expect(entrySubStep('personal_information', ['geo_compliance'])).toBe('phone_auth');
-  });
-
-  it('personal_information for age_verification-only skips straight to customer_information', () => {
-    expect(entrySubStep('personal_information', ['age_verification'])).toBe('customer_information');
+  it('personal_information always enters at phone_auth', () => {
+    expect(entrySubStep('personal_information')).toBe('phone_auth');
   });
 
   it('confirm_payment_method enters at select', () => {
-    expect(entrySubStep('confirm_payment_method', ['card_send'])).toBe('select');
+    expect(entrySubStep('confirm_payment_method')).toBe('select');
   });
 
   it('confirm_bank_account enters at select', () => {
-    expect(entrySubStep('confirm_bank_account', ['bank_account_send'])).toBe('select');
+    expect(entrySubStep('confirm_bank_account')).toBe('select');
   });
 
   it('upload_documents enters at list', () => {
-    expect(entrySubStep('upload_documents', ['kyc'])).toBe('list');
+    expect(entrySubStep('upload_documents')).toBe('list');
   });
 
   it('verification_submitted has null sub-step', () => {
-    expect(entrySubStep('verification_submitted', [])).toBeNull();
+    expect(entrySubStep('verification_submitted')).toBeNull();
   });
 });
 
@@ -167,7 +161,7 @@ describe('nextStep / previousStep', () => {
       type: 'SET_FLOW',
       flow,
       currentStep: flow[0]!,
-      subStep: entrySubStep(flow[0]!, caps),
+      subStep: entrySubStep(flow[0]!),
     });
     return s;
   }

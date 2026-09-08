@@ -82,12 +82,12 @@ export interface FlowEntry {
 }
 
 // Default sub-step when entering a step from forward navigation.
-export function entrySubStep(step: OnboardingStep, capabilities: ReadonlyArray<OnboardingCapability>): OnboardingSubStep | null {
+export function entrySubStep(step: OnboardingStep): OnboardingSubStep | null {
   switch (step) {
     case 'verification_welcome':
       return null;
     case 'personal_information':
-      return firstPersonalInfoSubStep(capabilities);
+      return firstPersonalInfoSubStep();
     case 'confirm_payment_method':
       return 'select';
     case 'confirm_bank_account':
@@ -99,21 +99,17 @@ export function entrySubStep(step: OnboardingStep, capabilities: ReadonlyArray<O
   }
 }
 
-function firstPersonalInfoSubStep(capabilities: ReadonlyArray<OnboardingCapability>): PersonalInfoSubStep {
-  // Phone-auth always runs first if any phone-touching capability is requested.
-  // Per iOS source: phone_verification, kyc, kyc_prefill, creator_shield, geo_compliance
-  // all gate on phone auth before customer information.
-  if (
-    capabilities.includes('phone_verification') ||
-    capabilities.includes('kyc') ||
-    capabilities.includes('kyc_prefill') ||
-    capabilities.includes('creator_shield') ||
-    capabilities.includes('geo_compliance')
-  ) {
-    return 'phone_auth';
-  }
-  // age_verification-only path skips straight to customer information.
-  return 'customer_information';
+function firstPersonalInfoSubStep(): PersonalInfoSubStep {
+  // Phone auth always runs first, with no capability gate — iOS hardcodes
+  // `@State private var identitySteps: UserIdentificationSteps = .phoneAuth`
+  // (`Sources/FrameOnboarding/Views/Identity/Identification/UserIdentificationView.swift:42`).
+  //
+  // This is not cosmetic: `accounts.create` is reachable from exactly one place,
+  // inside sendOtp (useOnboardingViewModel.ts). Skipping phone auth means no
+  // account exists, and submitCustomerInformation then throws
+  // 'No account id present. Restart onboarding.' with no recovery — which is
+  // what an `age_verification`-only flow used to hit.
+  return 'phone_auth';
 }
 
 // Next step in the linear flow. Returns null at the end.

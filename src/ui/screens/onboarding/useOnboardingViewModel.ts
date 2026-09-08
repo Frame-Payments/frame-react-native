@@ -91,6 +91,15 @@ export interface OnboardingViewModelResult {
    *  Twilio). Mirrors iOS OnboardingContainerViewModel.checkExistingAccount()
    *  called from sendOTPVerification / confirmTwilioOTP. */
   refreshAccountAfterPhoneVerify: () => Promise<void>;
+  /**
+   * Confirms a Prove-issued phone verification server-side. Prove's own SDK
+   * success is not the verification: iOS posts
+   * `PhoneOTPVerificationAPI.confirmVerification(accountId:verificationId:)`
+   * with no body once Prove succeeds
+   * (`Sources/FrameOnboarding/ViewModels/OnboardingContainerViewModel.swift:472-475`),
+   * and without it the account's phone stays unverified.
+   */
+  confirmProveVerification: () => Promise<void>;
   submitCustomerInformation: () => Promise<void>;
   /** No-SSN path: create an IDV session, launch Persona against the pre-created
    *  inquiry, then confirm with the Frame backend. On a verified backend
@@ -147,7 +156,7 @@ export function useOnboardingViewModel({
       type: 'SET_FLOW',
       flow,
       currentStep: firstStep,
-      subStep: entrySubStep(firstStep, capabilities),
+      subStep: entrySubStep(firstStep),
     });
     if (!initialAccountId) {
       // No accountId → nothing to prefetch. The Verify-Welcome continue
@@ -257,7 +266,7 @@ export function useOnboardingViewModel({
       : (flow[0] ?? 'verification_welcome');
     const subStep = currentStep === stateRef.current.currentStep
       ? stateRef.current.subStep
-      : entrySubStep(currentStep, state.requiredCapabilities);
+      : entrySubStep(currentStep);
     dispatch({ type: 'SET_FLOW', flow, currentStep, subStep });
     // We deliberately read currentStep/subStep via stateRef rather than as
     // deps — using them as deps would loop on every step transition.
@@ -289,14 +298,14 @@ export function useOnboardingViewModel({
       complete();
       return;
     }
-    dispatch({ type: 'GO_TO_STEP', step: target, subStep: entrySubStep(target, current.requiredCapabilities) });
+    dispatch({ type: 'GO_TO_STEP', step: target, subStep: entrySubStep(target) });
   }, [complete]);
 
   const back = useCallback(() => {
     const current = stateRef.current;
     const target = selectorPreviousStep(current);
     if (!target) return;
-    dispatch({ type: 'GO_TO_STEP', step: target, subStep: entrySubStep(target, current.requiredCapabilities) });
+    dispatch({ type: 'GO_TO_STEP', step: target, subStep: entrySubStep(target) });
   }, []);
 
   const goTo = useCallback((step: OnboardingStep, subStep: OnboardingSubStep | null) => {
@@ -340,10 +349,7 @@ export function useOnboardingViewModel({
       let accountId = current.accountId;
       if (!accountId) {
         const e164 = `+${current.phoneCountry.callingCode}${current.phoneNumber.replace(/\D+/g, '')}`;
-        const dob =
-          current.dobYear && current.dobMonth && current.dobDay
-            ? `${current.dobYear}-${current.dobMonth.padStart(2, '0')}-${current.dobDay.padStart(2, '0')}`
-            : undefined;
+        const dob = dobIso(current);
         const createParams = {
           type: 'individual',
           terms_of_service: buildTosPayload(current.termsOfServiceToken),
@@ -373,9 +379,20 @@ export function useOnboardingViewModel({
       }
 
       const e164 = `+${current.phoneCountry.callingCode}${current.phoneNumber.replace(/\D+/g, '')}`;
+      // `date_of_birth` is the identity-resolution key the backend hands to
+      // Prove / kyc_prefill; without it prefill degrades or fails outright.
+      // iOS declares it non-optional on CreateVerificationRequest and encodes
+      // it as `date_of_birth`
+      // (`Sources/FrameOnboarding/Networking/PhoneOTPVerification/PhoneOTPVerificationRequests.swift:25-41`).
+      // The npm SDK's CreatePhoneVerificationParams doesn't declare the field,
+      // hence the runtime-safe cast — same pattern as accounts.create above.
+      const dateOfBirth = dobIso(current);
       const verification = await client.sdk.phoneVerifications.create(
         accountId,
-        { phone_number: e164 },
+        {
+          phone_number: e164,
+          ...(dateOfBirth ? { date_of_birth: dateOfBirth } : {}),
+        } as unknown as Parameters<typeof client.sdk.phoneVerifications.create>[1],
       );
 
       // When the Prove branch has already failed, force the Frame OTP path
@@ -430,6 +447,22 @@ export function useOnboardingViewModel({
     });
   }, [guardedAction, refreshAccountAfterPhoneVerify]);
 
+  const confirmProveVerification = useCallback(async () => {
+    const current = stateRef.current;
+    if (!current.accountId || !current.pendingVerificationId) {
+      throw frameError(ErrorCodes.PAYMENT_FAILED, 'Phone verification session expired. Restart the step.');
+    }
+    // iOS sends no request body on the Prove path — the code belongs to the
+    // Twilio path only. The npm SDK's ConfirmPhoneVerificationParams declares
+    // `code` as required, so cast rather than send an empty string the backend
+    // would reject.
+    await client.sdk.phoneVerifications.confirm(
+      current.accountId,
+      current.pendingVerificationId,
+      {} as unknown as Parameters<typeof client.sdk.phoneVerifications.confirm>[2],
+    );
+  }, []);
+
   const submitCustomerInformation = useCallback(async () => {
     return guardedAction(async () => {
       const current = stateRef.current;
@@ -455,7 +488,7 @@ export function useOnboardingViewModel({
         },
         email: current.customerEmail,
         phone: { number: phoneE164, country_code: current.phoneCountry.callingCode },
-        birthdate: `${current.dobYear}-${current.dobMonth.padStart(2, '0')}-${current.dobDay.padStart(2, '0')}`,
+        birthdate: dobIso(current),
         // Omit SSN entirely when the user verified via government ID — the
         // no-SSN path means we never collected it.
         ssn_last_four: current.identityVerifiedViaGovId ? undefined : current.ssnLast4 || undefined,
@@ -818,10 +851,7 @@ export function useOnboardingViewModel({
       // the full params from reducer state. Missing fields here mean the
       // user skipped CustomerInformation — surface a clear error.
       const e164 = `+${current.phoneCountry.callingCode}${current.phoneNumber.replace(/\D+/g, '')}`;
-      const dob =
-        current.dobYear && current.dobMonth && current.dobDay
-          ? `${current.dobYear}-${current.dobMonth.padStart(2, '0')}-${current.dobDay.padStart(2, '0')}`
-          : '';
+      const dob = dobIso(current) ?? '';
       const params = {
         first_name: current.customerFirstName,
         last_name: current.customerLastName,
@@ -1006,6 +1036,7 @@ export function useOnboardingViewModel({
     sendOtp,
     confirmFrameOtp,
     refreshAccountAfterPhoneVerify,
+    confirmProveVerification,
     submitCustomerInformation,
     verifyIdentityWithoutSsn,
     loadSavedPaymentMethods,
@@ -1035,6 +1066,14 @@ export { isCapabilitySatisfied };
 interface AccountCapabilityRow {
   name: string;
   currently_due?: ReadonlyArray<string> | null;
+}
+
+// 'YYYY-MM-DD' from the reducer's three DOB fields, or undefined when the user
+// hasn't supplied a complete date. Every payload that carries a birth date
+// (account create, create-phone-verification, IDV session) uses this format.
+function dobIso(state: Pick<OnboardingState, 'dobYear' | 'dobMonth' | 'dobDay'>): string | undefined {
+  if (!state.dobYear || !state.dobMonth || !state.dobDay) return undefined;
+  return `${state.dobYear}-${state.dobMonth.padStart(2, '0')}-${state.dobDay.padStart(2, '0')}`;
 }
 
 function readAccountCapabilities(

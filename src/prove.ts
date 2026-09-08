@@ -58,9 +58,14 @@ export async function cancelProveAuth(): Promise<void> {
 
 /**
  * Launch the Prove auth flow with the auth token returned from
- * phoneVerifications.create. Resolves with `success` when Prove + the backend
- * confirm step have both completed, or `failed` (with optional message) when
- * the SDK gave up, the user canceled, or Prove isn't linked.
+ * phoneVerifications.create. Resolves with `success` when the Prove SDK
+ * completes, or `failed` (with optional message) when the SDK gave up, the
+ * user canceled, or Prove isn't linked.
+ *
+ * Prove's success is NOT the verification: the caller must still confirm it
+ * server-side via `phoneVerifications.confirm` (see
+ * `useOnboardingViewModel.confirmProveVerification`), matching iOS's
+ * `ProveConfirmHandler`.
  *
  * Behavior is consistent across platforms: if Prove falls back to OTP,
  * subscribers to the OTP-needed event are notified and the promise stays
