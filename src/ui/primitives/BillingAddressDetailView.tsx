@@ -3,9 +3,15 @@ import { StyleSheet, View } from 'react-native';
 import { useFrameTheme } from '../theme/ThemeContext';
 import { ValidatedTextField } from './ValidatedTextField';
 import { CountryPicker } from './CountryPicker';
+import {
+  AddressAutocompleteField,
+  type AddressAutocompleteOverlayState,
+} from './AddressAutocompleteField';
 import { addressFormatForCountry } from '../../addressFormat';
 import { subregionsForCountry } from '../../addressSubregions';
+import { getAvailableCountries } from '../../countries';
 import type { OnboardingAddress } from '../screens/onboarding/onboardingReducer';
+import type { BillingAddress } from '../../types';
 
 // Reusable billing-address form block. Renders 5–6 ValidatedTextFields plus
 // (in international mode) a CountryPicker. The view model owns the address
@@ -16,6 +22,20 @@ export interface BillingAddressDetailViewProps {
   /** Per-field error map keyed as `address.<field>`. */
   errors: Readonly<Record<string, string>>;
   onChangeField: (field: keyof OnboardingAddress, value: string) => void;
+  /**
+   * Batch-applies a picked autocomplete suggestion's fields in one write.
+   * Omit to fall back to a plain text field with no autocomplete (used where
+   * a screen has no overlay-rendering layer to hoist the suggestion list
+   * into, e.g. a form with no ScrollView ancestor to escape).
+   */
+  onApplyAddress?: (address: Partial<OnboardingAddress>) => void;
+  /**
+   * Reports the autocomplete suggestion list + the field's on-screen position
+   * so the CALLER can draw it outside this view's own layout — see
+   * AddressAutocompleteField.tsx's header comment for why. Required whenever
+   * `onApplyAddress` is supplied.
+   */
+  onOverlayChange?: (state: AddressAutocompleteOverlayState | null) => void;
   /** When true, shows the country picker and uses the dynamic postal/zip label.
    *  When false, country is hidden + locked to US (used by ACH billing). */
   international: boolean;
@@ -26,6 +46,8 @@ export function BillingAddressDetailView({
   address,
   errors,
   onChangeField,
+  onApplyAddress,
+  onOverlayChange,
   international,
   testID,
 }: BillingAddressDetailViewProps) {
@@ -54,8 +76,39 @@ export function BillingAddressDetailView({
   const format = addressFormatForCountry(international ? address.country : 'US');
   const hasSubregionCodes = subregionsForCountry(address.country) !== null;
 
+  // Fills the address fields from a picked autocomplete suggestion. Ports iOS
+  // BillingAddressDetailView.apply(_:) (BillingAddressDetailView.swift:53-76).
+  function handleSelectSuggestion(suggestion: BillingAddress) {
+    // The country is only taken in international mode, and only when the
+    // suggestion names one the picker offers — matches iOS's guard
+    // (`allowsInternational` + `AvailableCountry.allCountries.first(where:)`).
+    // A US-only form ignores the country outright.
+    const countryMatch =
+      international && suggestion.country
+        ? getAvailableCountries().find((c) => c.alpha2Code === suggestion.country)
+        : undefined;
+    onApplyAddress?.({
+      ...(suggestion.addressLine1 !== undefined ? { line1: suggestion.addressLine1 } : {}),
+      ...(suggestion.city !== undefined ? { city: suggestion.city } : {}),
+      ...(suggestion.state !== undefined ? { state: suggestion.state } : {}),
+      postalCode: suggestion.postalCode,
+      ...(countryMatch ? { country: countryMatch.alpha2Code } : {}),
+    });
+  }
+
   return (
     <View testID={testID} style={styles.stack}>
+      {onApplyAddress && onOverlayChange ? (
+        <AddressAutocompleteField
+          prompt="Address line 1"
+          value={address.line1}
+          onChangeText={(v) => onChangeField('line1', v)}
+          error={errors['address.line1']}
+          countryCode={international ? address.country : 'US'}
+          onSelect={handleSelectSuggestion}
+          onOverlayChange={onOverlayChange}
+        />
+      ) : (
       <ValidatedTextField
         prompt="Address line 1"
         value={address.line1}
@@ -65,6 +118,7 @@ export function BillingAddressDetailView({
         textContentType="streetAddressLine1"
         autoComplete="address-line1"
       />
+      )}
       <ValidatedTextField
         prompt="Address line 2 (optional)"
         value={address.line2}

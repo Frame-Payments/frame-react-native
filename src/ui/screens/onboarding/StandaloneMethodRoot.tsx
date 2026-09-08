@@ -94,6 +94,7 @@ export function StandaloneMethodRoot({
           <AddPaymentMethodScreen
             state={vm.state}
             onChangeAddressField={vm.setAddressField}
+            onApplyAddress={vm.applyAddress}
             onSubmitNewCard={async (card) => {
               const id = await vm.submitNewCard(card);
               finish(id);
@@ -118,6 +119,7 @@ export function StandaloneMethodRoot({
             onChangeAchAccountType={vm.setAchAccountType}
             onChangeManualMode={(value) => vm.dispatch({ type: 'SET_ACH_MANUAL_MODE', value })}
             onChangeAddressField={vm.setAddressField}
+            onApplyAddress={vm.applyAddress}
             onOpenPlaidLink={async () => {
               const id = await vm.openPlaidLink();
               // Adding a bank only attaches it; electing is what makes it the

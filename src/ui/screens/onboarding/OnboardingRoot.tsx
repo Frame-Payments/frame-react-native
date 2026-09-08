@@ -315,6 +315,7 @@ export function OnboardingRoot({
               onChangeDob={vm.setDob}
               onChangeSsn={vm.setSsnLast4}
               onChangeAddressField={vm.setAddressField}
+              onApplyAddress={vm.applyAddress}
               onSubmit={() => vm.submitCustomerInformation().catch(surfaceError)}
               onVerifyIdentity={() => vm.verifyIdentityWithoutSsn().catch(surfaceError)}
             />
@@ -342,6 +343,7 @@ export function OnboardingRoot({
             <AddPaymentMethodScreen
               state={vm.state}
               onChangeAddressField={vm.setAddressField}
+              onApplyAddress={vm.applyAddress}
               onSubmitNewCard={onAddPaymentMethodSubmit}
               onSubmitAddressOnly={onAddPaymentMethodAddressOnly}
               onAddApplePay={onAddApplePayInOnboarding}
@@ -381,6 +383,7 @@ export function OnboardingRoot({
               onChangeAchAccountType={vm.setAchAccountType}
               onChangeManualMode={vm.setAchManualMode}
               onChangeAddressField={vm.setAddressField}
+              onApplyAddress={vm.applyAddress}
               onOpenPlaidLink={onAddPayoutPlaid}
               onSubmitManualAch={onAddPayoutManual}
             />

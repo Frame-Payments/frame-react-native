@@ -74,6 +74,14 @@ export interface ValidatedTextFieldProps {
   style?: ViewStyle;
   /** Override the screen-reader label. Defaults to `prompt`. */
   accessibilityLabel?: string;
+  /**
+   * Focus lifecycle, matching iOS's `focused: FocusState<Bool>.Binding?`
+   * (`ValidatedTextField.swift:94`). {@link AddressAutocompleteField} uses
+   * this to show/hide its suggestion overlay only while the field itself has
+   * focus, the same way iOS gates its `.overlay` on `@FocusState`.
+   */
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
 const HEIGHT = 49;
@@ -121,6 +129,8 @@ export function ValidatedTextField({
   testID,
   style,
   accessibilityLabel,
+  onFocus,
+  onBlur,
 }: ValidatedTextFieldProps) {
   const theme = useFrameTheme();
 
@@ -153,6 +163,8 @@ export function ValidatedTextField({
       autoCorrect={autoCorrect}
       spellCheck={spellCheck}
       maxLength={effectiveMaxLength}
+      onFocus={onFocus}
+      onBlur={onBlur}
       accessibilityLabel={accessibilityLabel ?? prompt}
       accessibilityHint={error ?? undefined}
       testID={testID}

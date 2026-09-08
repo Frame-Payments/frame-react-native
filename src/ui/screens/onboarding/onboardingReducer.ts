@@ -197,6 +197,7 @@ export type OnboardingAction =
   | { type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID'; verified: boolean; inquiryId: string | null }
   | { type: 'SET_IDENTITY_DOCUMENT_REQUIRED'; required: boolean }
   | { type: 'SET_ADDRESS_FIELD'; field: keyof OnboardingAddress; value: string }
+  | { type: 'APPLY_ADDRESS'; address: Partial<OnboardingAddress> }
   // Payment method
   | { type: 'SET_SAVED_PAYMENT_METHODS'; methods: ReadonlyArray<FramePaymentMethod> }
   | { type: 'APPEND_SAVED_PAYMENT_METHOD'; method: FramePaymentMethod }
@@ -397,6 +398,32 @@ export function onboardingReducer(state: OnboardingState, action: OnboardingActi
         address: nextAddress,
         fieldErrors: clearError(state.fieldErrors, `address.${action.field}`),
       };
+    }
+    case 'APPLY_ADDRESS': {
+      // Fills the billing address fields from a picked autocomplete
+      // suggestion. Ports iOS BillingAddressDetailView.apply(_:)
+      // (BillingAddressDetailView.swift:53-76) — the mirror of
+      // FrameCheckoutViewModel.apply(_:) for the onboarding "Current Address"
+      // field.
+      //
+      // One dispatch, not one SET_ADDRESS_FIELD per field: iOS's own comment
+      // explains why (BillingAddressDetailView.swift:54-57) — writing fields
+      // one at a time publishes a change per field, and a field still
+      // rendering mid-fill can write its pre-fill value back before the next
+      // field lands, so only the last field applied would actually stick.
+      //
+      // Line 2 and country are deliberately excluded here — line 2 because
+      // Mapbox doesn't reliably return apartment/unit, so whatever the user
+      // typed stands; country because the caller (BillingAddressDetailView)
+      // applies it only when it matches one the picker offers, matching iOS's
+      // `AvailableCountry.allCountries.first(where:)` guard, and only in
+      // international mode.
+      const nextAddress: OnboardingAddress = { ...state.address, ...action.address };
+      let errors = state.fieldErrors;
+      for (const field of ['line1', 'city', 'state', 'postalCode'] as const) {
+        if (field in action.address) errors = clearError(errors, `address.${field}`);
+      }
+      return { ...state, address: nextAddress, fieldErrors: errors };
     }
     case 'SET_SAVED_PAYMENT_METHODS':
       return { ...state, savedPaymentMethods: action.methods };

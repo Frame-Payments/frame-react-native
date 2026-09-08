@@ -75,6 +75,7 @@ export type CheckoutAction =
   | { type: 'SET_CUSTOMER_NAME'; value: string }
   | { type: 'SET_CUSTOMER_EMAIL'; value: string }
   | { type: 'SET_ADDRESS_FIELD'; field: keyof AddressForm; value: string }
+  | { type: 'APPLY_ADDRESS'; address: Partial<AddressForm> }
   | { type: 'SET_ADDRESS_MODE'; mode: AddressMode }
   | { type: 'SET_SAVE_CARD'; value: boolean }
   | { type: 'SET_CARD_COMPLETE'; value: boolean }
@@ -155,6 +156,36 @@ export function checkoutReducer(state: CheckoutState, action: CheckoutAction): C
         address: nextAddress,
         fieldErrors: errorKey ? clearError(state.fieldErrors, errorKey) : state.fieldErrors,
       };
+    }
+    case 'APPLY_ADDRESS': {
+      // Fills the billing address fields from a picked autocomplete
+      // suggestion. Ports iOS FrameCheckoutViewModel.apply(_:)
+      // (FrameCheckoutViewModel.swift:183-201).
+      //
+      // One dispatch, not one SET_ADDRESS_FIELD per field: iOS's own comment
+      // on the equivalent onboarding path explains why this matters
+      // (BillingAddressDetailView.swift:54-57) — writing fields one at a time
+      // publishes a change per field, and any field still rendering mid-fill
+      // can write its pre-fill value back before the next field lands, so
+      // only the last field applied would actually stick. A single object
+      // spread is one state transition; React can't interleave a render
+      // between two properties of the same object.
+      //
+      // Line 2 is deliberately excluded — Mapbox doesn't reliably return
+      // apartment/unit, so whatever the user typed there stands (same iOS
+      // comment). Country is applied by the caller only when it matches one
+      // the picker offers, matching iOS's `AvailableCountry.allCountries.first(where:)`
+      // guard — a result must not move the form to a country the merchant
+      // hasn't enabled.
+      const nextAddress: AddressForm = { ...state.address, ...action.address };
+      let errors = state.fieldErrors;
+      for (const field of ['line1', 'city', 'state', 'postalCode'] as const) {
+        if (field in action.address) {
+          const key = addressFieldToErrorKey(field);
+          if (key) errors = clearError(errors, key);
+        }
+      }
+      return { ...state, address: nextAddress, fieldErrors: errors };
     }
     case 'SET_ADDRESS_MODE':
       return { ...state, addressMode: action.mode };

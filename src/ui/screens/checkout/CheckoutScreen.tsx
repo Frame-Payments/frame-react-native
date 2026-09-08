@@ -9,7 +9,13 @@ import { PaymentCardField, type PaymentCardFieldHandle } from '../../primitives/
 import { ApplePayButton } from '../../primitives/ApplePayButton';
 import { GooglePayButton } from '../../primitives/GooglePayButton';
 import { CountryPicker } from '../../primitives/CountryPicker';
+import {
+  AddressAutocompleteField,
+  AddressAutocompleteOverlay,
+  type AddressAutocompleteOverlayState,
+} from '../../primitives/AddressAutocompleteField';
 import { Checkbox } from '../../primitives/Checkbox';
+import { getAvailableCountries } from '../../../countries';
 import { Icon, type IconName } from '../../assets';
 import { convertCentsToCurrencyString } from '../../../currency';
 import { addressFormatForCountry } from '../../../addressFormat';
@@ -22,6 +28,7 @@ import { ThreeDSecureChallenge } from '../../primitives/ThreeDSecureChallenge';
 import type { ThreeDSecureChallengeResult } from '../../../threeDSecure';
 import { useCheckoutViewModel } from './useCheckoutViewModel';
 import type { AddressMode } from './checkoutReducer';
+import type { BillingAddress } from '../../../types';
 
 export interface CheckoutScreenProps {
   accountId: string;
@@ -77,6 +84,11 @@ export function CheckoutScreen({
   const cardFieldRef = useRef<PaymentCardFieldHandle | null>(null);
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [walletBusy, setWalletBusy] = useState(false);
+  // Address-autocomplete's suggestion dropdown must render outside the
+  // ScrollView/rounded-container it would otherwise be clipped by (see
+  // AddressAutocompleteField.tsx's header comment) — this screen owns that
+  // render layer and draws whatever the field last reported.
+  const [addressOverlay, setAddressOverlay] = useState<AddressAutocompleteOverlayState | null>(null);
 
   // The 3DS challenge is a modal this screen owns, but it is awaited from inside
   // the view model's submit. Park the resolver here so the WebView's outcome
@@ -127,6 +139,28 @@ export function CheckoutScreen({
   // binary, so a UK county or Japanese prefecture was labelled "State" and
   // truncated to two characters as the user typed.
   const addressFormat = addressFormatForCountry(vm.state.address.country);
+
+  // Fills the billing address fields from a picked autocomplete suggestion.
+  // Ports iOS FrameCheckoutViewModel.apply(_:) (FrameCheckoutViewModel.swift:183-201).
+  function onApplyAddress(address: BillingAddress) {
+    // The country is only taken when the suggestion names one the picker
+    // offers, so a result cannot move the form to a country the merchant has
+    // not enabled — matches iOS's
+    // `AvailableCountry.allCountries.first(where: { $0.alpha2Code == code })` guard.
+    const countryMatch = address.country
+      ? getAvailableCountries().find((c) => c.alpha2Code === address.country)
+      : undefined;
+    vm.dispatch({
+      type: 'APPLY_ADDRESS',
+      address: {
+        ...(address.addressLine1 !== undefined ? { line1: address.addressLine1 } : {}),
+        ...(address.city !== undefined ? { city: address.city } : {}),
+        ...(address.state !== undefined ? { state: address.state } : {}),
+        postalCode: address.postalCode,
+        ...(countryMatch ? { country: countryMatch.alpha2Code } : {}),
+      },
+    });
+  }
 
   async function handlePay() {
     try {
@@ -194,11 +228,12 @@ export function CheckoutScreen({
       ));
 
   return (
-    <BottomSheet title={title} onClose={onClose}>
-      {challengeUrl ? (
-        <ThreeDSecureChallenge challengeUrl={challengeUrl} onFinish={finishChallenge} />
-      ) : null}
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+    <View style={styles.root}>
+      <BottomSheet title={title} onClose={onClose}>
+        {challengeUrl ? (
+          <ThreeDSecureChallenge challengeUrl={challengeUrl} onFinish={finishChallenge} />
+        ) : null}
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {showWalletRow ? (
           <View style={styles.walletSection}>
             {showApplePay ? <ApplePayButton onPress={handleApplePay} /> : null}
@@ -353,14 +388,14 @@ export function CheckoutScreen({
                     },
                   ]}
                 >
-                  <ValidatedTextField
+                  <AddressAutocompleteField
                     prompt="Address Line 1"
                     value={vm.state.address.line1}
                     onChangeText={(v) => vm.dispatch({ type: 'SET_ADDRESS_FIELD', field: 'line1', value: v })}
                     error={vm.state.fieldErrors.addressLine1}
-                    autoCapitalize="words"
-                    textContentType="streetAddressLine1"
-                    autoComplete="address-line1"
+                    countryCode={vm.state.address.country}
+                    onSelect={onApplyAddress}
+                    onOverlayChange={setAddressOverlay}
                     borderless
                   />
                   <View style={[styles.hDivider, { backgroundColor: theme.colors.surfaceStroke }]} />
@@ -471,8 +506,10 @@ export function CheckoutScreen({
           onPress={handlePay}
           style={styles.payButton}
         />
-      </ScrollView>
-    </BottomSheet>
+        </ScrollView>
+      </BottomSheet>
+      {addressOverlay ? <AddressAutocompleteOverlay state={addressOverlay} /> : null}
+    </View>
   );
 }
 
@@ -553,6 +590,9 @@ function prettyBrand(brand: string): string {
 
 function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
   return StyleSheet.create({
+    root: {
+      flex: 1,
+    },
     scrollContent: {
       paddingHorizontal: 16,
       paddingBottom: 24,

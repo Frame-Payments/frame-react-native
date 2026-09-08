@@ -93,6 +93,8 @@ export interface OnboardingViewModelResult {
   setCustomerEmail: (value: string) => void;
   setSsnLast4: (value: string) => void;
   setAddressField: (field: keyof OnboardingAddress, value: string) => void;
+  /** Batch-fills the address fields from a picked autocomplete suggestion. */
+  applyAddress: (address: Partial<OnboardingAddress>) => void;
   setVerifyPhoneUi: (ui: VerifyPhoneUi | null) => void;
   setAchField: (field: 'routingNumber' | 'accountNumber', value: string) => void;
   setAchAccountType: (value: AchAccountType) => void;
@@ -1133,6 +1135,9 @@ export function useOnboardingViewModel({
     },
     [],
   );
+  const applyAddress = useCallback((address: Partial<OnboardingAddress>) => {
+    dispatch({ type: 'APPLY_ADDRESS', address });
+  }, []);
   const setVerifyPhoneUi = useCallback((ui: VerifyPhoneUi | null) => {
     dispatch({ type: 'SET_VERIFY_PHONE_UI', ui });
   }, []);
@@ -1167,6 +1172,7 @@ export function useOnboardingViewModel({
     setCustomerEmail,
     setSsnLast4,
     setAddressField,
+    applyAddress,
     setVerifyPhoneUi,
     setAchField,
     setAchAccountType,

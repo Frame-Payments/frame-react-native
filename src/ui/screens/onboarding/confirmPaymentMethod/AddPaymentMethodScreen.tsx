@@ -4,6 +4,10 @@ import { useFrameTheme } from '../../../theme/ThemeContext';
 import { Button } from '../../../primitives/Button';
 import { PaymentCardField, type PaymentCardFieldHandle } from '../../../primitives/PaymentCardField';
 import { BillingAddressDetailView } from '../../../primitives/BillingAddressDetailView';
+import {
+  AddressAutocompleteOverlay,
+  type AddressAutocompleteOverlayState,
+} from '../../../primitives/AddressAutocompleteField';
 import { ApplePayButton } from '../../../primitives/ApplePayButton';
 import { canMakeApplePay } from '../../../../applePay';
 import { getApplePayMerchantId } from '../../../../config';
@@ -20,6 +24,7 @@ import { FORM_SPACING } from '../formSpacing';
 export interface AddPaymentMethodScreenProps {
   state: OnboardingState;
   onChangeAddressField: (field: keyof OnboardingAddress, value: string) => void;
+  onApplyAddress: (address: Partial<OnboardingAddress>) => void;
   /** Card-entry mode. Submits PAN/expiry/CVC; returns the new PM id. */
   onSubmitNewCard: (card: {
     pan: string;
@@ -36,6 +41,7 @@ export interface AddPaymentMethodScreenProps {
 export function AddPaymentMethodScreen({
   state,
   onChangeAddressField,
+  onApplyAddress,
   onSubmitNewCard,
   onSubmitAddressOnly,
   onAddApplePay,
@@ -44,6 +50,11 @@ export function AddPaymentMethodScreen({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const cardFieldRef = useRef<PaymentCardFieldHandle | null>(null);
   const isAddressOnly = state.addressVerificationOnly;
+  // Address-autocomplete's suggestion dropdown must render outside the
+  // ScrollView it would otherwise be clipped by — see
+  // AddressAutocompleteField.tsx's header comment. Same pattern as
+  // CheckoutScreen.tsx / CustomerInformationScreen.tsx.
+  const [addressOverlay, setAddressOverlay] = useState<AddressAutocompleteOverlayState | null>(null);
 
   const [applePayReady, setApplePayReady] = useState(false);
   useEffect(() => {
@@ -171,10 +182,13 @@ export function AddPaymentMethodScreen({
             address={state.address}
             errors={state.fieldErrors}
             onChangeField={onChangeAddressField}
+            onApplyAddress={onApplyAddress}
+            onOverlayChange={setAddressOverlay}
             international={false}
           />
         </View>
       </ScrollView>
+      {addressOverlay ? <AddressAutocompleteOverlay state={addressOverlay} /> : null}
       <View style={styles.footer}>
         <Button
           text="Continue"

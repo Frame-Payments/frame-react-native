@@ -49,6 +49,86 @@ describe('checkoutReducer', () => {
     s = checkoutReducer(s, { type: 'SET_ADDRESS_FIELD', field: 'line2', value: 'a' });
     expect(s.fieldErrors.addressLine1).toBe('X');
   });
+
+  describe('APPLY_ADDRESS', () => {
+    // Ports iOS FrameCheckoutViewModel.apply(_:) (FrameCheckoutViewModel.swift:183-201).
+
+    it('fills every field an autocomplete result carries', () => {
+      let s = initialCheckoutState();
+      s = checkoutReducer(s, {
+        type: 'APPLY_ADDRESS',
+        address: { line1: '1 Main St', city: 'Austin', state: 'TX', postalCode: '78701' },
+      });
+      expect(s.address).toMatchObject({
+        line1: '1 Main St',
+        city: 'Austin',
+        state: 'TX',
+        postalCode: '78701',
+      });
+    });
+
+    it('leaves line2 alone — Mapbox does not reliably return apartment/unit', () => {
+      let s = initialCheckoutState();
+      s = checkoutReducer(s, { type: 'SET_ADDRESS_FIELD', field: 'line2', value: 'Apt 4B' });
+      s = checkoutReducer(s, {
+        type: 'APPLY_ADDRESS',
+        address: { line1: '1 Main St', postalCode: '78701' },
+      });
+      expect(s.address.line2).toBe('Apt 4B');
+    });
+
+    it('leaves country alone when the caller omits it (no picker match)', () => {
+      let s = initialCheckoutState();
+      const before = s.address.country;
+      s = checkoutReducer(s, {
+        type: 'APPLY_ADDRESS',
+        address: { line1: '1 Main St', postalCode: '78701' },
+      });
+      expect(s.address.country).toBe(before);
+    });
+
+    it('applies country when the caller includes it', () => {
+      let s = initialCheckoutState();
+      s = checkoutReducer(s, {
+        type: 'APPLY_ADDRESS',
+        address: { line1: '1 Main St', postalCode: '78701', country: 'CA' },
+      });
+      expect(s.address.country).toBe('CA');
+    });
+
+    it('clears errors only on the fields it actually filled', () => {
+      let s = initialCheckoutState();
+      s = checkoutReducer(s, {
+        type: 'SET_FIELD_ERRORS',
+        errors: { addressLine1: 'X', addressCity: 'Y', addressState: 'Z', addressPostalCode: 'W' },
+      });
+      // Only line1 and postalCode are supplied — city/state errors must survive.
+      s = checkoutReducer(s, {
+        type: 'APPLY_ADDRESS',
+        address: { line1: '1 Main St', postalCode: '78701' },
+      });
+      expect(s.fieldErrors.addressLine1).toBeUndefined();
+      expect(s.fieldErrors.addressPostalCode).toBeUndefined();
+      expect(s.fieldErrors.addressCity).toBe('Y');
+      expect(s.fieldErrors.addressState).toBe('Z');
+    });
+
+    it('is a single state transition — no field can be read mid-fill in an inconsistent state', () => {
+      // Regression guard for the exact bug iOS's own comment describes
+      // (BillingAddressDetailView.swift:54-57): dispatching one
+      // SET_ADDRESS_FIELD per field would let a still-focused sibling field's
+      // own onChange fire between two of them and overwrite one with a stale
+      // value. A single APPLY_ADDRESS dispatch cannot be interleaved.
+      let s = initialCheckoutState();
+      const before = s;
+      const after = checkoutReducer(before, {
+        type: 'APPLY_ADDRESS',
+        address: { line1: 'A', city: 'B', state: 'C', postalCode: 'D' },
+      });
+      expect(after).not.toBe(before);
+      expect(after.address).toEqual({ ...before.address, line1: 'A', city: 'B', state: 'C', postalCode: 'D' });
+    });
+  });
 });
 
 describe('selectors', () => {

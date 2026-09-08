@@ -1,10 +1,14 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFrameTheme } from '../../../theme/ThemeContext';
 import { Button } from '../../../primitives/Button';
 import { ValidatedTextField } from '../../../primitives/ValidatedTextField';
 import { DobInputField } from '../../../primitives/DobInputField';
 import { BillingAddressDetailView } from '../../../primitives/BillingAddressDetailView';
+import {
+  AddressAutocompleteOverlay,
+  type AddressAutocompleteOverlayState,
+} from '../../../primitives/AddressAutocompleteField';
 import {
   requiresDobInPhoneAuth,
   requiresKyc,
@@ -33,6 +37,7 @@ export interface CustomerInformationScreenProps {
   onChangeDob: (next: { month: string; day: string; year: string }) => void;
   onChangeSsn: (value: string) => void;
   onChangeAddressField: (field: keyof OnboardingAddress, value: string) => void;
+  onApplyAddress: (address: Partial<OnboardingAddress>) => void;
   onSubmit: () => void;
   /** No-SSN path: launch government-ID identity verification via Persona. */
   onVerifyIdentity: () => void;
@@ -47,11 +52,17 @@ export function CustomerInformationScreen({
   onChangeDob,
   onChangeSsn,
   onChangeAddressField,
+  onApplyAddress,
   onSubmit,
   onVerifyIdentity,
 }: CustomerInformationScreenProps) {
   const theme = useFrameTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  // Address-autocomplete's suggestion dropdown must render outside the
+  // ScrollView it would otherwise be clipped by — see
+  // AddressAutocompleteField.tsx's header comment. Same pattern as
+  // CheckoutScreen.tsx.
+  const [addressOverlay, setAddressOverlay] = useState<AddressAutocompleteOverlayState | null>(null);
   const showDob = !requiresDobInPhoneAuth(capabilities);
   // Read the trimmed reducer capabilities, not the raw `capabilities` prop:
   // reconciliation drops capabilities the account has already satisfied, and
@@ -86,6 +97,7 @@ export function CustomerInformationScreen({
   };
 
   return (
+    <View style={styles.root}>
     <ScrollView
       style={styles.scroll}
       contentContainerStyle={styles.content}
@@ -250,6 +262,8 @@ export function CustomerInformationScreen({
         address={state.address}
         errors={state.fieldErrors}
         onChangeField={onChangeAddressField}
+        onApplyAddress={onApplyAddress}
+        onOverlayChange={setAddressOverlay}
         international
       />
 
@@ -262,11 +276,16 @@ export function CustomerInformationScreen({
         />
       </View>
     </ScrollView>
+    {addressOverlay ? <AddressAutocompleteOverlay state={addressOverlay} /> : null}
+    </View>
   );
 }
 
 function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
   return StyleSheet.create({
+    root: {
+      flex: 1,
+    },
     scroll: {
       flex: 1,
     },
