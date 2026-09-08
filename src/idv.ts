@@ -1,28 +1,11 @@
 import { getActiveOnboardingSession } from './auth';
-import { getIpAddress } from './config';
-import { FRAME_API_BASE_URL, frameUserAgent } from './client';
+import { FRAME_API_BASE_URL } from './client';
+import { frameRequestHeaders as idvHeaders } from './bespokeRequest';
 import { ErrorCodes, frameError } from './errors';
 
 // The framepayments SDK has no API surface for the `/v1/idv/*` endpoints and
-// exposes no generic request hook, so these calls are hand-rolled. They must
-// still route identically to every SDK request: same base URL, same User-Agent
-// (which the backend uses to select its native-SDK code path) and same
-// `ip_address` header. Those values are imported from client.ts rather than
-// duplicated so the two never drift.
-function idvHeaders(extra?: Record<string, string>): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-    ...extra,
-  };
-  const session = getActiveOnboardingSession();
-  if (session) headers.Authorization = `Bearer ${session}`;
-  const ip = getIpAddress();
-  if (ip) headers.ip_address = ip;
-  const userAgent = frameUserAgent();
-  if (userAgent) headers['User-Agent'] = userAgent;
-  return headers;
-}
+// exposes no generic request hook, so these calls are hand-rolled. Routing and
+// headers come from bespokeRequest so they can't drift from the SDK's.
 
 /**
  * Create a Persona inquiry server-side and return its id. The backend pre-

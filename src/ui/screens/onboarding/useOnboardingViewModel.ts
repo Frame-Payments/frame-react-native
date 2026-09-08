@@ -5,8 +5,9 @@ import { __internal as configInternal, getIpAddress } from '../../../config';
 import { ErrorCodes, frameError } from '../../../errors';
 import { addApplePayToOwnerFlow } from '../../../applePay';
 import { openPlaidLink as runPlaidLink, type PlaidConnectResult } from '../../../plaid';
-import { launchPersonaInquiry } from '../../../persona';
+import { launchPersonaInquiry, isPersonaAvailable } from '../../../persona';
 import { createIdvSession, completeIdvSession } from '../../../idv';
+import { electPayoutMethod } from '../../../payoutMethod';
 import { ensureOnboardingSession } from '../../../onboardingSession';
 import { isNotFoundError } from '../../../api-errors';
 import { endOnboardingSession } from '../../../auth';
@@ -35,7 +36,14 @@ import {
   validateOtp,
   validatePhoneAuth,
   isCapabilitySatisfied,
+  governmentIdRequired,
+  skipsSsnEntry,
 } from './onboardingSelectors';
+import {
+  readAccountCapabilities,
+  requiresIdentityDocument,
+  trimCompletedCapabilities,
+} from './capabilities';
 
 // Hook owning the onboarding state machine + side effects. Screens drive it
 // through the returned callables; the Prove + Plaid + camera + 3DS-poll
@@ -120,6 +128,7 @@ export interface OnboardingViewModelResult {
   resend3DS: () => Promise<void>;
   // Payout-method actions
   loadSavedPayoutMethods: () => Promise<void>;
+  electSelectedPayoutMethod: (paymentMethodId?: string) => Promise<void>;
   submitManualAch: () => Promise<string>;
   connectPlaidAccount: (params: { publicToken: string; accountId: string; institutionName?: string; subtype?: string }) => Promise<string>;
   /** End-to-end Plaid Link: fetches token, opens Link, calls
@@ -230,6 +239,17 @@ export function useOnboardingViewModel({
           const trimmed = trimCompletedCapabilities(capabilities, account);
           if (trimmed.length !== capabilities.length) {
             dispatch({ type: 'SET_REQUIRED_CAPABILITIES', capabilities: trimmed });
+          }
+          dispatch({
+            type: 'SET_IDENTITY_DOCUMENT_REQUIRED',
+            required: requiresIdentityDocument(account),
+          });
+          // Seeds the "Primary" badge on the payout list. iOS reads the same
+          // field in checkExistingAccount; the npm SDK's Account type doesn't
+          // declare it, hence the runtime read.
+          const payoutId = (account as { payout_payment_method_id?: unknown }).payout_payment_method_id;
+          if (typeof payoutId === 'string') {
+            dispatch({ type: 'SET_PRIMARY_PAYOUT_METHOD_ID', id: payoutId });
           }
         }
         // Split saved methods by kind: cards on the payment list, ACHs on
@@ -376,6 +396,16 @@ export function useOnboardingViewModel({
         // authenticate with an `onb_sess_...` bearer instead of the raw pk_/sk_.
         // Mirrors iOS beginOnboardingSessionIfNeeded.
         await ensureOnboardingSession(accountId);
+
+        // Reconcile here too. accounts.create provisions capabilities through
+        // the server's dependency graph, so the created account can come back
+        // already stepped up to `individual.identity_document` — a step-up the
+        // host-supplied-accountId path catches and this one used to miss
+        // entirely, leaving governmentIdRequired false for the whole flow.
+        dispatch({
+          type: 'SET_IDENTITY_DOCUMENT_REQUIRED',
+          required: requiresIdentityDocument(account),
+        });
       }
 
       const e164 = `+${current.phoneCountry.callingCode}${current.phoneNumber.replace(/\D+/g, '')}`;
@@ -463,6 +493,50 @@ export function useOnboardingViewModel({
     );
   }, []);
 
+  // Government-ID verification via Persona. The backend's /idv/complete response
+  // is the authoritative verified flag — Persona's client-side status is not
+  // trusted.
+  //
+  // Shared by the user's manual "I don't have an SSN" opt-out and the mandatory
+  // run that submitCustomerInformation performs when governmentIdRequired. It
+  // deliberately sits OUTSIDE guardedAction so the mandatory path can call it
+  // from inside an action that already holds the guard.
+  const runGovernmentIdVerification = useCallback(async (opts?: { mandatory?: boolean }) => {
+    const { inquiryId } = await createIdvSession();
+    // A pre-existing account may already have an approved (terminal) inquiry,
+    // which the Persona SDK can't launch. The backend reads inquiry status
+    // server-side, so if it reports verified up front we skip Persona. Any
+    // non-verified status (including 'pending') just means "launch Persona".
+    const preCheck = await completeIdvSession(inquiryId);
+    if (preCheck === 'verified') {
+      dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId });
+      return;
+    }
+    await launchPersonaInquiry({ inquiryId });
+    const status = await completeIdvSession(inquiryId);
+    if (status === 'pending') {
+      // The user finished Persona but the confirm request couldn't reach an
+      // authoritative answer (network blip / transient 5xx). Don't push them
+      // to the SSN fallback — the verification likely succeeded and just
+      // needs a moment to settle.
+      throw frameError(
+        ErrorCodes.PAYMENT_FAILED,
+        'We could not reach our verification service just now. Please try again in a moment.',
+      );
+    }
+    if (status === 'not_verified') {
+      // When a government ID is mandatory there is no SSN fallback to offer, so
+      // don't send the user looking for one.
+      throw frameError(
+        ErrorCodes.PAYMENT_FAILED,
+        opts?.mandatory
+          ? 'We could not confirm your identity yet. Please try again.'
+          : 'We could not confirm your identity yet. Please try again or enter your SSN.',
+      );
+    }
+    dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId });
+  }, []);
+
   const submitCustomerInformation = useCallback(async () => {
     return guardedAction(async () => {
       const current = stateRef.current;
@@ -489,9 +563,10 @@ export function useOnboardingViewModel({
         email: current.customerEmail,
         phone: { number: phoneE164, country_code: current.phoneCountry.callingCode },
         birthdate: dobIso(current),
-        // Omit SSN entirely when the user verified via government ID — the
-        // no-SSN path means we never collected it.
-        ssn_last_four: current.identityVerifiedViaGovId ? undefined : current.ssnLast4 || undefined,
+        // Omit SSN entirely whenever the SSN input was suppressed — either the
+        // user verified via government ID, or one is mandatory and we never
+        // collected an SSN to send.
+        ssn_last_four: skipsSsnEntry(current) ? undefined : current.ssnLast4 || undefined,
         address: {
           line_1: current.address.line1,
           line_2: current.address.line2 || undefined,
@@ -518,6 +593,27 @@ export function useOnboardingViewModel({
         dispatch({ type: 'SET_EXISTING_ACCOUNT_HAS_TOS', value: true });
       }
 
+      // Government-ID verification is mandatory when the merchant requested
+      // `idv` or the backend stepped the account up via
+      // `individual.identity_document`. iOS runs Persona right here, after the
+      // profile update and before advancing, and only advances on success
+      // (`OnboardingContainerViewModel.submitPersonalInformation`,
+      // `:835-844`). A throw leaves the user on this screen with the toast, so
+      // they can retry rather than landing on a later step that cannot succeed.
+      if (governmentIdRequired(current) && !current.identityVerifiedViaGovId) {
+        if (!isPersonaAvailable()) {
+          // Hiding the flow is only acceptable while it's an optional opt-out.
+          // Once it's required, a silent skip strands the user, so name the
+          // missing peer dependency instead.
+          throw frameError(
+            ErrorCodes.PERSONA_UNAVAILABLE,
+            'This account requires government-ID verification, which needs the ' +
+              'react-native-persona package. Install it and rebuild the app.',
+          );
+        }
+        await runGovernmentIdVerification({ mandatory: true });
+      }
+
       // Per the flow chart, customer-information is the last sub-step of
       // PersonalInformation unless geo_compliance is requested.
       if (current.requiredCapabilities.includes('geo_compliance')) {
@@ -526,43 +622,12 @@ export function useOnboardingViewModel({
         advance();
       }
     });
-  }, [guardedAction, advance]);
+  }, [guardedAction, advance, runGovernmentIdVerification]);
 
-  // No-SSN government-ID path. The backend's /idv/complete response is the
-  // authoritative verified flag — Persona's client-side status is not trusted.
+  // The user's manual opt-out from the SSN field.
   const verifyIdentityWithoutSsn = useCallback(async () => {
-    return guardedAction(async () => {
-      const { inquiryId } = await createIdvSession();
-      // A pre-existing account may already have an approved (terminal) inquiry,
-      // which the Persona SDK can't launch. The backend reads inquiry status
-      // server-side, so if it reports verified up front we skip Persona. Any
-      // non-verified status (including 'pending') just means "launch Persona".
-      const preCheck = await completeIdvSession(inquiryId);
-      if (preCheck === 'verified') {
-        dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId });
-        return;
-      }
-      await launchPersonaInquiry({ inquiryId });
-      const status = await completeIdvSession(inquiryId);
-      if (status === 'pending') {
-        // The user finished Persona but the confirm request couldn't reach an
-        // authoritative answer (network blip / transient 5xx). Don't push them
-        // to the SSN fallback — the verification likely succeeded and just
-        // needs a moment to settle.
-        throw frameError(
-          ErrorCodes.PAYMENT_FAILED,
-          'We could not reach our verification service just now. Please try again in a moment.',
-        );
-      }
-      if (status === 'not_verified') {
-        throw frameError(
-          ErrorCodes.PAYMENT_FAILED,
-          'We could not confirm your identity yet. Please try again or enter your SSN.',
-        );
-      }
-      dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId });
-    });
-  }, [guardedAction]);
+    return guardedAction(() => runGovernmentIdVerification());
+  }, [guardedAction, runGovernmentIdVerification]);
 
   // ─── Payment methods ───
 
@@ -747,6 +812,25 @@ export function useOnboardingViewModel({
     });
   }, [guardedAction]);
 
+  /**
+   * Makes `paymentMethodId` (or the currently selected payout method) the
+   * account's payout destination. Without this the user finishes the payout
+   * step with a bank attached but nothing designated to pay out to.
+   *
+   * iOS calls it from every path that lands on a payout method — Continue on
+   * the select screen, manual ACH, and Plaid — and gates advancing on it
+   * succeeding (`SelectPayoutMethodView.swift:57`).
+   */
+  const electSelectedPayoutMethod = useCallback(async (paymentMethodId?: string): Promise<void> => {
+    const current = stateRef.current;
+    const target = paymentMethodId ?? current.selectedPayoutMethodId;
+    if (!current.accountId || !target) {
+      throw frameError(ErrorCodes.PAYMENT_FAILED, 'Select a payout method first.');
+    }
+    const elected = await electPayoutMethod(current.accountId, target);
+    dispatch({ type: 'SET_PRIMARY_PAYOUT_METHOD_ID', id: elected });
+  }, []);
+
   const submitManualAch = useCallback(async (): Promise<string> => {
     return guardedAction(async () => {
       const current = stateRef.current;
@@ -874,7 +958,7 @@ export function useOnboardingViewModel({
         !params.date_of_birth ||
         !params.email ||
         !params.phone_number ||
-        (!current.identityVerifiedViaGovId && !params.ssn) ||
+        (!skipsSsnEntry(current) && !params.ssn) ||
         !params.address.line_1
       ) {
         throw frameError(
@@ -887,7 +971,7 @@ export function useOnboardingViewModel({
       // required string, but the backend accepts an SSN-less identity on this
       // path — drop the key at runtime rather than send an empty string.
       let createParams: typeof params = params;
-      if (current.identityVerifiedViaGovId) {
+      if (skipsSsnEntry(current)) {
         const { ssn: _omitSsn, ...rest } = params;
         void _omitSsn;
         createParams = rest as typeof params;
@@ -1047,6 +1131,7 @@ export function useOnboardingViewModel({
     poll3DS,
     resend3DS,
     loadSavedPayoutMethods,
+    electSelectedPayoutMethod,
     submitManualAch,
     connectPlaidAccount,
     openPlaidLink,
@@ -1060,30 +1145,12 @@ export { isCapabilitySatisfied };
 
 // ─── Evervault helper (mirrors useCheckoutViewModel) ───
 
-// Shape of one entry in `account.capabilities` as returned by the framepayments
-// API. The JS SDK types it as `unknown[]`; iOS uses `name` + `currently_due`.
-// We rely on the same fields here.
-interface AccountCapabilityRow {
-  name: string;
-  currently_due?: ReadonlyArray<string> | null;
-}
-
 // 'YYYY-MM-DD' from the reducer's three DOB fields, or undefined when the user
 // hasn't supplied a complete date. Every payload that carries a birth date
 // (account create, create-phone-verification, IDV session) uses this format.
 function dobIso(state: Pick<OnboardingState, 'dobYear' | 'dobMonth' | 'dobDay'>): string | undefined {
   if (!state.dobYear || !state.dobMonth || !state.dobDay) return undefined;
   return `${state.dobYear}-${state.dobMonth.padStart(2, '0')}-${state.dobDay.padStart(2, '0')}`;
-}
-
-function readAccountCapabilities(
-  account: { capabilities?: unknown[] } | null | undefined,
-): ReadonlyArray<AccountCapabilityRow> {
-  const raw = account?.capabilities;
-  if (!Array.isArray(raw)) return [];
-  return raw.filter((c): c is AccountCapabilityRow => {
-    return typeof c === 'object' && c !== null && typeof (c as { name?: unknown }).name === 'string';
-  });
 }
 
 // Mirrors iOS OnboardingContainerViewModel.checkExistingAccount(updateCapabilies:
@@ -1109,22 +1176,6 @@ async function reconcileCapabilities(
     // attempt the flow. Server-side validation will catch any unmet caps.
     return account;
   }
-}
-
-// For each required capability the account already has with an empty
-// `currently_due`, remove it from the merchant's requested list so the flow
-// skips that step.
-function trimCompletedCapabilities(
-  required: ReadonlyArray<OnboardingCapability>,
-  account: { capabilities?: unknown[] } | null | undefined,
-): ReadonlyArray<OnboardingCapability> {
-  const rows = readAccountCapabilities(account);
-  const completed = new Set(
-    rows
-      .filter((c) => Array.isArray(c.currently_due) && c.currently_due.length === 0)
-      .map((c) => c.name),
-  );
-  return required.filter((r) => !completed.has(r));
 }
 
 // Map Frame's Account.profile (a Record<string, unknown>) into the reducer's

@@ -149,6 +149,39 @@ export function validatePhoneAuth(state: OnboardingState): Record<string, string
   return errors;
 }
 
+// Whether an SSN-collecting capability was requested. Written once here because
+// it used to be duplicated against two DIFFERENT state sources — the screen read
+// the `capabilities` prop while the validator read the trimmed
+// `state.requiredCapabilities`, so once trimming dropped `kyc` the SSN field
+// still rendered but no longer validated.
+export function requiresKyc(capabilities: ReadonlyArray<OnboardingCapability>): boolean {
+  return capabilities.includes('kyc') || capabilities.includes('kyc_prefill');
+}
+
+/**
+ * Whether government-ID verification is mandatory for this account, rather than
+ * the user's optional "I don't have an SSN" opt-out.
+ *
+ * True when the merchant requested `idv`, or when the backend stepped the
+ * account up by listing `individual.identity_document` in some capability's
+ * actionable requirements. Mirrors iOS `governmentIdRequired`
+ * (`OnboardingContainerViewModel.swift:113-115`).
+ */
+export function governmentIdRequired(state: OnboardingState): boolean {
+  return state.requiredCapabilities.includes('idv') || state.identityDocumentRequired;
+}
+
+/**
+ * Whether the SSN input is suppressed entirely. iOS renamed its flag
+ * `identityVerifiedViaGovId` → `skipSSN` precisely to capture "already verified
+ * *or* required to be" (`OnboardingContainerViewModel.swift:107-109`): once a
+ * government ID is mandatory the backend will not accept an SSN, so asking for
+ * one strands the user on a field that cannot satisfy the requirement.
+ */
+export function skipsSsnEntry(state: OnboardingState): boolean {
+  return state.identityVerifiedViaGovId || governmentIdRequired(state);
+}
+
 export function requiresDobInPhoneAuth(capabilities: ReadonlyArray<OnboardingCapability>): boolean {
   return capabilities.includes('kyc_prefill');
 }
@@ -184,13 +217,10 @@ export function validateCustomerInformation(state: OnboardingState): Record<stri
     if (dobError) errors.dob = dobError;
   }
 
-  // SSN is required for the kyc / kyc_prefill capabilities UNLESS the user
-  // verified identity with a government ID (no-SSN path) — in which case the
-  // backend has confirmed identity via Persona and SSN is optional.
-  if (
-    !state.identityVerifiedViaGovId &&
-    (state.requiredCapabilities.includes('kyc') || state.requiredCapabilities.includes('kyc_prefill'))
-  ) {
+  // SSN is required for the kyc / kyc_prefill capabilities unless the SSN input
+  // is suppressed — either the user already verified with a government ID, or
+  // one is mandatory and Persona runs on submit instead.
+  if (!skipsSsnEntry(state) && requiresKyc(state.requiredCapabilities)) {
     const ssnError = validateSSNLast4(state.ssnLast4);
     if (ssnError) errors.ssnLast4 = ssnError;
   }

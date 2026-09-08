@@ -124,6 +124,15 @@ export interface OnboardingState {
   customerEmail: string;
   ssnLast4: string;
   identityVerifiedViaGovId: boolean;
+  /**
+   * The backend has stepped this account up to government-ID verification: some
+   * capability lists `individual.identity_document` in its actionable
+   * requirements. iOS `requiresIdentityDocument(_:)`
+   * (`OnboardingContainerViewModel.swift:248-252`) scans EVERY capability row
+   * for the key, not just `kyc` — a payout-only account gets it on
+   * `bank_account_receive`.
+   */
+  identityDocumentRequired: boolean;
   // The pre-created Persona inquiry id (`inq_...`) from POST /idv/session, kept
   // for reference/debugging after the flow completes.
   govIdInquiryId: string | null;
@@ -141,6 +150,12 @@ export interface OnboardingState {
   // ─── ConfirmBankAccount ───
   savedPayoutMethods: ReadonlyArray<FramePaymentMethod>;
   selectedPayoutMethodId: string | null;
+  /**
+   * The payment method the account currently pays out to, as reported by the
+   * server. Drives the "Primary" badge on the payout list. iOS
+   * `OnboardingContainerViewModel.primaryPayoutMethodId`.
+   */
+  primaryPayoutMethodId: string | null;
   ach: OnboardingAch;
   achManualMode: boolean;
 
@@ -180,6 +195,7 @@ export type OnboardingAction =
   | { type: 'SET_CUSTOMER_EMAIL'; value: string }
   | { type: 'SET_SSN_LAST4'; value: string }
   | { type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID'; verified: boolean; inquiryId: string | null }
+  | { type: 'SET_IDENTITY_DOCUMENT_REQUIRED'; required: boolean }
   | { type: 'SET_ADDRESS_FIELD'; field: keyof OnboardingAddress; value: string }
   // Payment method
   | { type: 'SET_SAVED_PAYMENT_METHODS'; methods: ReadonlyArray<FramePaymentMethod> }
@@ -191,6 +207,7 @@ export type OnboardingAction =
   // Payout method
   | { type: 'SET_SAVED_PAYOUT_METHODS'; methods: ReadonlyArray<FramePaymentMethod> }
   | { type: 'SELECT_PAYOUT_METHOD'; id: string | null }
+  | { type: 'SET_PRIMARY_PAYOUT_METHOD_ID'; id: string | null }
   | { type: 'SET_ACH_FIELD'; field: keyof OnboardingAch; value: string }
   | { type: 'SET_ACH_ACCOUNT_TYPE'; value: AchAccountType }
   | { type: 'SET_ACH_MANUAL_MODE'; value: boolean }
@@ -254,6 +271,7 @@ export function initialOnboardingState(
     customerEmail: '',
     ssnLast4: '',
     identityVerifiedViaGovId: false,
+    identityDocumentRequired: false,
     govIdInquiryId: null,
     address: { ...DEFAULT_ADDRESS },
     savedPaymentMethods: [],
@@ -263,6 +281,7 @@ export function initialOnboardingState(
     threeDsVerificationId: null,
     savedPayoutMethods: [],
     selectedPayoutMethodId: null,
+    primaryPayoutMethodId: null,
     ach: { ...DEFAULT_ACH },
     achManualMode: false,
     customerIdentityId: null,
@@ -354,6 +373,14 @@ export function onboardingReducer(state: OnboardingState, action: OnboardingActi
       };
     case 'SET_SSN_LAST4':
       return { ...state, ssnLast4: action.value, fieldErrors: clearError(state.fieldErrors, 'ssnLast4') };
+    case 'SET_IDENTITY_DOCUMENT_REQUIRED':
+      return {
+        ...state,
+        identityDocumentRequired: action.required,
+        // The SSN row disappears once a government ID is required, so drop any
+        // stale SSN error that would otherwise wedge Continue on a hidden field.
+        fieldErrors: action.required ? clearError(state.fieldErrors, 'ssnLast4') : state.fieldErrors,
+      };
     case 'SET_IDENTITY_VERIFIED_VIA_GOV_ID':
       return {
         ...state,
@@ -390,6 +417,8 @@ export function onboardingReducer(state: OnboardingState, action: OnboardingActi
       return { ...state, savedPayoutMethods: action.methods };
     case 'SELECT_PAYOUT_METHOD':
       return { ...state, selectedPayoutMethodId: action.id };
+    case 'SET_PRIMARY_PAYOUT_METHOD_ID':
+      return { ...state, primaryPayoutMethodId: action.id };
     case 'SET_ACH_FIELD': {
       const nextAch: OnboardingAch = { ...state.ach, [action.field]: action.value };
       return { ...state, ach: nextAch, fieldErrors: clearError(state.fieldErrors, `ach.${action.field}`) };

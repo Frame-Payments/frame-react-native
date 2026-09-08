@@ -21,6 +21,9 @@ import {
   validateOtp,
   validatePhoneAuth,
   areDocsComplete,
+  requiresKyc,
+  governmentIdRequired,
+  skipsSsnEntry,
 } from '../screens/onboarding/onboardingSelectors';
 import type { OnboardingCapability } from '../../types';
 
@@ -446,5 +449,66 @@ describe('areDocsComplete', () => {
     expect(areDocsComplete(s)).toBe(false);
     s = onboardingReducer(s, withPhoto('back'));
     expect(areDocsComplete(s)).toBe(true);
+  });
+});
+
+
+describe('government-ID gating', () => {
+  function stateWith(caps: ReadonlyArray<OnboardingCapability>): OnboardingState {
+    return initialOnboardingState(caps, null);
+  }
+
+  it('requiresKyc is true for kyc and kyc_prefill only', () => {
+    expect(requiresKyc(['kyc'])).toBe(true);
+    expect(requiresKyc(['kyc_prefill'])).toBe(true);
+    expect(requiresKyc(['idv'])).toBe(false);
+    expect(requiresKyc(['age_verification'])).toBe(false);
+  });
+
+  it('governmentIdRequired is true when the merchant requested idv', () => {
+    expect(governmentIdRequired(stateWith(['idv']))).toBe(true);
+  });
+
+  it('governmentIdRequired is true on a backend step-up, whatever the capabilities', () => {
+    const stepped = onboardingReducer(stateWith(['bank_account_receive']), {
+      type: 'SET_IDENTITY_DOCUMENT_REQUIRED',
+      required: true,
+    });
+    expect(governmentIdRequired(stepped)).toBe(true);
+  });
+
+  it('governmentIdRequired is false for a plain kyc flow', () => {
+    expect(governmentIdRequired(stateWith(['kyc']))).toBe(false);
+  });
+
+  it('skipsSsnEntry once already verified via government ID', () => {
+    const verified = onboardingReducer(stateWith(['kyc']), {
+      type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID',
+      verified: true,
+      inquiryId: 'inq_1',
+    });
+    expect(skipsSsnEntry(verified)).toBe(true);
+  });
+
+  it('skipsSsnEntry when a government ID is required but not yet supplied', () => {
+    expect(skipsSsnEntry(stateWith(['idv']))).toBe(true);
+  });
+
+  it('SSN is validated on a plain kyc flow', () => {
+    const errors = validateCustomerInformation(fillUS(stateWith(['kyc'])));
+    expect(errors.ssnLast4).toBeDefined();
+  });
+
+  it('SSN validation is skipped when a government ID is required', () => {
+    const errors = validateCustomerInformation(fillUS(stateWith(['idv', 'kyc'])));
+    expect(errors.ssnLast4).toBeUndefined();
+  });
+
+  it('SSN validation is skipped after a backend step-up', () => {
+    const stepped = onboardingReducer(fillUS(stateWith(['kyc'])), {
+      type: 'SET_IDENTITY_DOCUMENT_REQUIRED',
+      required: true,
+    });
+    expect(validateCustomerInformation(stepped).ssnLast4).toBeUndefined();
   });
 });

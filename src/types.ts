@@ -106,6 +106,7 @@ export interface PaymentMethod {
 export type OnboardingCapability =
   | 'kyc'
   | 'kyc_prefill'
+  | 'idv'
   | 'phone_verification'
   | 'creator_shield'
   | 'card_verification'

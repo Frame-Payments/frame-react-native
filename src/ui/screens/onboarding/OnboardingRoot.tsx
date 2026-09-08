@@ -76,6 +76,20 @@ export function OnboardingRoot({
 
   // ─── Routing helpers ───
 
+  const surfaceError = useCallback(
+    (err: unknown) => {
+      const code = (err as { code?: string }).code;
+      if (code === 'USER_CANCELED') return;
+      // Use toToastMessage so we surface the server's `error_details.message`
+      // from FrameAPIError.raw instead of the top-level generic message
+      // (framepayments returns a useless "An error occured" / "An error
+      // occurred" envelope; the details below it carry the real reason).
+      showToast(toToastMessage(err));
+    },
+    [],
+  );
+
+
   // Continue handler for SelectPaymentMethod. Mirrors iOS
   // SelectPaymentMethodView.selectPaymentView's ContinueButton action:
   //   • If address_verification is requested AND the selected card has no
@@ -151,16 +165,26 @@ export function OnboardingRoot({
     [vm],
   );
 
+  // Electing the payout method is what actually makes the bank the account's
+  // payout destination; adding it only attaches it. iOS elects from every path
+  // that lands on a payout method and gates advancing on the election
+  // succeeding (`SelectPayoutMethodView.swift:57`), so a failure keeps the user
+  // on this step with a toast rather than moving them past a step that did not
+  // take effect.
   const onSelectPayoutContinue = useCallback(() => {
     if (vm.state.selectedPayoutMethodId === null) {
       vm.goTo('confirm_bank_account', 'add');
       return;
     }
-    vm.advance();
-  }, [vm]);
+    void vm
+      .electSelectedPayoutMethod()
+      .then(() => vm.advance())
+      .catch(surfaceError);
+  }, [vm, surfaceError]);
 
   const onAddPayoutPlaid = useCallback(async () => {
     const pmId = await vm.openPlaidLink();
+    await vm.electSelectedPayoutMethod(pmId);
     vm.advance();
     return pmId;
   }, [vm]);
@@ -168,22 +192,10 @@ export function OnboardingRoot({
   const onAddPayoutManual = useCallback(async () => {
     const pmId = await vm.submitManualAch();
     vm.dispatch({ type: 'SET_ACH_MANUAL_MODE', value: false });
+    await vm.electSelectedPayoutMethod(pmId);
     vm.advance();
     return pmId;
   }, [vm]);
-
-  const surfaceError = useCallback(
-    (err: unknown) => {
-      const code = (err as { code?: string }).code;
-      if (code === 'USER_CANCELED') return;
-      // Use toToastMessage so we surface the server's `error_details.message`
-      // from FrameAPIError.raw instead of the top-level generic message
-      // (framepayments returns a useless "An error occured" / "An error
-      // occurred" envelope; the details below it carry the real reason).
-      showToast(toToastMessage(err));
-    },
-    [],
-  );
 
   // Upload documents routing — substeps are list / capture_* / review_*.
   const onCaptureDone = useCallback(

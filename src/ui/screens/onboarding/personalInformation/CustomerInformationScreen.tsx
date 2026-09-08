@@ -5,7 +5,12 @@ import { Button } from '../../../primitives/Button';
 import { ValidatedTextField } from '../../../primitives/ValidatedTextField';
 import { DobInputField } from '../../../primitives/DobInputField';
 import { BillingAddressDetailView } from '../../../primitives/BillingAddressDetailView';
-import { requiresDobInPhoneAuth } from '../onboardingSelectors';
+import {
+  requiresDobInPhoneAuth,
+  requiresKyc,
+  governmentIdRequired,
+  skipsSsnEntry,
+} from '../onboardingSelectors';
 import { isPersonaAvailable } from '../../../../persona';
 import { FORM_SPACING } from '../formSpacing';
 import type { OnboardingCapability } from '../../../../types';
@@ -48,13 +53,19 @@ export function CustomerInformationScreen({
   const theme = useFrameTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const showDob = !requiresDobInPhoneAuth(capabilities);
-  const ssnCapabilityRequested = capabilities.includes('kyc') || capabilities.includes('kyc_prefill');
-  // The SSN section shows whenever an SSN-collecting capability is requested AND
-  // the user hasn't already verified with a government ID.
-  const showSsn = ssnCapabilityRequested && !state.identityVerifiedViaGovId;
-  // The no-SSN button shows alongside the SSN section, but only when Persona is
-  // actually installed in the host app — otherwise the flow can't launch.
-  const showNoSsnButton = showSsn && isPersonaAvailable();
+  // Read the trimmed reducer capabilities, not the raw `capabilities` prop:
+  // reconciliation drops capabilities the account has already satisfied, and
+  // the validator reads the trimmed list. Sourcing the two from different
+  // places is what let the SSN field render while no longer being validated.
+  const ssnCapabilityRequested = requiresKyc(state.requiredCapabilities);
+  // The SSN section shows whenever an SSN-collecting capability is requested and
+  // the SSN input isn't suppressed — the user has already verified with a
+  // government ID, or one is mandatory and Persona runs on submit instead.
+  const showSsn = ssnCapabilityRequested && !skipsSsnEntry(state);
+  // The manual opt-out is redundant once verification is mandatory: iOS
+  // suppresses it because Persona runs automatically after Continue
+  // (`CustomerInformationView.swift:50-55`).
+  const showNoSsnButton = showSsn && !governmentIdRequired(state) && isPersonaAvailable();
   // Once verified, replace the whole SSN block with a confirmation line.
   const showVerifiedNotice = ssnCapabilityRequested && state.identityVerifiedViaGovId;
 
