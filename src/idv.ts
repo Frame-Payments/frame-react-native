@@ -6,6 +6,7 @@ import { ErrorCodes, frameError } from './errors';
 // The framepayments SDK has no API surface for the `/v1/idv/*` endpoints and
 // exposes no generic request hook, so these calls are hand-rolled. Routing and
 // headers come from bespokeRequest so they can't drift from the SDK's.
+// Typed SDK support requested in FRA-6648.
 
 /**
  * Create a Persona inquiry server-side and return its id. The backend pre-

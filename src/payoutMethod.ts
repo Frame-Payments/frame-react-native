@@ -7,7 +7,7 @@ import { frameJsonPost } from './bespokeRequest';
 // `AccountsAPI.electPayoutMethod(accountId:request:)`
 // (`Sources/Frame/Networking/Accounts/AccountsAPI.swift:227`), whose request
 // body is `{ payment_method_id }`
-// (`AccountRequests.swift:396-410`).
+// (`AccountRequests.swift:396-410`). Typed SDK support requested in FRA-6648.
 
 interface ElectPayoutMethodResponse {
   payout_payment_method_id?: string | null;

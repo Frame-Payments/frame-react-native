@@ -1,6 +1,5 @@
 import { AppState, type AppStateStatus } from 'react-native';
-import { frameJsonPost, frameRequestHeaders } from './bespokeRequest';
-import { FRAME_API_BASE_URL } from './client';
+import { client } from './client';
 import { getFingerprintVisitorId } from './fingerprint';
 
 // Sonar fraud-detection sessions. Ported from iOS SessionManager
@@ -14,11 +13,12 @@ import { getFingerprintVisitorId } from './fingerprint';
 // update call records one.
 //
 // Naming trap worth stating: iOS's "Sonar session" is the `charge_sessions`
-// resource (POST/PATCH /v1/charge_sessions). The framepayments SDK also has a
-// `sonarSessions` API on /v1/sonar_sessions — a DIFFERENT resource and the wrong
-// target. Neither SDK API accepts fingerprint_visitor_id or account_id, so these
-// two calls are hand-rolled through bespokeRequest, which keeps the base URL,
-// User-Agent and ip_address header identical to every other SDK request.
+// resource (POST/PATCH /v1/charge_sessions). The framepayments SDK ALSO has a
+// `sonarSessions` API on /v1/sonar_sessions — a DIFFERENT resource and the
+// wrong target; do not use it here. The correctly-targeted resource is
+// `client.sdk.chargeSessions` (see the Transport section below) — its request
+// params don't yet declare `fingerprint_visitor_id`/`account_id`, so those go
+// through a runtime-safe cast rather than a hand-rolled `fetch()`.
 //
 // All state lives in module scope, not on the SDK instance: prefetchIpAddress
 // calls resetClients() mid-flight, which would otherwise discard it.
@@ -178,29 +178,46 @@ export function __resetSonarSession(): void {
 // Transport
 // ─────────────────────────────────────────────────────────────────────────────
 
+// The `chargeSessions` resource on the framepayments SDK already targets the
+// right endpoint (POST/PATCH /v1/charge_sessions — verified against the
+// compiled client), so this rides it rather than a raw `fetch()`: same ambient
+// auth (apiKey/publishableKey), same interceptors, no header/base-URL
+// duplication to keep in sync by hand. Its TypeScript params
+// (CreateChargeSessionParams/UpdateChargeSessionParams) don't declare
+// `fingerprint_visitor_id` or `account_id`, so those go through a runtime-safe
+// cast — the same pattern used elsewhere in this SDK for fields the npm
+// package's types don't yet cover (e.g. accounts.create in
+// useOnboardingViewModel.ts).
+//
+// The response id field is read defensively: the type declares `id`, but iOS's
+// own wire contract for this exact endpoint (SonarSessionRequests.swift:14-20)
+// decodes `sonar_session_id`. Unverified which the server actually sends, so
+// both are accepted rather than guessing. See FRA-6648 (framepayments ticket)
+// filed to get this typed and confirmed upstream.
 interface SessionResponse {
+  id?: unknown;
   sonar_session_id?: unknown;
 }
 
-async function postSession(path: string, accountId: string | null): Promise<string> {
-  const visitorId = await getFingerprintVisitorId();
-  if (!visitorId) {
-    throw new Error('Fingerprint returned no visitor id, so no Sonar session can be created.');
-  }
-  const body = {
-    fingerprint_visitor_id: visitorId,
-    ...(accountId ? { account_id: accountId } : {}),
-  };
-  const response = await frameJsonPost<SessionResponse>(path, body, 'Sonar session');
-  const id = response.sonar_session_id;
+function sessionIdFrom(response: SessionResponse, context: string): string {
+  const id = response.sonar_session_id ?? response.id;
   if (typeof id !== 'string' || id.length === 0) {
-    throw new Error('Sonar session response carried no sonar_session_id.');
+    throw new Error(`Sonar session ${context} response carried no session id.`);
   }
   return id;
 }
 
 async function createSession(accountId: string | null): Promise<string> {
-  return postSession('/v1/charge_sessions', accountId);
+  const visitorId = await getFingerprintVisitorId();
+  if (!visitorId) {
+    throw new Error('Fingerprint returned no visitor id, so no Sonar session can be created.');
+  }
+  const params = {
+    fingerprint_visitor_id: visitorId,
+    ...(accountId ? { account_id: accountId } : {}),
+  } as unknown as Parameters<typeof client.sdk.chargeSessions.create>[0];
+  const response = (await client.sdk.chargeSessions.create(params)) as unknown as SessionResponse;
+  return sessionIdFrom(response, 'create');
 }
 
 /**
@@ -209,29 +226,19 @@ async function createSession(accountId: string | null): Promise<string> {
  * freshness window. A null `accountId` refreshes the pre-account session in
  * place, keeping the same id so the device event accumulates against it rather
  * than against a fresh orphan.
- *
- * PATCH, not POST — frameJsonPost is POST-only, so this issues the request
- * directly with the same shared headers.
  */
 async function refreshSession(session: string, accountId: string | null): Promise<string> {
   const visitorId = await getFingerprintVisitorId();
   if (!visitorId) {
     throw new Error('Fingerprint returned no visitor id, so the Sonar session cannot be refreshed.');
   }
-  const body = {
+  const params = {
     fingerprint_visitor_id: visitorId,
     ...(accountId ? { account_id: accountId } : {}),
-  };
+  } as unknown as Parameters<typeof client.sdk.chargeSessions.update>[1];
   try {
-    const response = await fetch(
-      `${FRAME_API_BASE_URL}/v1/charge_sessions/${encodeURIComponent(session)}`,
-      { method: 'PATCH', headers: frameRequestHeaders(), body: JSON.stringify(body) },
-    );
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const parsed = (await response.json()) as SessionResponse;
-    const id = parsed.sonar_session_id;
-    if (typeof id !== 'string' || id.length === 0) throw new Error('no sonar_session_id');
-    return id;
+    const response = (await client.sdk.chargeSessions.update(session, params)) as unknown as SessionResponse;
+    return sessionIdFrom(response, 'update');
   } catch {
     // The server no longer recognises this session, so replace it rather than
     // fail the payment.

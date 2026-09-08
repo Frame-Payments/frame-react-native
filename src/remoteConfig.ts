@@ -13,6 +13,11 @@ import { FRAME_API_BASE_URL } from './client';
 // Cached for the process. iOS additionally persists to the keychain; a missed
 // cache here costs one request on the next cold start, and every consumer has a
 // fallback or degrades cleanly, so persistence buys little.
+//
+// The framepayments SDK's ConfigurationAPI only exposes
+// getEvervaultConfiguration()/getSiftConfiguration() as typed methods — no
+// aggregate, and no fingerprint/legal/mapbox getters at all — so this whole
+// module is a hand-rolled fetch. Typed SDK support requested in FRA-6648.
 
 export interface EvervaultConfigBlock {
   appId?: string;

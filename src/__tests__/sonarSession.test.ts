@@ -1,12 +1,11 @@
 /**
- * Unit tests for the Sonar charge-session manager. The storage seam is injected,
- * fingerprint is mocked, and fetch is stubbed, so nothing touches the network.
+ * Unit tests for the Sonar charge-session manager. The storage seam is
+ * injected, fingerprint is mocked, and the framepayments SDK's chargeSessions
+ * resource is mocked, so nothing touches the network.
  */
 
 jest.mock('react-native', () => ({
   AppState: { addEventListener: jest.fn(() => ({ remove: jest.fn() })) },
-  // frameRequestHeaders reads Platform.OS to build the User-Agent the backend
-  // routes native-SDK requests on.
   Platform: { OS: 'ios' },
 }));
 
@@ -15,6 +14,39 @@ jest.mock('../fingerprint', () => ({
   getFingerprintVisitorId: () => mockVisitorId(),
 }));
 
+interface Call {
+  method: 'POST' | 'PATCH';
+  path: string;
+  body: Record<string, unknown>;
+}
+
+let calls: Call[] = [];
+let nextSessionId = 1;
+// Swappable per-test so a single test can simulate a failure-then-success
+// sequence (see "replaces a session the server no longer recognises").
+let chargeSessionsImpl = {
+  create: jest.fn(async (params: Record<string, unknown>) => {
+    calls.push({ method: 'POST', path: '/v1/charge_sessions', body: params });
+    return { sonar_session_id: `cs_${nextSessionId++}` };
+  }),
+  update: jest.fn(async (id: string, params: Record<string, unknown>) => {
+    calls.push({ method: 'PATCH', path: `/v1/charge_sessions/${id}`, body: params });
+    return { sonar_session_id: id };
+  }),
+};
+
+jest.mock('framepayments', () => {
+  class MockFrameSDK {
+    get chargeSessions() {
+      return chargeSessionsImpl;
+    }
+    constructor(_config: unknown) {}
+  }
+  return { FrameSDK: MockFrameSDK };
+});
+
+import { setConfig, resetConfig } from '../config';
+import { resetClients } from '../client';
 import {
   __resetSonarSession,
   __setSessionStorage,
@@ -23,15 +55,6 @@ import {
   warmUp,
   type SessionStorage,
 } from '../sonarSession';
-
-interface Call {
-  method: string;
-  path: string;
-  body: Record<string, unknown>;
-}
-
-let calls: Call[] = [];
-let nextSessionId = 1;
 
 function fakeStorage(): SessionStorage {
   const values = new Map<string, string>();
@@ -53,28 +76,30 @@ let storage: SessionStorage;
 
 beforeEach(() => {
   __resetSonarSession();
+  resetConfig();
+  resetClients();
+  setConfig({ publishableKey: 'pk_test_x', debugMode: false });
   calls = [];
   nextSessionId = 1;
   mockVisitorId.mockResolvedValue('visitor_1');
   storage = fakeStorage();
   __setSessionStorage(storage);
-  global.fetch = jest.fn(async (url: unknown, init?: unknown) => {
-    const { method, body } = (init ?? {}) as { method?: string; body?: string };
-    calls.push({
-      method: method ?? 'GET',
-      path: new URL(String(url)).pathname,
-      body: body ? (JSON.parse(body) as Record<string, unknown>) : {},
-    });
-    return {
-      ok: true,
-      status: 200,
-      json: async () => ({ sonar_session_id: `cs_${nextSessionId++}` }),
-    } as Response;
-  }) as unknown as typeof fetch;
+  chargeSessionsImpl = {
+    create: jest.fn(async (params: Record<string, unknown>) => {
+      calls.push({ method: 'POST', path: '/v1/charge_sessions', body: params });
+      return { sonar_session_id: `cs_${nextSessionId++}` };
+    }),
+    update: jest.fn(async (id: string, params: Record<string, unknown>) => {
+      calls.push({ method: 'PATCH', path: `/v1/charge_sessions/${id}`, body: params });
+      return { sonar_session_id: id };
+    }),
+  };
 });
 
 afterEach(() => {
   __resetSonarSession();
+  resetConfig();
+  resetClients();
 });
 
 describe('ensureSession', () => {
@@ -179,22 +204,12 @@ describe('ensureSession', () => {
   it('replaces a session the server no longer recognises rather than failing', async () => {
     await storage.set('cs_gone', 'acct_1');
     await storage.setLastRefresh(Date.now() - 20 * 60 * 1000, 'acct_1');
-    let first = true;
-    global.fetch = jest.fn(async (url: unknown, init?: unknown) => {
-      const { method, body } = (init ?? {}) as { method?: string; body?: string };
-      calls.push({
-        method: method ?? 'GET',
-        path: new URL(String(url)).pathname,
-        body: body ? (JSON.parse(body) as Record<string, unknown>) : {},
-      });
-      if (first) {
-        first = false;
-        return { ok: false, status: 404, json: async () => ({}) } as Response;
-      }
-      return { ok: true, status: 200, json: async () => ({ sonar_session_id: 'cs_new' }) } as Response;
-    }) as unknown as typeof fetch;
+    chargeSessionsImpl.update.mockImplementationOnce(async (id: string, params: Record<string, unknown>) => {
+      calls.push({ method: 'PATCH', path: `/v1/charge_sessions/${id}`, body: params });
+      throw new Error('404 not found');
+    });
 
-    expect(await ensureSession('acct_1')).toBe('cs_new');
+    expect(await ensureSession('acct_1')).toBe('cs_1');
     expect(calls.map((c) => c.method)).toEqual(['PATCH', 'POST']);
   });
 
@@ -249,9 +264,9 @@ describe('refreshOnFlowEntry', () => {
   });
 
   it('swallows failures — it must never block presentation', async () => {
-    global.fetch = jest.fn(async () => {
+    chargeSessionsImpl.create.mockImplementationOnce(async () => {
       throw new Error('offline');
-    }) as unknown as typeof fetch;
+    });
     await expect(refreshOnFlowEntry('acct_1')).resolves.toBeUndefined();
   });
 
