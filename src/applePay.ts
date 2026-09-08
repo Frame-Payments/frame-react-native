@@ -1,5 +1,6 @@
 import { NativeModules, Platform } from 'react-native';
 import type { ApplePayPaymentData } from 'framepayments';
+import { sessionIdForPayment } from './sonarSession';
 import { client, requireSecretKeyFor } from './client';
 import { ErrorCodes, frameError } from './errors';
 import { ensureAttested, generateAssertionForPayment } from './attestation';
@@ -252,11 +253,16 @@ async function createPaymentMethodAndCharge(
     { type: 'card', account: owner.id, _wallet: wallet },
     { usePublishableKey: true },
   );
+  // The server resolves a payment's session through the account, so only the
+  // account path can carry one — a ChargeIntent on a customer has no account to
+  // resolve through. Never blocks: the server's rejection is authoritative.
+  const sonarSessionId = await sessionIdForPayment(owner.id);
   const transfer = await client.sdk.transfers.create({
     amount: options.amount,
     account_id: owner.id,
     currency,
     source_payment_method_id: pm.id,
+    ...(sonarSessionId ? { sonar_session_id: sonarSessionId } : {}),
   });
   if (!transfer || typeof transfer.id !== 'string') {
     throw frameError(ErrorCodes.PAYMENT_FAILED, 'Frame returned no Transfer id.');

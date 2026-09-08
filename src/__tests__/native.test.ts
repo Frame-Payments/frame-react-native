@@ -12,6 +12,17 @@ const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unkno
 
 const mockPlatform = { OS: 'ios' as 'ios' | 'android' };
 
+// initialize() starts a Sonar session, and sonarSession/fingerprint/idv call
+// `fetch` directly (those endpoints have no framepayments surface). Under
+// jest's node environment an unmocked fetch is a REAL request to
+// api.framepayments.com, whose undici connection pool then holds the run open.
+// Stub it so nothing in this suite touches the network.
+beforeAll(() => {
+  global.fetch = jest.fn(() =>
+    Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) } as Response),
+  ) as unknown as typeof fetch;
+});
+
 // native.tsx now transitively imports the Cart/Checkout screens, which pull in
 // StyleSheet, Animated, Appearance, etc. Provide enough of the RN surface for
 // the modules to load without rendering.

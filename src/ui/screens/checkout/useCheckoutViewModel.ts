@@ -2,6 +2,7 @@ import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { PaymentMethodType } from 'framepayments';
 import { client, hasSecretKey, requireSecretKeyFor } from '../../../client';
 import { configureEvervault, encryptWithEvervault } from '../../../evervault';
+import { sessionIdForPayment } from '../../../sonarSession';
 import { __internal as configInternal } from '../../../config';
 import { ErrorCodes, frameError } from '../../../errors';
 import {
@@ -180,11 +181,17 @@ export function useCheckoutViewModel({
       //
       // The npm SDK's CreateTransferParams doesn't declare `confirm`, hence the
       // cast — the same pattern used elsewhere for wire fields it omits.
+      // The server rejects the transfer outright without a live session for this
+      // account, so wait for one rather than racing SDK start-up
+      // (FrameCheckoutViewModel.swift:275-276).
+      const sonarSessionId = await sessionIdForPayment(accountIdRef.current);
+
       const transfer = await client.sdk.transfers.create({
         amount,
         account_id: accountIdRef.current,
         currency: currency.toLowerCase(),
         source_payment_method_id: paymentMethodId,
+        ...(sonarSessionId ? { sonar_session_id: sonarSessionId } : {}),
         confirm: false,
       } as unknown as Parameters<typeof client.sdk.transfers.create>[0]);
       if (!transfer || typeof transfer.id !== 'string') {

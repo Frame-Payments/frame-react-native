@@ -31,9 +31,11 @@ import {
 import { resetClients, warmClients, client } from './client';
 import { configureEvervault, resetEvervault } from './evervault';
 import { fetchIpAddress } from './ipAddress';
+import { initializeSession, observeAppLifecycle, refreshOnFlowEntry } from './sonarSession';
 import { presentApplePayFlow } from './applePay';
 import { presentGooglePayFlow } from './googlePay';
 import { warnOnce } from './warn';
+import { initializeSift } from './sift';
 
 const LINKING_ERROR =
   `The package 'framepayments-react-native' doesn't seem to be linked. Make sure you have run 'pod install' (iOS) or rebuilt the app (Android).`;
@@ -177,9 +179,14 @@ async function runInitialize(options: {
   // Prefetch Evervault + Sift configs in the background. Card encryption can't
   // proceed until Evervault is configured, but we don't block initialize on it
   // — submit-time encryption will re-await this promise via configureEvervault's
-  // memoization. Sift's bridge wiring lands in a later phase; we cache the
-  // config now so it's ready when the bridge attaches.
+  // memoization. Sift is handed its config as soon as the fetch lands.
   void prefetchServiceConfigs();
+  // Start the Sonar session and watch for foreground/background transitions, as
+  // iOS does in its own initialize. Backgrounding is the most common way a
+  // session goes stale — timers do not fire while suspended. Fire-and-forget:
+  // the payment path calls ensureSession and the server is authoritative.
+  observeAppLifecycle();
+  void initializeSession();
   // Resolve the device IP asynchronously and reset the cached SDK client so
   // subsequent requests pick up the ip_address header. iOS resolves
   // immediately (getifaddrs); Android does a one-time api.ipify.org lookup
@@ -224,6 +231,12 @@ async function prefetchServiceConfigs(): Promise<void> {
     const sift = siftResult.value;
     if (sift.account_id && sift.beacon_key) {
       __internal.setSiftConfiguration({ accountId: sift.account_id, beaconKey: sift.beacon_key });
+      // Hand the config to the Sift SDK so it actually starts collecting. This
+      // is what iOS's SiftManager.initializeSift does; until now RN cached the
+      // config and nothing ever read it, so no device events were collected.
+      if (!initializeSift() && getDebugMode()) {
+        console.warn('[Frame] Sift config fetched but the SDK could not be initialized.');
+      }
     } else if (getDebugMode()) {
       console.warn('[Frame] Backend returned no Sift config (account_id/beacon_key missing).');
     }
@@ -307,6 +320,10 @@ export async function presentCheckout(options: PresentCheckoutOptions): Promise<
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentCheckout requires accountId');
   }
+  // Records a device event on entering the flow, mirroring iOS's
+  // .refreshesSonarSession(accountId:) modifier on FrameCheckoutView.
+  // Fire-and-forget — it must never hold up presentation.
+  void refreshOnFlowEntry(options.accountId);
   const [applePayReady, googlePayReady] = await Promise.all([
     Platform.OS === 'ios' ? canMakeApplePay() : Promise.resolve(false),
     Platform.OS === 'android' ? isGooglePayReady() : Promise.resolve(false),
@@ -381,6 +398,7 @@ export async function presentCart(options: PresentCartOptions): Promise<string> 
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentCart requires accountId');
   }
+  void refreshOnFlowEntry(options.accountId);
   // Cart screen sums items + shipping, then transitions to Checkout for the
   // actual payment collection. The presenter only ever renders ONE screen at a
   // time, so the Cart's "Checkout" button swaps the rendered element via a
@@ -473,6 +491,7 @@ export async function presentOnboarding(options: PresentOnboardingOptions): Prom
         'clientSecret — onboarding requests may otherwise fail to authenticate.',
     );
   }
+  void refreshOnFlowEntry(accountId);
   const capabilities = options.capabilities ?? [];
   const showIntroScreen = options.showIntroScreen ?? true;
   const showCompletionScreen = options.showCompletionScreen ?? true;
@@ -515,6 +534,7 @@ function presentMethodScreen(
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, `Frame.${fnName} requires accountId`);
   }
+  void refreshOnFlowEntry(options.accountId);
   return presentScreen<string>((api) => (
     <StandaloneMethodRoot
       mode={mode}
