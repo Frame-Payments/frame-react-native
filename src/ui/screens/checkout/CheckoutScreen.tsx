@@ -11,6 +11,7 @@ import { GooglePayButton } from '../../primitives/GooglePayButton';
 import { CountryPicker } from '../../primitives/CountryPicker';
 import { Icon, type IconName } from '../../assets';
 import { convertCentsToCurrencyString } from '../../../currency';
+import { addressFormatForCountry } from '../../../addressFormat';
 import { showToast } from '../../primitives/toastCenter';
 import { toToastMessage } from '../../../api-errors';
 import { isFrameError, normalizeToFrameError, ErrorCodes } from '../../../errors';
@@ -97,6 +98,10 @@ export function CheckoutScreen({
   });
 
   const showWalletRow = showApplePay || showGooglePay;
+  // Per-country field labels, keyboard and length caps. Previously a US/non-US
+  // binary, so a UK county or Japanese prefecture was labelled "State" and
+  // truncated to two characters as the user typed.
+  const addressFormat = addressFormatForCountry(vm.state.address.country);
 
   async function handlePay() {
     try {
@@ -339,14 +344,14 @@ export function CheckoutScreen({
                     <View style={[styles.vDivider, { backgroundColor: theme.colors.surfaceStroke }]} />
                     <View style={styles.addressCell}>
                       <ValidatedTextField
-                        prompt="State"
+                        prompt={addressFormat.stateLabel}
                         value={vm.state.address.state}
                         onChangeText={(v) =>
                           vm.dispatch({ type: 'SET_ADDRESS_FIELD', field: 'state', value: v })
                         }
                         error={vm.state.fieldErrors.addressState}
                         autoCapitalize="characters"
-                        characterLimit={2}
+                        characterLimit={addressFormat.stateMaxLength}
                         borderless
                       />
                     </View>
@@ -366,13 +371,13 @@ export function CheckoutScreen({
                   </View>
                   <View style={[styles.hDivider, { backgroundColor: theme.colors.surfaceStroke }]} />
                   <ValidatedTextField
-                    prompt={vm.state.address.country === 'US' ? 'Zip Code' : 'Postal Code'}
+                    prompt={addressFormat.postalLabel}
                     value={vm.state.address.postalCode}
                     onChangeText={(v) =>
                       vm.dispatch({ type: 'SET_ADDRESS_FIELD', field: 'postalCode', value: v })
                     }
                     error={vm.state.fieldErrors.addressPostalCode}
-                    keyboardType={vm.state.address.country === 'US' ? 'number-pad' : 'default'}
+                    keyboardType={addressFormat.postalKeyboard}
                     characterLimit={vm.state.address.country === 'US' ? 5 : undefined}
                     borderless
                   />

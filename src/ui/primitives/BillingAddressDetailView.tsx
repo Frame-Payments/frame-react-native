@@ -3,6 +3,8 @@ import { StyleSheet, View } from 'react-native';
 import { useFrameTheme } from '../theme/ThemeContext';
 import { ValidatedTextField } from './ValidatedTextField';
 import { CountryPicker } from './CountryPicker';
+import { addressFormatForCountry } from '../../addressFormat';
+import { subregionsForCountry } from '../../addressSubregions';
 import type { OnboardingAddress } from '../screens/onboarding/onboardingReducer';
 
 // Reusable billing-address form block. Renders 5–6 ValidatedTextFields plus
@@ -46,9 +48,11 @@ export function BillingAddressDetailView({
     }
   }, [international, address.country, onChangeField]);
 
-  const isUS = address.country === 'US';
-  const postalLabel = !international || isUS ? 'Zip code' : 'Postal code';
-  const stateLabel = !international || isUS ? 'State' : 'State / province / region';
+  // Per-country labels, keyboard and length caps, matching iOS AddressFormat.
+  // A non-international form is US-only by definition, so it reads the US entry
+  // rather than whatever `address.country` happens to hold.
+  const format = addressFormatForCountry(international ? address.country : 'US');
+  const hasSubregionCodes = subregionsForCountry(address.country) !== null;
 
   return (
     <View testID={testID} style={styles.stack}>
@@ -77,21 +81,23 @@ export function BillingAddressDetailView({
         </View>
         <View style={styles.cell}>
           <ValidatedTextField
-            prompt={stateLabel}
+            prompt={format.stateLabel}
             value={address.state}
             onChangeText={(v) => onChangeField('state', v)}
             error={errors['address.state']}
-            autoCapitalize={!international || isUS ? 'characters' : 'words'}
-            characterLimit={!international || isUS ? 2 : undefined}
+            // Upper-case only where the subregion is a code; a free-text
+            // county or prefecture is a name, not an abbreviation.
+            autoCapitalize={hasSubregionCodes ? 'characters' : 'words'}
+            characterLimit={format.stateMaxLength}
           />
         </View>
       </View>
       <ValidatedTextField
-        prompt={postalLabel}
+        prompt={format.postalLabel}
         value={address.postalCode}
         onChangeText={(v) => onChangeField('postalCode', v)}
         error={errors['address.postalCode']}
-        keyboardType={!international || isUS ? 'number-pad' : 'default'}
+        keyboardType={format.postalKeyboard}
       />
       {international ? (
         <CountryPicker

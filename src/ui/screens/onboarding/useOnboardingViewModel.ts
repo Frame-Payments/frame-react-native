@@ -8,6 +8,7 @@ import { openPlaidLink as runPlaidLink, type PlaidConnectResult } from '../../..
 import { launchPersonaInquiry, isPersonaAvailable } from '../../../persona';
 import { createIdvSession, completeIdvSession } from '../../../idv';
 import { electPayoutMethod } from '../../../payoutMethod';
+import { normalizeSubregion } from '../../../addressSubregions';
 import { ensureOnboardingSession } from '../../../onboardingSession';
 import { isNotFoundError } from '../../../api-errors';
 import { endOnboardingSession } from '../../../auth';
@@ -592,7 +593,7 @@ export function useOnboardingViewModel({
           line_1: current.address.line1,
           line_2: current.address.line2 || undefined,
           city: current.address.city,
-          state: current.address.state,
+          state: normalizedSubregion(current.address),
           country: current.address.country,
           postal_code: current.address.postalCode,
         },
@@ -689,7 +690,7 @@ export function useOnboardingViewModel({
           line_1: current.address.line1,
           line_2: current.address.line2 || undefined,
           city: current.address.city,
-          state: current.address.state,
+          state: normalizedSubregion(current.address),
           country: current.address.country,
           postal_code: current.address.postalCode,
         };
@@ -742,7 +743,7 @@ export function useOnboardingViewModel({
             line_1: current.address.line1,
             line_2: current.address.line2 || undefined,
             city: current.address.city,
-            state: current.address.state,
+            state: normalizedSubregion(current.address),
             country: current.address.country,
             postal_code: current.address.postalCode,
           },
@@ -868,7 +869,7 @@ export function useOnboardingViewModel({
         line_1: current.address.line1,
         line_2: current.address.line2 || undefined,
         city: current.address.city,
-        state: current.address.state,
+        state: normalizedSubregion(current.address),
         country: 'US',
         postal_code: current.address.postalCode,
       };
@@ -968,7 +969,7 @@ export function useOnboardingViewModel({
           line_1: current.address.line1,
           line_2: current.address.line2 || undefined,
           city: current.address.city,
-          state: current.address.state,
+          state: normalizedSubregion(current.address),
           country: current.address.country,
           postal_code: current.address.postalCode,
         },
@@ -1165,6 +1166,16 @@ export function useOnboardingViewModel({
 export { isCapabilitySatisfied };
 
 // ─── Evervault helper (mirrors useCheckoutViewModel) ───
+
+// The subregion as the API should receive it: "california" becomes "CA" for a
+// country whose subregions are validated as codes, and free-text countries keep
+// their casing. iOS calls BillingAddressViewModel.normalize() explicitly before
+// assigning the address into the identity (UserIdentificationView.swift:334) —
+// done at the send sites rather than in the reducer so the user's typing isn't
+// rewritten under them mid-field.
+function normalizedSubregion(address: OnboardingAddress): string {
+  return normalizeSubregion(address.state, address.country);
+}
 
 // 'YYYY-MM-DD' from the reducer's three DOB fields, or undefined when the user
 // hasn't supplied a complete date. Every payload that carries a birth date

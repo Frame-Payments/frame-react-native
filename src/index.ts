@@ -127,6 +127,7 @@ export {
   validateDateOfBirth,
   validatePostalCode,
   validatePhoneE164,
+  validateSubregion,
   detectCardBrand,
   getSupportedPostalCodeCountries,
   POSTAL_CODE_COUNTRIES,
@@ -135,6 +136,19 @@ export {
 import * as Validators from './validation';
 import { convertCentsToCurrencyString } from './currency';
 export { Validators };
+
+// Per-country address presentation and the subregion tables Frame validates
+// against. iOS exposes AddressFormat and AddressSubregions publicly.
+export { addressFormatForCountry, type AddressFormat } from './addressFormat';
+export {
+  subregionsForCountry,
+  subregionCodesForCountry,
+  findSubregion,
+  normalizeSubregion,
+  UNITED_STATES_SUBREGIONS,
+  CANADA_SUBREGIONS,
+  type AddressSubregion,
+} from './addressSubregions';
 
 export {
   DEFAULT_COUNTRY,

@@ -1,3 +1,5 @@
+import { addressFormatForCountry } from './addressFormat';
+import { subregionCodesForCountry } from './addressSubregions';
 import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -352,6 +354,27 @@ export function validatePostalCode(value: string, countryCode: string): string |
  */
 export function getSupportedPostalCodeCountries(): ReadonlyArray<PostalCountryCode> {
   return POSTAL_CODE_COUNTRIES;
+}
+
+/**
+ * Validates a state / province / region against the subregions the country
+ * accepts. Countries whose subregion is free text (everything but US and CA)
+ * pass any non-empty value.
+ *
+ * Mirrors iOS `Validators.validateSubregion`
+ * (`Sources/Frame/Validation/Validators.swift:208-216`), including the
+ * per-country label — "State is required" for the US, "Province is required"
+ * for Canada, "County is required" for the UK.
+ */
+export function validateSubregion(value: string, countryCode: string): string | null {
+  const label = addressFormatForCountry(countryCode).stateLabel;
+  const trimmed = value.trim();
+  if (trimmed === '') return `${label} is required`;
+  const codes = subregionCodesForCountry(countryCode);
+  if (!codes) return null;
+  return codes.has(trimmed.toUpperCase())
+    ? null
+    : `Enter a valid 2-letter ${label.toLowerCase()}`;
 }
 
 /**

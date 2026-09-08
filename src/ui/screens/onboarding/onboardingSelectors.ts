@@ -7,6 +7,7 @@ import {
   validatePostalCode,
   validateRoutingNumberUS,
   validateSSNLast4,
+  validateSubregion,
   validateZipUS,
 } from '../../../validation';
 import type { OnboardingCapability } from '../../../types';
@@ -242,7 +243,10 @@ export function validateAddress(address: OnboardingAddress, required: boolean): 
   const cityError = validateNonEmpty(address.city, 'City');
   if (cityError) errors['address.city'] = cityError;
 
-  const stateError = validateNonEmpty(address.state, 'State');
+  // Country-aware, matching iOS Validators.validateSubregion: a US state must
+  // be one of the accepted codes, and the label follows the country ("Province"
+  // for Canada, "County" for the UK).
+  const stateError = validateSubregion(address.state, address.country);
   if (stateError) errors['address.state'] = stateError;
 
   const countryError = validateNonEmpty(address.country, 'Country');

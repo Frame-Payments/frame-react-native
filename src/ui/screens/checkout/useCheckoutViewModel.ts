@@ -3,6 +3,7 @@ import { PaymentMethodType } from 'framepayments';
 import { client, hasSecretKey, requireSecretKeyFor } from '../../../client';
 import { configureEvervault, encryptWithEvervault } from '../../../evervault';
 import { sessionIdForPayment } from '../../../sonarSession';
+import { normalizeSubregion } from '../../../addressSubregions';
 import { __internal as configInternal } from '../../../config';
 import { ErrorCodes, frameError } from '../../../errors';
 import {
@@ -152,7 +153,10 @@ export function useCheckoutViewModel({
               line_1: current.address.line1 || undefined,
               line_2: current.address.line2 || undefined,
               city: current.address.city || undefined,
-              state: current.address.state || undefined,
+              // Normalized so "california" goes to the API as "CA", matching
+              // iOS's AddressSubregions.normalize at
+              // FrameCheckoutViewModel.swift:346.
+              state: normalizeSubregion(current.address.state, current.address.country) || undefined,
               country: current.address.country || undefined,
               postal_code: current.address.postalCode || undefined,
             }

@@ -4,6 +4,7 @@ import {
   validateFullName,
   validateNonEmpty,
   validatePostalCode,
+  validateSubregion,
   validateZipUS,
 } from '../../../validation';
 
@@ -194,7 +195,7 @@ export function hasUsablePaymentInput(state: CheckoutState): boolean {
   if (shouldValidateAddress(state)) {
     if (validateNonEmpty(state.address.line1, 'Address') !== null) return false;
     if (validateNonEmpty(state.address.city, 'City') !== null) return false;
-    if (validateNonEmpty(state.address.state, 'State') !== null) return false;
+    if (validateSubregion(state.address.state, state.address.country) !== null) return false;
     if (state.address.country === 'US' && validateZipUS(state.address.postalCode) !== null) return false;
     if (state.address.country !== 'US' && validateNonEmpty(state.address.postalCode, 'Postal code') !== null) return false;
   }
@@ -229,7 +230,9 @@ export function validateForSubmit(state: CheckoutState): ValidationResult {
     const cityError = validateNonEmpty(state.address.city, 'City');
     if (cityError) errors.addressCity = cityError;
 
-    const stateError = validateNonEmpty(state.address.state, 'State');
+    // Country-aware: a US state must be one of the 56 accepted codes, not any
+    // non-empty string. iOS uses Validators.validateSubregion here.
+    const stateError = validateSubregion(state.address.state, state.address.country);
     if (stateError) errors.addressState = stateError;
 
     // Country-aware, matching iOS's Validators.validatePostalCode(_:countryCode:).
