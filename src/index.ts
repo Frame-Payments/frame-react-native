@@ -51,6 +51,13 @@ export type {
 } from './types';
 export { isOnboardingApproved } from './types';
 export { ErrorCodes } from './errors';
+export {
+  isThreeDSecureAvailable,
+} from './ui/primitives/ThreeDSecureChallenge';
+export type {
+  ChargeOutcome,
+  ThreeDSecureChallengeResult,
+} from './threeDSecure';
 export type { FrameErrorShape, FrameErrorCode } from './errors';
 // Host apps need this to render a caught Frame error: the top-level `message`
 // on an API rejection is a generic envelope, and the actionable reason lives in

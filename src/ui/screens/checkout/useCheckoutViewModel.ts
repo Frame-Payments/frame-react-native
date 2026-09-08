@@ -5,6 +5,12 @@ import { configureEvervault, encryptWithEvervault } from '../../../evervault';
 import { __internal as configInternal } from '../../../config';
 import { ErrorCodes, frameError } from '../../../errors';
 import {
+  confirmCharge,
+  requiresConfirmation,
+  type ConfirmableCharge,
+  type ThreeDSecureChallengePresenter,
+} from '../../../threeDSecure';
+import {
   checkoutReducer,
   hasUsablePaymentInput,
   initialCheckoutState,
@@ -21,7 +27,8 @@ import type { PaymentCardFieldHandle } from '../../primitives/PaymentCardField';
 //   - resolves Evervault config from JS cache or fetches it (one-shot)
 //   - validates + encrypts the card on submit
 //   - creates the card payment method (publishable-key route)
-//   - creates the transfer (publishable-key route)
+//   - creates the transfer with a deferred confirm, then confirms it, running a
+//     3D Secure challenge when the issuer asks for one
 
 export interface UseCheckoutViewModelArgs {
   accountId: string;
@@ -29,6 +36,13 @@ export interface UseCheckoutViewModelArgs {
   currency?: string;
   addressMode?: AddressMode;
   cardFieldRef: React.RefObject<PaymentCardFieldHandle | null>;
+  /**
+   * Presents a 3D Secure challenge and resolves once the cardholder is done.
+   * Supplied by the screen, which owns the modal. Omitting it makes a required
+   * challenge fail with "Card verification could not be started" rather than
+   * hang — matching iOS's `challengePresenter: nil` contract.
+   */
+  presentChallenge?: ThreeDSecureChallengePresenter;
 }
 
 export interface UseCheckoutViewModelResult {
@@ -46,6 +60,7 @@ export function useCheckoutViewModel({
   currency = 'USD',
   addressMode = 'required',
   cardFieldRef,
+  presentChallenge,
 }: UseCheckoutViewModelArgs): UseCheckoutViewModelResult {
   const [state, dispatch] = useReducer(checkoutReducer, initialCheckoutState(addressMode));
   const accountIdRef = useRef(accountId);
@@ -157,22 +172,59 @@ export function useCheckoutViewModel({
         paymentMethodId = pm.id;
       }
 
+      // `confirm: false` is deliberate, matching iOS
+      // (FrameCheckoutViewModel.swift:278-288): an inline confirm rejects any
+      // charge that is not already settled, so a card the issuer wants to
+      // challenge fails before the challenge can run. The confirm below is what
+      // decides whether a challenge is needed at all.
+      //
+      // The npm SDK's CreateTransferParams doesn't declare `confirm`, hence the
+      // cast — the same pattern used elsewhere for wire fields it omits.
       const transfer = await client.sdk.transfers.create({
         amount,
         account_id: accountIdRef.current,
         currency: currency.toLowerCase(),
         source_payment_method_id: paymentMethodId,
-      });
+        confirm: false,
+      } as unknown as Parameters<typeof client.sdk.transfers.create>[0]);
       if (!transfer || typeof transfer.id !== 'string') {
         throw frameError(ErrorCodes.PAYMENT_FAILED, 'Frame returned no transfer id.');
       }
+
+      const charge = transfer as unknown as ConfirmableCharge;
+      // Anything already terminal needs no confirm — only a held-back transfer
+      // does. `requires_confirmation` is the normal answer to a deferred confirm.
+      if (requiresConfirmation(charge.status)) {
+        const outcome = await confirmCharge(charge, {
+          confirm: async (id) =>
+            (await client.sdk.transfers.confirm(id)) as unknown as ConfirmableCharge,
+          reload: async (id) =>
+            (await client.sdk.transfers.retrieve(id)) as unknown as ConfirmableCharge,
+          presentChallenge,
+        });
+        if (outcome.status === 'failed') {
+          throw frameError(
+            ErrorCodes.PAYMENT_FAILED,
+            outcome.message ?? 'Your card was declined. Try another payment method.',
+          );
+        }
+        if (outcome.status === 'timed_out') {
+          // The charge may still settle, so this is NOT reported as a decline —
+          // telling the user to retry could double-charge them.
+          throw frameError(
+            ErrorCodes.PAYMENT_FAILED,
+            'We could not confirm this payment. Check your bank before trying again.',
+          );
+        }
+      }
+
       cardFieldRef.current?.reset();
       return transfer.id;
     } finally {
       performingRef.current = false;
       dispatch({ type: 'SET_PERFORMING_ACTION', value: false });
     }
-  }, [amount, currency, cardFieldRef]);
+  }, [amount, currency, cardFieldRef, presentChallenge]);
 
   return {
     state,

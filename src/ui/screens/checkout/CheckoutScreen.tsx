@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useFrameTheme } from '../../theme/ThemeContext';
 import { BottomSheet } from '../../primitives/BottomSheet';
@@ -16,6 +16,8 @@ import { toToastMessage } from '../../../api-errors';
 import { isFrameError, normalizeToFrameError, ErrorCodes } from '../../../errors';
 import { presentApplePayFlow } from '../../../applePay';
 import { presentGooglePayFlow } from '../../../googlePay';
+import { ThreeDSecureChallenge } from '../../primitives/ThreeDSecureChallenge';
+import type { ThreeDSecureChallengeResult } from '../../../threeDSecure';
 import { useCheckoutViewModel } from './useCheckoutViewModel';
 import type { AddressMode } from './checkoutReducer';
 
@@ -60,9 +62,39 @@ export function CheckoutScreen({
 }: CheckoutScreenProps) {
   const theme = useFrameTheme();
   const cardFieldRef = useRef<PaymentCardFieldHandle | null>(null);
-  const vm = useCheckoutViewModel({ accountId, amount, currency, addressMode, cardFieldRef });
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [walletBusy, setWalletBusy] = useState(false);
+
+  // The 3DS challenge is a modal this screen owns, but it is awaited from inside
+  // the view model's submit. Park the resolver here so the WebView's outcome
+  // settles the promise the confirm loop is waiting on.
+  const [challengeUrl, setChallengeUrl] = useState<string | null>(null);
+  const challengeResolver = useRef<((r: ThreeDSecureChallengeResult) => void) | null>(null);
+
+  const presentChallenge = useCallback(
+    (url: string) =>
+      new Promise<ThreeDSecureChallengeResult>((resolve) => {
+        challengeResolver.current = resolve;
+        setChallengeUrl(url);
+      }),
+    [],
+  );
+
+  const finishChallenge = useCallback((result: ThreeDSecureChallengeResult) => {
+    setChallengeUrl(null);
+    const resolve = challengeResolver.current;
+    challengeResolver.current = null;
+    resolve?.(result);
+  }, []);
+
+  const vm = useCheckoutViewModel({
+    accountId,
+    amount,
+    currency,
+    addressMode,
+    cardFieldRef,
+    presentChallenge,
+  });
 
   const showWalletRow = showApplePay || showGooglePay;
 
@@ -125,6 +157,9 @@ export function CheckoutScreen({
 
   return (
     <BottomSheet title={title} onClose={onClose}>
+      {challengeUrl ? (
+        <ThreeDSecureChallenge challengeUrl={challengeUrl} onFinish={finishChallenge} />
+      ) : null}
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {showWalletRow ? (
           <View style={styles.walletSection}>

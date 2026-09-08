@@ -105,13 +105,16 @@ Both plugin options are optional. The plugin is a no-op for bare React Native us
 
 ### Optional peer dependencies
 
-| Onboarding capability | Required package |
+| Feature | Required package |
 |---|---|
-| `bank_account_*` (Plaid) | `react-native-plaid-link-sdk` |
+| `bank_account_*` onboarding (Plaid) | `react-native-plaid-link-sdk` |
 | `kyc` document upload | `react-native-vision-camera` |
-| `geo_compliance` | `expo-location` *or* `@react-native-community/geolocation` |
+| `geo_compliance` onboarding | `expo-location` *or* `@react-native-community/geolocation` |
+| 3D Secure card challenges in checkout | `react-native-webview` |
 
-These are listed under `peerDependenciesMeta` as optional — install them only if you use the corresponding capability. The bridge surfaces a clear error if a capability is requested without its peer installed.
+These are listed under `peerDependenciesMeta` as optional — install them only if you use the corresponding feature. The bridge surfaces a clear error if a capability is requested without its peer installed.
+
+> **Install `react-native-webview` if you take card payments.** When an issuer asks to challenge a card, `presentCheckout` opens the challenge in a web view. Without the package the charge is not silently approved — it fails with "Card verification could not be started", so cards the issuer wants to challenge cannot be used. Every other card still works.
 
 ### Enabling phone verification (Prove)
 
