@@ -1,6 +1,13 @@
 import { FrameAPIError } from 'framepayments';
-import { toToastMessage, toFrameError, isNotFoundError, isTransportError, DEFAULT_TOAST_FALLBACK } from '../api-errors';
-import { ErrorCodes, isFrameError } from '../errors';
+import {
+  toToastMessage,
+  toFrameError,
+  isNotFoundError,
+  isTransportError,
+  isUnrecoverableCheckoutError,
+  DEFAULT_TOAST_FALLBACK,
+} from '../api-errors';
+import { ErrorCodes, isFrameError, frameError } from '../errors';
 
 describe('toToastMessage', () => {
   it('extracts error_details.message when error_details is an object', () => {
@@ -185,5 +192,51 @@ describe('toFrameError', () => {
     // And isFrameError must reject the FrameAPIError instance so other
     // call sites that branch on `isFrameError` don't grab the wrong message.
     expect(isFrameError(err)).toBe(false);
+  });
+});
+
+describe('isUnrecoverableCheckoutError', () => {
+  it('flags a missing secret key on a server-only operation', () => {
+    // requireSecretKeyFor throws this — no retry inside the checkout UI can
+    // ever supply a secret key, so it must reject presentCheckout rather than
+    // toast forever on a Pay button that can never work.
+    const err = frameError(ErrorCodes.MISSING_SECRET_KEY, 'Checkout requires a secret key.');
+    expect(isUnrecoverableCheckoutError(err)).toBe(true);
+  });
+
+  it('flags NOT_INITIALIZED, INVALID_ACCOUNT, INVALID_AMOUNT, INVALID_MERCHANT_ID', () => {
+    for (const code of [
+      ErrorCodes.NOT_INITIALIZED,
+      ErrorCodes.INVALID_ACCOUNT,
+      ErrorCodes.INVALID_AMOUNT,
+      ErrorCodes.INVALID_MERCHANT_ID,
+    ]) {
+      expect(isUnrecoverableCheckoutError(frameError(code, 'x'))).toBe(true);
+    }
+  });
+
+  it('does not flag a declined card or other recoverable payment failure', () => {
+    // These are exactly what the user can fix by retrying — must stay
+    // toast-and-stay-open, not reject the host's promise.
+    expect(isUnrecoverableCheckoutError(frameError(ErrorCodes.PAYMENT_FAILED, 'declined'))).toBe(false);
+    expect(isUnrecoverableCheckoutError(frameError(ErrorCodes.API_VALIDATION, 'bad zip'))).toBe(false);
+    expect(isUnrecoverableCheckoutError(frameError(ErrorCodes.API_NETWORK, 'timeout'))).toBe(false);
+  });
+
+  it('does not flag a FrameAPIError (server-side decline)', () => {
+    const err = new FrameAPIError('An error occurred', 'card_declined', 402, {
+      error_details: { message: 'Your card was declined.' },
+    });
+    expect(isUnrecoverableCheckoutError(err)).toBe(false);
+  });
+
+  it('does not flag USER_CANCELED', () => {
+    expect(isUnrecoverableCheckoutError(frameError(ErrorCodes.USER_CANCELED, 'x'))).toBe(false);
+  });
+
+  it('does not throw and returns false for a non-error value', () => {
+    expect(isUnrecoverableCheckoutError(undefined)).toBe(false);
+    expect(isUnrecoverableCheckoutError('boom')).toBe(false);
+    expect(isUnrecoverableCheckoutError(null)).toBe(false);
   });
 });

@@ -14,7 +14,7 @@ import { Icon, type IconName } from '../../assets';
 import { convertCentsToCurrencyString } from '../../../currency';
 import { addressFormatForCountry } from '../../../addressFormat';
 import { showToast } from '../../primitives/toastCenter';
-import { toToastMessage } from '../../../api-errors';
+import { toToastMessage, isUnrecoverableCheckoutError } from '../../../api-errors';
 import { isFrameError, normalizeToFrameError, ErrorCodes } from '../../../errors';
 import { presentApplePayFlow } from '../../../applePay';
 import { presentGooglePayFlow } from '../../../googlePay';
@@ -31,6 +31,16 @@ export interface CheckoutScreenProps {
   title?: string;
   onSuccess: (transferId: string) => void;
   onClose: () => void;
+  /**
+   * Reserved for unrecoverable host-level failures — a missing secret key on a
+   * server-only operation, the SDK not initialized, a missing/invalid account
+   * or merchant ID. Errors the user can act on (a declined card, a validation
+   * error, a transient network blip) are toasted internally and the sheet stays
+   * open instead; this fires only when the flow can never succeed, so the host
+   * app's `await Frame.presentCheckout(...)` doesn't hang forever on a Pay
+   * button that no retry can fix.
+   */
+  onFail: (error: unknown) => void;
   /**
    * Render the Apple Pay button. Checkout runs the wallet charge itself against
    * `accountId` / `amount` / `currency`, matching iOS's embedded
@@ -57,6 +67,7 @@ export function CheckoutScreen({
   title = 'Checkout',
   onSuccess,
   onClose,
+  onFail,
   showApplePay = false,
   showGooglePay = false,
   onApplePay,
@@ -122,11 +133,19 @@ export function CheckoutScreen({
       const transferId = await vm.submit();
       onSuccess(transferId);
     } catch (err) {
-      // Every error — card declined, validation, transport — surfaces as a
-      // toast and leaves the sheet open so the user can correct the input and
-      // retry. Tearing the modal down here would discard the entered card and
-      // address for what is often a transient failure. Mirrors iOS
-      // `FrameCheckoutView.swift:428-436`.
+      // A merchant-integration misconfiguration (no secret key, SDK never
+      // initialized, missing account/merchant id) can never be fixed by
+      // retrying in this UI — report it so the host's presentCheckout promise
+      // rejects instead of leaving a Pay button that will toast forever.
+      if (isUnrecoverableCheckoutError(err)) {
+        onFail(err);
+        return;
+      }
+      // Everything else — card declined, validation, transient transport —
+      // surfaces as a toast and leaves the sheet open so the user can correct
+      // the input and retry. Tearing the modal down here would discard the
+      // entered card and address for what is often a transient failure.
+      // Mirrors iOS `FrameCheckoutView.swift:428-436`.
       showToast(toToastMessage(err));
     }
   }

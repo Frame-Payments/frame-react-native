@@ -127,6 +127,29 @@ let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
 let appStateSubscription: { remove: () => void } | null = null;
 
 /**
+ * Serializes access to the pre-account (legacy, `null`-keyed) session slot.
+ *
+ * iOS's SessionManager is an actor, so its methods are inherently serialized —
+ * that's what makes its legacy-slot read-then-clear safe with no explicit lock.
+ * RN has no actor equivalent, and `inFlight` alone doesn't cover this: it keys
+ * per ACCOUNT, so two different accounts' first-time `establishSession` calls
+ * are two independent map entries that both run concurrently. Both would read
+ * the same legacy session, both PATCH it with their own account_id, and both
+ * clear the slot — the server does last-write-wins, so one caller ends up
+ * holding a session id the server actually associated with the other account.
+ * This tail chains every legacy-slot read+adopt+clear into one queue.
+ */
+let legacySessionLock: Promise<unknown> = Promise.resolve();
+
+function withLegacySessionLock<T>(fn: () => Promise<T>): Promise<T> {
+  const result = legacySessionLock.then(fn, fn);
+  // Swallow so one failed adoption doesn't wedge the queue for later callers;
+  // the real error still propagates to whoever awaited `result`.
+  legacySessionLock = result.catch(() => {});
+  return result;
+}
+
+/**
  * The account whose session the keep-alive should re-touch. `null` means no
  * account is known yet, so the pre-account warm-up session is the live one.
  * This is what stops the keep-alive POSTing a fresh orphan over an adopted
@@ -144,6 +167,7 @@ export function __setSessionStorage(next: SessionStorage): void {
 export function __resetSonarSession(): void {
   storage = createDefaultSessionStorage();
   inFlight = new Map();
+  legacySessionLock = Promise.resolve();
   stopKeepAlive();
   activeAccountId = null;
   appStateSubscription?.remove();
@@ -238,17 +262,31 @@ async function establishSession(accountId: string): Promise<string> {
     return refreshed;
   }
 
-  const legacy = await storage.get(null);
-  if (legacy) {
-    // Adopt the pre-account session rather than creating a fresh one, so its id
-    // and accumulated device event survive.
-    const adopted = await refreshSession(legacy, accountId);
-    await store(adopted, accountId);
+  // Only the legacy-slot read+adopt+clear is locked: it's the one step shared
+  // across every account, so it's the only step two different accounts'
+  // concurrent establishSession calls can race on (inFlight itself is keyed
+  // per account and doesn't cover this). A brand-new session with no legacy
+  // slot to contend over stays fully concurrent across accounts.
+  const adopted = await withLegacySessionLock(async () => {
+    // Re-check under the lock: another queued call may already have adopted
+    // (and cleared) the legacy session for this same account while this one
+    // was waiting.
+    const stillMissing = await storage.get(accountId);
+    if (stillMissing) return stillMissing;
+
+    const legacy = await storage.get(null);
+    if (!legacy) return null;
+
+    // Adopt the pre-account session rather than creating a fresh one, so its
+    // id and accumulated device event survive.
+    const value = await refreshSession(legacy, accountId);
+    await store(value, accountId);
     // Leaving the legacy slot readable would let the next account on this
     // device adopt the same session.
     await storage.clear(null);
-    return adopted;
-  }
+    return value;
+  });
+  if (adopted) return adopted;
 
   const created = await createSession(accountId);
   await store(created, accountId);
@@ -385,7 +423,11 @@ export async function initializeSession(accountId?: string | null): Promise<void
     return;
   }
 
-  await establishSession(id).catch(() => {});
+  // Through runExclusive, not establishSession directly: a concurrent
+  // ensureSession/refreshOnFlowEntry call for the same account must join this
+  // one round trip rather than racing it with an independent establishSession
+  // call — the inFlight map is what makes that coalescing work.
+  await runExclusive(id).catch(() => {});
 }
 
 /**
@@ -407,12 +449,13 @@ export async function refreshOnFlowEntry(accountId?: string | null): Promise<voi
 
   if (!stored) {
     if (id) {
-      // Route through establishSession so the launch session is ADOPTED onto
-      // the account, keeping its id and accumulated device event. Creating a
-      // fresh one here would orphan that event on an invisible session.
+      // Through runExclusive (not establishSession directly) so the launch
+      // session is ADOPTED onto the account, keeping its id and accumulated
+      // device event, AND so a concurrent ensureSession call for the same
+      // account joins this round trip instead of racing an independent one.
       activeAccountId = id;
       startKeepAlive();
-      await establishSession(id).catch(() => {});
+      await runExclusive(id).catch(() => {});
       return;
     }
     const created = await createSession(null).catch(() => null);

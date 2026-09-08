@@ -1,6 +1,7 @@
 import { FrameAPIError } from 'framepayments';
 import {
   ErrorCodes,
+  isFrameError,
   normalizeToFrameError,
   type FrameErrorShape,
 } from './errors';
@@ -63,6 +64,33 @@ export function isAssertionRejection(error: unknown): boolean {
     message.includes('device not attested') ||
     message.includes('attestation')
   );
+}
+
+// Error codes a host can never resolve by retrying inside the checkout/cart UI
+// — they mean the merchant integration itself is misconfigured (no secret key
+// configured for a server-only operation, SDK never initialized, no Apple/
+// Google Pay merchant ID). Everything else (a declined card, a validation
+// error, a transient network blip, 3DS being unresolved) is recoverable: the
+// user can fix the input or retry, so it toasts and the sheet stays open
+// rather than tearing down (mirrors iOS `FrameCheckoutView.swift:428-436`).
+const UNRECOVERABLE_CHECKOUT_CODES: ReadonlySet<string> = new Set([
+  ErrorCodes.MISSING_SECRET_KEY,
+  ErrorCodes.NOT_INITIALIZED,
+  ErrorCodes.INVALID_ACCOUNT,
+  ErrorCodes.INVALID_AMOUNT,
+  ErrorCodes.INVALID_MERCHANT_ID,
+]);
+
+/**
+ * Whether this error means the checkout/cart flow can never succeed no matter
+ * what the user does — a merchant-integration misconfiguration rather than a
+ * payment failure. Checkout reports these via `onFail` (rejecting the host's
+ * `presentCheckout`/`presentCart` promise) instead of swallowing them into a
+ * toast that would loop forever on a Pay button that can never work.
+ */
+export function isUnrecoverableCheckoutError(error: unknown): boolean {
+  const code = isFrameError(error) ? error.code : normalizeToFrameError(error).code;
+  return UNRECOVERABLE_CHECKOUT_CODES.has(code);
 }
 
 // A 404 from the API means the resource genuinely does not exist, as opposed to

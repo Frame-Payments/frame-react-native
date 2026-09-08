@@ -57,7 +57,15 @@ export function isFingerprintAvailable(): boolean {
 
 async function fetchConfiguration(): Promise<FingerprintConfiguration | null> {
   if (cachedConfig !== undefined) return cachedConfig;
-  const block = (await fetchRemoteConfig())?.fingerprint;
+  const remote = await fetchRemoteConfig();
+  // A null `remote` means the aggregate fetch itself failed (network, non-2xx)
+  // — fetchRemoteConfig deliberately doesn't cache that, so it retries on the
+  // next call. Caching `null` here too would disable fingerprinting for the
+  // rest of the process after one transient blip, with no retry path. Only a
+  // response that genuinely omits (or under-fills) the fingerprint block is a
+  // stable "not configured" answer worth caching.
+  if (!remote) return null;
+  const block = remote.fingerprint;
   cachedConfig = block?.apiKey && block?.region
     ? { apiKey: block.apiKey, region: block.region }
     : null;
@@ -65,10 +73,14 @@ async function fetchConfiguration(): Promise<FingerprintConfiguration | null> {
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
-  return Promise.race([
-    promise,
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
-  ]);
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), ms);
+  });
+  // Clear the losing side's timer once either settles — Promise.race alone
+  // leaves it scheduled for the full `ms` even after the real call wins,
+  // holding a live timer handle open for no reason on every call.
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 /**
@@ -83,7 +95,17 @@ export async function getFingerprintVisitorId(): Promise<string | null> {
 
   if (cachedAgent === undefined) {
     const config = await fetchConfiguration();
-    cachedAgent = config ? new Agent({ apiKey: config.apiKey, region: config.region }) : null;
+    if (config) {
+      cachedAgent = new Agent({ apiKey: config.apiKey, region: config.region });
+    } else if (cachedConfig === null) {
+      // fetchConfiguration only assigns `cachedConfig` in the stable
+      // "genuinely no fingerprint block" case (see its comment) — a transient
+      // fetch failure leaves `cachedConfig` undefined so it retries. Only cache
+      // the negative agent result once the config answer is itself stable;
+      // otherwise a network blip on the first call would disable
+      // fingerprinting for the rest of the process.
+      cachedAgent = null;
+    }
   }
   if (!cachedAgent) return null;
 

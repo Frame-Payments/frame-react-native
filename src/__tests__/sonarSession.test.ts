@@ -139,6 +139,43 @@ describe('ensureSession', () => {
     expect(await storage.get('acct_2')).toBe(second);
   });
 
+  it('two different accounts racing to adopt the same legacy session do not both claim it', async () => {
+    // Regression: establishSession's per-account `inFlight` entry doesn't
+    // cover the legacy (pre-account) slot, which is shared across every
+    // account. Without a lock, two concurrent first-time ensureSession calls
+    // for DIFFERENT accounts could both read, PATCH, and clear the same
+    // legacy session — the server does last-write-wins, so one account would
+    // end up holding a session id the server actually associated with the
+    // other.
+    await storage.set('cs_launch', null);
+    const [a, b] = await Promise.all([ensureSession('acct_1'), ensureSession('acct_2')]);
+    // Exactly one account adopts the legacy session; the other must get its
+    // own, distinct session — never the same id.
+    expect(a).not.toBe(b);
+    const patches = calls.filter((c) => c.method === 'PATCH' && c.path === '/v1/charge_sessions/cs_launch');
+    // The legacy session is adopted (PATCHed) at most once.
+    expect(patches.length).toBeLessThanOrEqual(1);
+    // The legacy slot must not still be readable afterward — leaving it would
+    // let a THIRD account also adopt it.
+    expect(await storage.get(null)).toBeNull();
+    // Both accounts must have their own stored session afterward.
+    expect(await storage.get('acct_1')).toBe(a);
+    expect(await storage.get('acct_2')).toBe(b);
+  });
+
+  it('ensureSession and refreshOnFlowEntry for the same account join one round trip', async () => {
+    // Regression: refreshOnFlowEntry used to call establishSession directly
+    // rather than through the same inFlight-coalescing path ensureSession
+    // uses, so a concurrent pair for the same account (e.g. presentCheckout's
+    // refreshOnFlowEntry firing right as checkout's submit calls
+    // ensureSession) raced two independent establish calls instead of sharing
+    // one.
+    const [a, b] = await Promise.all([ensureSession('acct_1'), refreshOnFlowEntry('acct_1')]);
+    void b; // refreshOnFlowEntry returns void
+    expect(a).toBe('cs_1');
+    expect(calls).toHaveLength(1);
+  });
+
   it('replaces a session the server no longer recognises rather than failing', async () => {
     await storage.set('cs_gone', 'acct_1');
     await storage.setLastRefresh(Date.now() - 20 * 60 * 1000, 'acct_1');
