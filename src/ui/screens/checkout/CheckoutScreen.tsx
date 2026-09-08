@@ -250,6 +250,9 @@ export function CheckoutScreen({
               onChangeText={(v) => vm.dispatch({ type: 'SET_CUSTOMER_NAME', value: v })}
               error={vm.state.fieldErrors.customerName}
               autoCapitalize="words"
+              textContentType="name"
+              autoComplete="name"
+              inputRestriction="textOnly"
               borderless
             />
             <View style={[styles.hDivider, { backgroundColor: theme.colors.surfaceStroke }]} />
@@ -260,6 +263,8 @@ export function CheckoutScreen({
               error={vm.state.fieldErrors.customerEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+              textContentType="emailAddress"
+              autoComplete="email"
               borderless
             />
           </View>
@@ -322,6 +327,8 @@ export function CheckoutScreen({
                     onChangeText={(v) => vm.dispatch({ type: 'SET_ADDRESS_FIELD', field: 'line1', value: v })}
                     error={vm.state.fieldErrors.addressLine1}
                     autoCapitalize="words"
+                    textContentType="streetAddressLine1"
+                    autoComplete="address-line1"
                     borderless
                   />
                   <View style={[styles.hDivider, { backgroundColor: theme.colors.surfaceStroke }]} />
@@ -330,6 +337,8 @@ export function CheckoutScreen({
                     value={vm.state.address.line2}
                     onChangeText={(v) => vm.dispatch({ type: 'SET_ADDRESS_FIELD', field: 'line2', value: v })}
                     autoCapitalize="words"
+                    textContentType="streetAddressLine2"
+                    autoComplete="address-line2"
                     borderless
                   />
                   <View style={[styles.hDivider, { backgroundColor: theme.colors.surfaceStroke }]} />
@@ -343,6 +352,9 @@ export function CheckoutScreen({
                         }
                         error={vm.state.fieldErrors.addressCity}
                         autoCapitalize="words"
+                        textContentType="addressCity"
+                        autoComplete="postal-address-locality"
+                        inputRestriction="textOnly"
                         borderless
                       />
                     </View>
@@ -356,6 +368,9 @@ export function CheckoutScreen({
                         }
                         error={vm.state.fieldErrors.addressState}
                         autoCapitalize="characters"
+                        textContentType="addressState"
+                        autoComplete="postal-address-region"
+                        inputRestriction="textOnly"
                         characterLimit={addressFormat.stateMaxLength}
                         borderless
                       />
@@ -383,6 +398,8 @@ export function CheckoutScreen({
                     }
                     error={vm.state.fieldErrors.addressPostalCode}
                     keyboardType={addressFormat.postalKeyboard}
+                    textContentType="postalCode"
+                    autoComplete="postal-code"
                     characterLimit={vm.state.address.country === 'US' ? 5 : undefined}
                     borderless
                   />

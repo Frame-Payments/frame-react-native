@@ -116,6 +116,9 @@ export function CustomerInformationScreen({
               onChangeText={onChangeFirstName}
               error={state.fieldErrors.customerFirstName}
               autoCapitalize="words"
+              textContentType="givenName"
+              autoComplete="given-name"
+              inputRestriction="textOnly"
               borderless
               inlineError
             />
@@ -128,6 +131,9 @@ export function CustomerInformationScreen({
               onChangeText={onChangeLastName}
               error={state.fieldErrors.customerLastName}
               autoCapitalize="words"
+              textContentType="familyName"
+              autoComplete="family-name"
+              inputRestriction="textOnly"
               borderless
               inlineError
             />
@@ -141,6 +147,8 @@ export function CustomerInformationScreen({
           error={state.fieldErrors.customerEmail}
           keyboardType="email-address"
           autoCapitalize="none"
+          textContentType="emailAddress"
+          autoComplete="email"
           borderless
           inlineError
         />

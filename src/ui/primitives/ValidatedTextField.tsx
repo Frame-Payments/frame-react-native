@@ -1,8 +1,21 @@
-import { StyleSheet, Text, TextInput, View, type KeyboardTypeOptions, type ViewStyle } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type KeyboardTypeOptions,
+  type TextInputProps,
+  type ViewStyle,
+} from 'react-native';
 import { useFrameTheme } from '../theme/ThemeContext';
-import { truncateToLimit } from './textFieldUtils';
+import {
+  applyInputRestriction,
+  truncateToLimit,
+  type TextFieldInputRestriction,
+} from './textFieldUtils';
 
-export { truncateToLimit };
+export { truncateToLimit, applyInputRestriction };
+export type { TextFieldInputRestriction };
 
 /**
  * Props for the {@link ValidatedTextField} component.
@@ -22,6 +35,20 @@ export interface ValidatedTextFieldProps {
    */
   onErrorChange?: (next: string | null) => void;
   keyboardType?: KeyboardTypeOptions;
+  /**
+   * Enables the platform's autofill / QuickType suggestions for this field.
+   * Maps to iOS `textContentType` and Android `autoComplete`, which iOS's
+   * checkout passes for name, email and every address field — without it the
+   * user gets no Contacts autofill at all.
+   */
+  textContentType?: TextInputProps['textContentType'];
+  autoComplete?: TextInputProps['autoComplete'];
+  /**
+   * Restricts what characters the field accepts. iOS's checkout applies
+   * `textOnly` to Name, City and State
+   * (`FrameCheckoutView.swift:278,351,360`).
+   */
+  inputRestriction?: TextFieldInputRestriction;
   /** Positive integer; non-positive / non-integer values are ignored. */
   characterLimit?: number;
   /**
@@ -79,6 +106,9 @@ export function ValidatedTextField({
   error = null,
   onErrorChange,
   keyboardType = 'default',
+  textContentType,
+  autoComplete,
+  inputRestriction,
   characterLimit,
   compactError = false,
   inlineError = false,
@@ -95,7 +125,10 @@ export function ValidatedTextField({
   const theme = useFrameTheme();
 
   const handleChange = (next: string) => {
-    const truncated = truncateToLimit(next, characterLimit);
+    // Filter BEFORE truncating, matching iOS
+    // (ValidatedTextField.swift:157-163): truncating first would let a
+    // disallowed character consume one of the allowed slots.
+    const truncated = truncateToLimit(applyInputRestriction(next, inputRestriction), characterLimit);
     if (error && onErrorChange) onErrorChange(null);
     onChangeText(truncated);
   };
@@ -113,6 +146,8 @@ export function ValidatedTextField({
       placeholder={prompt}
       placeholderTextColor={theme.colors.textSecondary}
       keyboardType={keyboardType}
+      textContentType={textContentType}
+      autoComplete={autoComplete}
       secureTextEntry={secureTextEntry}
       autoCapitalize={autoCapitalize}
       autoCorrect={autoCorrect}

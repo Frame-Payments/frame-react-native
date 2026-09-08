@@ -62,12 +62,16 @@ export function BillingAddressDetailView({
         onChangeText={(v) => onChangeField('line1', v)}
         error={errors['address.line1']}
         autoCapitalize="words"
+        textContentType="streetAddressLine1"
+        autoComplete="address-line1"
       />
       <ValidatedTextField
         prompt="Address line 2 (optional)"
         value={address.line2}
         onChangeText={(v) => onChangeField('line2', v)}
         autoCapitalize="words"
+        textContentType="streetAddressLine2"
+        autoComplete="address-line2"
       />
       <View style={styles.row}>
         <View style={styles.cell}>
@@ -77,6 +81,9 @@ export function BillingAddressDetailView({
             onChangeText={(v) => onChangeField('city', v)}
             error={errors['address.city']}
             autoCapitalize="words"
+            textContentType="addressCity"
+            autoComplete="postal-address-locality"
+            inputRestriction="textOnly"
           />
         </View>
         <View style={styles.cell}>
@@ -88,6 +95,9 @@ export function BillingAddressDetailView({
             // Upper-case only where the subregion is a code; a free-text
             // county or prefecture is a name, not an abbreviation.
             autoCapitalize={hasSubregionCodes ? 'characters' : 'words'}
+            textContentType="addressState"
+            autoComplete="postal-address-region"
+            inputRestriction="textOnly"
             characterLimit={format.stateMaxLength}
           />
         </View>
@@ -98,6 +108,8 @@ export function BillingAddressDetailView({
         onChangeText={(v) => onChangeField('postalCode', v)}
         error={errors['address.postalCode']}
         keyboardType={format.postalKeyboard}
+        textContentType="postalCode"
+        autoComplete="postal-code"
       />
       {international ? (
         <CountryPicker

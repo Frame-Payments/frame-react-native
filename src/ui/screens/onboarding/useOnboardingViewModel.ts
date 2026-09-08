@@ -6,13 +6,19 @@ import { ErrorCodes, frameError } from '../../../errors';
 import { addApplePayToOwnerFlow } from '../../../applePay';
 import { openPlaidLink as runPlaidLink, type PlaidConnectResult } from '../../../plaid';
 import { launchPersonaInquiry, isPersonaAvailable } from '../../../persona';
-import { createIdvSession, completeIdvSession } from '../../../idv';
+import {
+  createIdvSession,
+  completeIdvSession,
+  completeIdvSessionDetailed,
+  idvFailureMessage,
+} from '../../../idv';
 import { electPayoutMethod } from '../../../payoutMethod';
 import { normalizeSubregion } from '../../../addressSubregions';
 import { ensureOnboardingSession } from '../../../onboardingSession';
 import { isNotFoundError } from '../../../api-errors';
 import { endOnboardingSession } from '../../../auth';
 import { warnOnce } from '../../../warn';
+import { showToast } from '../../primitives/toastCenter';
 import { PaymentAccountType, PaymentMethodType, type PaymentMethod as FramePaymentMethod } from 'framepayments';
 import type { OnboardingCapability, OnboardingOutcome, OnboardingResult } from '../../../types';
 import {
@@ -534,9 +540,22 @@ export function useOnboardingViewModel({
       dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId });
       return;
     }
-    await launchPersonaInquiry({ inquiryId });
-    const status = await completeIdvSession(inquiryId);
-    if (status === 'pending') {
+    try {
+      await launchPersonaInquiry({ inquiryId });
+    } catch (err) {
+      // A cancel is a normal, non-error exit — leave the applicant unverified.
+      // But say something: every other exit from here surfaces a message, and a
+      // silent return leaves the Continue button looking dead when verification
+      // is required. iOS toasts for exactly this reason
+      // (OnboardingContainerViewModel.swift:926-932). Re-thrown as USER_CANCELED
+      // so the caller's guard still treats it as a cancel, not a failure.
+      if ((err as { code?: string }).code === ErrorCodes.USER_CANCELED) {
+        showToast('Identity verification was cancelled.');
+      }
+      throw err;
+    }
+    const completion = await completeIdvSessionDetailed(inquiryId);
+    if (completion.status === 'pending') {
       // The user finished Persona but the confirm request couldn't reach an
       // authoritative answer (network blip / transient 5xx). Don't push them
       // to the SSN fallback — the verification likely succeeded and just
@@ -546,14 +565,13 @@ export function useOnboardingViewModel({
         'We could not reach our verification service just now. Please try again in a moment.',
       );
     }
-    if (status === 'not_verified') {
-      // When a government ID is mandatory there is no SSN fallback to offer, so
-      // don't send the user looking for one.
+    if (completion.status === 'not_verified') {
+      // The message is chosen from the backend's `category` / `status`, so a
+      // terminally-declined applicant is pointed at support rather than told to
+      // retry a check that cannot pass.
       throw frameError(
         ErrorCodes.PAYMENT_FAILED,
-        opts?.mandatory
-          ? 'We could not confirm your identity yet. Please try again.'
-          : 'We could not confirm your identity yet. Please try again or enter your SSN.',
+        idvFailureMessage(completion, opts?.mandatory === true),
       );
     }
     dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId });

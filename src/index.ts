@@ -75,7 +75,11 @@ export { FrameProvider, type FrameProviderProps } from './ui/FrameProvider';
 export { useFrameTheme } from './ui/theme/ThemeContext';
 export { resolveTheme, type ColorScheme, type ResolvedFrameTheme } from './ui/theme/defaults';
 export { Button, type ButtonProps, type ButtonVariant } from './ui/primitives/Button';
-export { ValidatedTextField, type ValidatedTextFieldProps } from './ui/primitives/ValidatedTextField';
+export {
+  ValidatedTextField,
+  type ValidatedTextFieldProps,
+  type TextFieldInputRestriction,
+} from './ui/primitives/ValidatedTextField';
 export {
   ApplePayButton,
   type ApplePayButtonProps,
