@@ -13,6 +13,10 @@ import { CartScreen } from './ui/screens/cart/CartScreen';
 import { CheckoutScreen } from './ui/screens/checkout/CheckoutScreen';
 import type { AddressMode } from './ui/screens/checkout/checkoutReducer';
 import { OnboardingRoot } from './ui/screens/onboarding/OnboardingRoot';
+import {
+  StandaloneMethodRoot,
+  type StandaloneMethodMode,
+} from './ui/screens/onboarding/StandaloneMethodRoot';
 import { canMakeApplePay } from './applePay';
 import { isGooglePayReady } from './googlePay';
 import { ErrorCodes, frameError } from './errors';
@@ -337,6 +341,12 @@ export interface PresentCartOptions {
   currency?: string;
   /** Custom title shown in the cart sheet header. */
   title?: string;
+  /** Subtitle under the cart title. Defaults to `'Cart'`. */
+  subtitle?: string;
+  /** Label on the cart's checkout button. Defaults to `'Checkout'`. */
+  checkoutButtonTitle?: string;
+  /** Minimum height of each cart line-item row. Defaults to 65, matching iOS. */
+  cartItemHeight?: number;
   /**
    * Controls whether a billing address is collected at checkout.
    * See {@link PresentCheckoutOptions.addressMode} for values.
@@ -480,6 +490,97 @@ export async function presentOnboarding(options: PresentOnboardingOptions): Prom
   ));
 }
 
+/**
+ * Options shared by the three standalone payment/payout screens.
+ */
+export interface PresentMethodOptions {
+  /** The Frame account the method is attached to. */
+  accountId: string;
+  /**
+   * Onboarding-session token (`onb_sess_...`) from
+   * `POST /v1/onboarding_sessions`. While the screen is presented every request
+   * is scoped to this token, overriding the configured pk_/sk_ keys — the
+   * publishable-key-safe way to add a method on device. Mirrors the
+   * `clientSecret:` parameter iOS's three standalone views take.
+   */
+  clientSecret?: string | null;
+}
+
+function presentMethodScreen(
+  mode: StandaloneMethodMode,
+  options: PresentMethodOptions,
+  fnName: string,
+): Promise<string> {
+  guardInitialized();
+  if (!options?.accountId) {
+    throwCoded(ErrorCodes.INVALID_ACCOUNT, `Frame.${fnName} requires accountId`);
+  }
+  return presentScreen<string>((api) => (
+    <StandaloneMethodRoot
+      mode={mode}
+      accountId={options.accountId}
+      clientSecret={options.clientSecret ?? null}
+      onComplete={(id) => api.complete(id)}
+      onCancel={() => api.cancel()}
+    />
+  ));
+}
+
+/**
+ * Presents a standalone "add payment method" sheet, outside the onboarding
+ * flow. Resolves with the new payment-method ID.
+ *
+ * Mirrors iOS `FrameAddPaymentMethodView`.
+ *
+ * @param options - Account and session configuration.
+ * @returns A promise that resolves to the new payment-method ID.
+ * @throws {FrameErrorShape} `USER_CANCELED` if the user dismisses the sheet;
+ *   `NOT_INITIALIZED` if {@link initialize} was not called first;
+ *   `INVALID_ACCOUNT` if `accountId` is missing.
+ *
+ * @example
+ * ```ts
+ * const pmId = await Frame.presentAddPaymentMethod({ accountId: 'acc_...', clientSecret });
+ * ```
+ */
+export function presentAddPaymentMethod(options: PresentMethodOptions): Promise<string> {
+  return presentMethodScreen('add_payment', options, 'presentAddPaymentMethod');
+}
+
+/**
+ * Presents a standalone "add payout method" sheet (Plaid or manual ACH),
+ * outside the onboarding flow. The new bank is also elected as the account's
+ * payout destination, matching iOS. Resolves with the new payment-method ID.
+ *
+ * Mirrors iOS `FrameAddPayoutMethodView`.
+ *
+ * @param options - Account and session configuration.
+ * @returns A promise that resolves to the new payment-method ID.
+ * @throws {FrameErrorShape} `USER_CANCELED` if the user dismisses the sheet;
+ *   `NOT_INITIALIZED` if {@link initialize} was not called first;
+ *   `INVALID_ACCOUNT` if `accountId` is missing.
+ */
+export function presentAddPayoutMethod(options: PresentMethodOptions): Promise<string> {
+  return presentMethodScreen('add_payout', options, 'presentAddPayoutMethod');
+}
+
+/**
+ * Presents a standalone "select payout method" sheet listing the account's
+ * saved banks, and elects the chosen one as the account's payout destination.
+ * Resolves with the elected payment-method ID.
+ *
+ * Mirrors iOS `FrameSelectPayoutMethodView`.
+ *
+ * @param options - Account and session configuration.
+ * @returns A promise that resolves to the elected payment-method ID.
+ * @throws {FrameErrorShape} `USER_CANCELED` if the user dismisses the sheet;
+ *   `NOT_INITIALIZED` if {@link initialize} was not called first;
+ *   `INVALID_ACCOUNT` if `accountId` is missing.
+ */
+export function presentSelectPayoutMethod(options: PresentMethodOptions): Promise<string> {
+  return presentMethodScreen('select_payout', options, 'presentSelectPayoutMethod');
+}
+
 function CartCheckoutBridge({
   cartOptions,
   onComplete,
@@ -520,6 +621,9 @@ function CartCheckoutBridge({
         shippingAmountInCents={cartOptions.shippingAmountInCents}
         currency={cartOptions.currency}
         title={cartOptions.title}
+        subtitle={cartOptions.subtitle}
+        checkoutButtonTitle={cartOptions.checkoutButtonTitle}
+        cartItemHeight={cartOptions.cartItemHeight}
         onCheckout={() => setStage('checkout')}
         onClose={onCancel}
       />

@@ -5,6 +5,9 @@ import {
   presentOnboarding,
   presentApplePay,
   presentGooglePay,
+  presentAddPaymentMethod,
+  presentAddPayoutMethod,
+  presentSelectPayoutMethod,
 } from './native';
 
 export {
@@ -14,11 +17,15 @@ export {
   presentOnboarding,
   presentApplePay,
   presentGooglePay,
+  presentAddPaymentMethod,
+  presentAddPayoutMethod,
+  presentSelectPayoutMethod,
 } from './native';
 export type {
   PresentCheckoutOptions,
   PresentCartOptions,
   PresentOnboardingOptions,
+  PresentMethodOptions,
 } from './native';
 export type { AddressMode } from './ui/screens/checkout/checkoutReducer';
 export type {
@@ -65,6 +72,31 @@ export {
   type GooglePayButtonTheme,
   type GooglePayButtonType,
 } from './ui/primitives/GooglePayButton';
+
+// Primitives iOS marks `public` on FrameOnboarding / Frame, so host apps can
+// compose Frame-styled forms outside the SDK's own screens.
+export { PaymentMethodRow, type PaymentMethodRowProps } from './ui/primitives/PaymentMethodRow';
+export { CountryPicker, type CountryPickerProps } from './ui/primitives/CountryPicker';
+export {
+  PhoneCountryPicker,
+  type PhoneCountryPickerProps,
+} from './ui/primitives/PhoneCountryPicker';
+export { PhoneNumberField, type PhoneNumberFieldProps } from './ui/primitives/PhoneNumberField';
+export { Checkbox, type CheckboxProps } from './ui/primitives/Checkbox';
+export {
+  PaymentCardField,
+  type PaymentCardFieldProps,
+  type PaymentCardFieldHandle,
+} from './ui/primitives/PaymentCardField';
+
+// iOS exposes FrameToastCenter publicly so the Onboarding module — and host
+// apps — can emit into the same overlay the SDK's screens use.
+export {
+  showToast,
+  dismissActive as dismissToast,
+  type ShowToastOptions,
+  type ToastEntry,
+} from './ui/primitives/toastCenter';
 
 export {
   validateNonEmpty,
@@ -123,6 +155,9 @@ export default {
   presentOnboarding,
   presentApplePay,
   presentGooglePay,
+  presentAddPaymentMethod,
+  presentAddPayoutMethod,
+  presentSelectPayoutMethod,
   Validators,
   convertCentsToCurrencyString,
 };
