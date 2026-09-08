@@ -28,7 +28,7 @@ import {
   getDebugMode,
   getSecretKey,
 } from './config';
-import { resetClients, warmClients, client } from './client';
+import { resetClients, warmClients } from './client';
 import { configureEvervault, resetEvervault } from './evervault';
 import { fetchIpAddress } from './ipAddress';
 import { initializeSession, observeAppLifecycle, refreshOnFlowEntry } from './sonarSession';
@@ -37,6 +37,7 @@ import { presentGooglePayFlow } from './googlePay';
 import { warnOnce } from './warn';
 import { initializeSift } from './sift';
 import { prefetchLegalConfiguration } from './legal';
+import { fetchRemoteConfig } from './remoteConfig';
 
 const LINKING_ERROR =
   `The package 'framepayments-react-native' doesn't seem to be linked. Make sure you have run 'pod install' (iOS) or rebuilt the app (Android).`;
@@ -189,7 +190,9 @@ async function runInitialize(options: {
   observeAppLifecycle();
   void initializeSession();
   // Legal URLs are read synchronously during render, so fetch them now and let
-  // the bundled fallbacks cover the window before this lands.
+  // the bundled fallbacks cover the window before this lands. Shares the same
+  // /v1/config/all round trip as prefetchServiceConfigs above — fetchRemoteConfig
+  // dedupes concurrent callers onto one in-flight request.
   void prefetchLegalConfiguration();
   // Resolve the device IP asynchronously and reset the cached SDK client so
   // subsequent requests pick up the ip_address header. iOS resolves
@@ -208,44 +211,40 @@ async function prefetchIpAddress(): Promise<void> {
 }
 
 async function prefetchServiceConfigs(): Promise<void> {
-  // Fire both fetches in parallel — they're independent and the round-trips
-  // saved matter for time-to-first-encrypt on slow connections.
-  const [evResult, siftResult] = await Promise.allSettled([
-    client.sdk.configuration.getEvervaultConfiguration(),
-    client.sdk.configuration.getSiftConfiguration(),
-  ]);
-
-  if (evResult.status === 'fulfilled') {
-    const ev = evResult.value;
-    if (ev.team_id && ev.app_id) {
-      __internal.setEvervaultConfiguration({ teamId: ev.team_id, appId: ev.app_id });
-      try {
-        await configureEvervault(ev.team_id, ev.app_id);
-      } catch (err) {
-        debugWarn('Evervault configure failed', err);
-      }
-    } else if (getDebugMode()) {
-      console.warn('[Frame] Backend returned no Evervault config (team_id/app_id missing).');
-    }
-  } else {
-    debugWarn('Evervault config prefetch failed', evResult.reason);
+  // One request for every third-party credential, matching iOS's
+  // /v1/config/all consolidation (frame-ios FRA-6251). This previously made
+  // three separate round-trips at start-up — evervault + sift through the SDK,
+  // then fingerprint, then legal, each on the critical path to a usable
+  // checkout.
+  const config = await fetchRemoteConfig();
+  if (!config) {
+    debugWarn('Configuration prefetch failed', new Error('/v1/config/all returned no usable body'));
+    return;
   }
 
-  if (siftResult.status === 'fulfilled') {
-    const sift = siftResult.value;
-    if (sift.account_id && sift.beacon_key) {
-      __internal.setSiftConfiguration({ accountId: sift.account_id, beaconKey: sift.beacon_key });
-      // Hand the config to the Sift SDK so it actually starts collecting. This
-      // is what iOS's SiftManager.initializeSift does; until now RN cached the
-      // config and nothing ever read it, so no device events were collected.
-      if (!initializeSift() && getDebugMode()) {
-        console.warn('[Frame] Sift config fetched but the SDK could not be initialized.');
-      }
-    } else if (getDebugMode()) {
-      console.warn('[Frame] Backend returned no Sift config (account_id/beacon_key missing).');
+  const ev = config.evervault;
+  if (ev?.teamId && ev?.appId) {
+    __internal.setEvervaultConfiguration({ teamId: ev.teamId, appId: ev.appId });
+    try {
+      await configureEvervault(ev.teamId, ev.appId);
+    } catch (err) {
+      debugWarn('Evervault configure failed', err);
     }
-  } else {
-    debugWarn('Sift config prefetch failed', siftResult.reason);
+  } else if (getDebugMode()) {
+    console.warn('[Frame] Backend returned no Evervault config (team_id/app_id missing).');
+  }
+
+  const sift = config.sift;
+  if (sift?.accountId && sift?.beaconKey) {
+    __internal.setSiftConfiguration({ accountId: sift.accountId, beaconKey: sift.beaconKey });
+    // Hand the config to the Sift SDK so it actually starts collecting. This is
+    // what iOS's SiftManager.initializeSift does; until now RN cached the
+    // config and nothing ever read it, so no device events were collected.
+    if (!initializeSift() && getDebugMode()) {
+      console.warn('[Frame] Sift config fetched but the SDK could not be initialized.');
+    }
+  } else if (getDebugMode()) {
+    console.warn('[Frame] Backend returned no Sift config (account_id/beacon_key missing).');
   }
 }
 

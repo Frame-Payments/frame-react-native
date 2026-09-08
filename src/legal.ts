@@ -1,5 +1,4 @@
-import { frameRequestHeaders } from './bespokeRequest';
-import { FRAME_API_BASE_URL } from './client';
+import { fetchRemoteConfig } from './remoteConfig';
 
 // Frame's legal document URLs. Ports iOS LegalConfiguration
 // (`Sources/Frame/Networking/LegalConfiguration.swift`): fetched from the
@@ -10,10 +9,10 @@ import { FRAME_API_BASE_URL } from './client';
 // Hardcoding these in the component (as RN did, for two of the four) means a
 // legal-URL change ships to iOS via config but needs an SDK release on RN.
 //
-// getLegalConfiguration has no framepayments surface, so the fetch goes through
-// the shared bespoke-request helper. iOS caches in the keychain; RN caches in
-// memory for the process — a missed cache costs one request on the next cold
-// start rather than a broken link, since the fallbacks are always there.
+// The values ride the single `/v1/config/all` fetch (see remoteConfig.ts), the
+// same aggregate iOS reads. iOS caches in the keychain; RN caches in memory for
+// the process — a missed cache costs one request on the next cold start rather
+// than a broken link, since the fallbacks are always there.
 
 const FALLBACKS = {
   privacyUrl: 'https://framepayments.com/legal/privacy',
@@ -32,34 +31,14 @@ export interface LegalUrls {
 
 let cached: Partial<LegalUrls> = {};
 
-function nonEmpty(value: unknown): string | undefined {
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
-}
-
 /**
- * Fetches the legal URLs and caches them for the process. Called in the
+ * Populates the legal URLs from the aggregate config fetch. Called in the
  * background from Frame.initialize; failures are swallowed, since every
  * accessor falls back to a bundled default.
  */
 export async function prefetchLegalConfiguration(): Promise<void> {
-  try {
-    const response = await fetch(`${FRAME_API_BASE_URL}/v1/config/legal`, {
-      method: 'GET',
-      headers: frameRequestHeaders(),
-    });
-    if (!response.ok) return;
-    const body = (await response.json()) as Record<string, unknown>;
-    cached = {
-      privacyUrl: nonEmpty(body.privacy_url),
-      termsUrl: nonEmpty(body.terms_url),
-      platformAgreementUrl: nonEmpty(body.platform_agreement_url),
-      // iOS decodes this one as `cbcTermsAndConditions`, so the wire name is
-      // the un-suffixed form rather than `cbc_terms_url`.
-      cbcTermsUrl: nonEmpty(body.cbc_terms_and_conditions),
-    };
-  } catch {
-    // Fallbacks cover it.
-  }
+  const config = await fetchRemoteConfig();
+  if (config?.legal) cached = config.legal;
 }
 
 /**

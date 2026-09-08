@@ -1,10 +1,7 @@
 jest.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
 
-import {
-  __resetLegalConfiguration,
-  getLegalUrls,
-  prefetchLegalConfiguration,
-} from '../legal';
+import { __resetLegalConfiguration, getLegalUrls, prefetchLegalConfiguration } from '../legal';
+import { __resetRemoteConfig } from '../remoteConfig';
 
 const FALLBACKS = {
   privacyUrl: 'https://framepayments.com/legal/privacy',
@@ -13,6 +10,9 @@ const FALLBACKS = {
   cbcTermsUrl: 'https://framepayments.com/legal/cbc-terms-and-conditions',
 };
 
+// prefetchLegalConfiguration now reads the `legal` block off the aggregate
+// /v1/config/all response (remoteConfig.ts), matching iOS's FRA-6251
+// consolidation, so the mocked body must be shaped { legal: { ... } }.
 function mockJson(body: unknown, ok = true) {
   global.fetch = jest.fn(async () => ({ ok, status: ok ? 200 : 503, json: async () => body }) as Response) as
     unknown as typeof fetch;
@@ -20,6 +20,9 @@ function mockJson(body: unknown, ok = true) {
 
 beforeEach(() => {
   __resetLegalConfiguration();
+  // fetchRemoteConfig caches its result for the process; without resetting it
+  // here a fetch made by one test would leak into the next.
+  __resetRemoteConfig();
 });
 
 describe('getLegalUrls', () => {
@@ -29,10 +32,12 @@ describe('getLegalUrls', () => {
 
   it('returns the configured URLs once the prefetch lands', async () => {
     mockJson({
-      privacy_url: 'https://example.test/p',
-      terms_url: 'https://example.test/t',
-      platform_agreement_url: 'https://example.test/pa',
-      cbc_terms_and_conditions: 'https://example.test/cbc',
+      legal: {
+        privacy_url: 'https://example.test/p',
+        terms_url: 'https://example.test/t',
+        platform_agreement_url: 'https://example.test/pa',
+        cbc_terms_and_conditions: 'https://example.test/cbc',
+      },
     });
     await prefetchLegalConfiguration();
     expect(getLegalUrls()).toEqual({
@@ -44,13 +49,13 @@ describe('getLegalUrls', () => {
   });
 
   it('falls back per-field, so a partial response never yields a broken link', async () => {
-    mockJson({ privacy_url: 'https://example.test/p' });
+    mockJson({ legal: { privacy_url: 'https://example.test/p' } });
     await prefetchLegalConfiguration();
     expect(getLegalUrls()).toEqual({ ...FALLBACKS, privacyUrl: 'https://example.test/p' });
   });
 
   it('ignores empty strings', async () => {
-    mockJson({ privacy_url: '', terms_url: 'https://example.test/t' });
+    mockJson({ legal: { privacy_url: '', terms_url: 'https://example.test/t' } });
     await prefetchLegalConfiguration();
     expect(getLegalUrls().privacyUrl).toBe(FALLBACKS.privacyUrl);
     expect(getLegalUrls().termsUrl).toBe('https://example.test/t');
@@ -67,6 +72,12 @@ describe('getLegalUrls', () => {
       throw new Error('offline');
     }) as unknown as typeof fetch;
     await expect(prefetchLegalConfiguration()).resolves.toBeUndefined();
+    expect(getLegalUrls()).toEqual(FALLBACKS);
+  });
+
+  it('keeps the fallbacks when the aggregate response carries no legal block', async () => {
+    mockJson({ evervault: { team_id: 't', app_id: 'a' } });
+    await prefetchLegalConfiguration();
     expect(getLegalUrls()).toEqual(FALLBACKS);
   });
 });
