@@ -50,6 +50,13 @@ export type {
   FrameThemeRadii,
 } from './types';
 export { isOnboardingApproved } from './types';
+// Frame's legal document URLs, sourced from the configuration API with bundled
+// fallbacks. iOS exposes the same four as LegalConfiguration.
+export { getLegalUrls, type LegalUrls } from './legal';
+export {
+  TermsOfServiceView,
+  type TermsOfServiceViewProps,
+} from './ui/primitives/TermsOfServiceView';
 export { ErrorCodes } from './errors';
 export {
   isThreeDSecureAvailable,

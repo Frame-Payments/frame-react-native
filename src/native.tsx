@@ -36,6 +36,7 @@ import { presentApplePayFlow } from './applePay';
 import { presentGooglePayFlow } from './googlePay';
 import { warnOnce } from './warn';
 import { initializeSift } from './sift';
+import { prefetchLegalConfiguration } from './legal';
 
 const LINKING_ERROR =
   `The package 'framepayments-react-native' doesn't seem to be linked. Make sure you have run 'pod install' (iOS) or rebuilt the app (Android).`;
@@ -187,6 +188,9 @@ async function runInitialize(options: {
   // the payment path calls ensureSession and the server is authoritative.
   observeAppLifecycle();
   void initializeSession();
+  // Legal URLs are read synchronously during render, so fetch them now and let
+  // the bundled fallbacks cover the window before this lands.
+  void prefetchLegalConfiguration();
   // Resolve the device IP asynchronously and reset the cached SDK client so
   // subsequent requests pick up the ip_address header. iOS resolves
   // immediately (getifaddrs); Android does a one-time api.ipify.org lookup
