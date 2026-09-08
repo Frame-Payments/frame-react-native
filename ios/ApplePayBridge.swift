@@ -84,12 +84,22 @@ public class FrameApplePay: NSObject, PKPaymentAuthorizationControllerDelegate {
       request.countryCode = countryCode
       request.currencyCode = currency.uppercased()
       request.requiredBillingContactFields = [.postalAddress, .name, .emailAddress]
-      request.paymentSummaryItems = [
-        PKPaymentSummaryItem(
-          label: "Total",
-          amount: NSDecimalNumber(value: Double(amount) / 100.0)
-        )
-      ]
+      if args["verificationOnly"] as? Bool == true {
+        // Wallet-only mode: a $0 pending item still satisfies Apple's
+        // requirement of a labeled total without showing the cardholder a
+        // charge they aren't making. Mirrors Frame-iOS
+        // FrameApplePayViewModel.buildPaymentRequest's .addToOwner branch.
+        request.paymentSummaryItems = [
+          PKPaymentSummaryItem(label: "Card Verification", amount: .zero, type: .pending)
+        ]
+      } else {
+        request.paymentSummaryItems = [
+          PKPaymentSummaryItem(
+            label: "Total",
+            amount: NSDecimalNumber(value: Double(amount) / 100.0)
+          )
+        ]
+      }
 
       let controller = PKPaymentAuthorizationController(paymentRequest: request)
       controller.delegate = self

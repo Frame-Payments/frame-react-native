@@ -32,6 +32,39 @@ export function toToastMessage(error: unknown, fallback: string = DEFAULT_TOAST_
   return `Error: ${fallback}`;
 }
 
+/**
+ * Whether the API rejected the request because the device assertion was refused.
+ *
+ * The device's App Attest key can be revoked server-side (a reinstall, a
+ * security event), after which every assertion fails identically until the key
+ * is regenerated. Callers reset attestation on this so the next attempt mints a
+ * fresh key rather than leaving the device wedged until the app is reinstalled.
+ *
+ * Mirrors iOS `NetworkingError.isAssertionRejection`
+ * (`Sources/Frame/Networking/CommonObjects.swift:187-193`) — a 422 whose message
+ * mentions assertion or attestation.
+ */
+export function isAssertionRejection(error: unknown): boolean {
+  // Duck-typed rather than `instanceof FrameAPIError`: this runs on the failure
+  // path of a payment, and an `instanceof` against a class the bundle didn't
+  // load throws, turning a card decline into a TypeError.
+  if (typeof error !== 'object' || error === null) return false;
+  const { status, raw, message: rawMessage } = error as {
+    status?: unknown;
+    raw?: unknown;
+    message?: unknown;
+  };
+  if (status !== 422) return false;
+  const message = (
+    extractFromEnvelope(raw) ?? (typeof rawMessage === 'string' ? rawMessage : '')
+  ).toLowerCase();
+  return (
+    message.includes('assertion') ||
+    message.includes('device not attested') ||
+    message.includes('attestation')
+  );
+}
+
 // A 404 from the API means the resource genuinely does not exist, as opposed to
 // a transport failure or a 5xx, which say nothing about whether it exists.
 // Callers use this to distinguish "the id is bad" from "we couldn't reach the

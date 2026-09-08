@@ -3,7 +3,8 @@ import type { ApplePayPaymentData } from 'framepayments';
 import { sessionIdForPayment } from './sonarSession';
 import { client, requireSecretKeyFor } from './client';
 import { ErrorCodes, frameError } from './errors';
-import { ensureAttested, generateAssertionForPayment } from './attestation';
+import { ensureAttested, generateAssertionForPayment, resetAttestation } from './attestation';
+import { isAssertionRejection } from './api-errors';
 import { getApplePayMerchantId } from './config';
 import type { PresentApplePayOptions, WalletOwner } from './types';
 
@@ -16,6 +17,12 @@ export interface ApplePayBridgePresentArgs {
   applePayMerchantId: string;
   countryCode?: string;
   supportedNetworks?: ReadonlyArray<string>;
+  /**
+   * Draws the sheet with a $0 "Card Verification" pending item instead of a
+   * total. Used by the add-to-owner flow, where no charge is created — matching
+   * iOS's `.addToOwner` branch in FrameApplePayViewModel.buildPaymentRequest.
+   */
+  verificationOnly?: boolean;
 }
 
 export interface ApplePayBridgeToken {
@@ -144,13 +151,16 @@ export async function addApplePayToOwnerFlow(
   await ensureAttested();
 
   const currency = options.currency ?? 'usd';
-  // Apple Pay needs a non-zero amount on the request to draw the sheet. We
-  // use $1.00 (100 cents) — it's a label only, no charge is created.
+  // No charge is created here, so the sheet shows a $0 "Card Verification"
+  // pending item rather than a total. It previously showed "Total $1.00", which
+  // reads to the cardholder as a real charge. iOS uses the $0 pending item
+  // (FrameApplePayViewModel.swift:138-148).
   const sheetResponse = await FrameApplePay.presentApplePay({
-    amount: 100,
+    amount: 0,
     currency,
     applePayMerchantId: merchantId,
     supportedNetworks: DEFAULT_SUPPORTED_NETWORKS,
+    verificationOnly: true,
   });
 
   try {
@@ -159,9 +169,7 @@ export async function addApplePayToOwnerFlow(
       options.owner.type === 'customer'
         ? { type: 'card' as const, customer: options.owner.id, _wallet: wallet }
         : { type: 'card' as const, account: options.owner.id, _wallet: wallet };
-    const pm = await client.sdk.paymentMethods.createApplePayPaymentMethod(params, {
-      usePublishableKey: true,
-    });
+    const pm = await createWalletPaymentMethod(params);
     if (!pm || typeof pm.id !== 'string') {
       throw frameError(ErrorCodes.PAYMENT_METHOD_FAILED, 'Frame returned no payment method id.');
     }
@@ -232,9 +240,8 @@ async function createPaymentMethodAndCharge(
   };
 
   if (owner.type === 'customer') {
-    const pm = await client.sdk.paymentMethods.createApplePayPaymentMethod(
+    const pm = await createWalletPaymentMethod(
       { type: 'card', customer: owner.id, _wallet: wallet },
-      { usePublishableKey: true },
     );
     const intent = await client.sdk.chargeIntents.create({
       amount: options.amount,
@@ -249,10 +256,7 @@ async function createPaymentMethodAndCharge(
     return intent.id;
   }
 
-  const pm = await client.sdk.paymentMethods.createApplePayPaymentMethod(
-    { type: 'card', account: owner.id, _wallet: wallet },
-    { usePublishableKey: true },
-  );
+  const pm = await createWalletPaymentMethod({ type: 'card', account: owner.id, _wallet: wallet });
   // The server resolves a payment's session through the account, so only the
   // account path can carry one — a ChargeIntent on a customer has no account to
   // resolve through. Never blocks: the server's rejection is authoritative.
@@ -268,6 +272,29 @@ async function createPaymentMethodAndCharge(
     throw frameError(ErrorCodes.PAYMENT_FAILED, 'Frame returned no Transfer id.');
   }
   return transfer.id;
+}
+
+// Creates the Apple Pay payment method, resetting attestation when the server
+// refuses the device assertion.
+//
+// The device's App Attest key can be revoked server-side, after which every
+// assertion fails identically — without the reset the device stays wedged until
+// the app is reinstalled. iOS does the same at
+// FrameApplePayViewModel.swift:182-184.
+async function createWalletPaymentMethod(
+  params: Parameters<typeof client.sdk.paymentMethods.createApplePayPaymentMethod>[0],
+) {
+  try {
+    return await client.sdk.paymentMethods.createApplePayPaymentMethod(params, {
+      usePublishableKey: true,
+    });
+  } catch (err) {
+    if (isAssertionRejection(err)) {
+      // Best-effort: a failed reset must not mask the original error.
+      await resetAttestation().catch(() => {});
+    }
+    throw err;
+  }
 }
 
 async function safeFinishApplePay(status: 'success' | 'failure'): Promise<void> {

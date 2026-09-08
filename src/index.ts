@@ -69,7 +69,12 @@ export type { FrameErrorShape, FrameErrorCode } from './errors';
 // Host apps need this to render a caught Frame error: the top-level `message`
 // on an API rejection is a generic envelope, and the actionable reason lives in
 // `error_details.message` underneath it.
-export { toToastMessage, isNotFoundError, DEFAULT_TOAST_FALLBACK } from './api-errors';
+export {
+  toToastMessage,
+  isNotFoundError,
+  isAssertionRejection,
+  DEFAULT_TOAST_FALLBACK,
+} from './api-errors';
 
 export { FrameProvider, type FrameProviderProps } from './ui/FrameProvider';
 export { useFrameTheme } from './ui/theme/ThemeContext';
@@ -162,6 +167,8 @@ export {
   getAllCountries,
   getAvailableCountries,
   getPhoneCountries,
+  getDefaultPhoneCountry,
+  findPhoneCountry,
   type AvailableCountry,
   type PhoneCountry,
 } from './countries';
