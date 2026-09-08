@@ -774,11 +774,25 @@ export function useOnboardingViewModel({
   const start3DS = useCallback(
     async (paymentMethodId: string) => {
       return guardedAction(async () => {
-        const verification = await client.sdk.threeDS.create({ payment_method_id: paymentMethodId });
-        if (!verification?.id) {
+        let verificationId: string | null = null;
+        try {
+          const verification = await client.sdk.threeDS.create({ payment_method_id: paymentMethodId });
+          verificationId = verification?.id ?? null;
+        } catch (err) {
+          // A duplicate-intent refusal carries the id of the verification
+          // already in flight. Recovering it is what lets a user who bounced
+          // out mid-challenge resume rather than hitting a hard error. iOS
+          // reads the same `existing_intent_id`
+          // (OnboardingContainerViewModel.swift:1003-1008).
+          const existingId = existingIntentIdFrom(err);
+          if (!existingId) throw err;
+          const existing = await client.sdk.threeDS.get(existingId);
+          verificationId = existing?.id ?? existingId;
+        }
+        if (!verificationId) {
           throw frameError(ErrorCodes.PAYMENT_FAILED, 'Failed to initialize card verification. Please try again.');
         }
-        dispatch({ type: 'SET_THREE_DS_VERIFICATION_ID', id: verification.id });
+        dispatch({ type: 'SET_THREE_DS_VERIFICATION_ID', id: verificationId });
         dispatch({ type: 'SET_SUB_STEP', subStep: 'secure_3ds' });
       });
     },
@@ -1193,6 +1207,23 @@ export { isCapabilitySatisfied };
 // rewritten under them mid-field.
 function normalizedSubregion(address: OnboardingAddress): string {
   return normalizeSubregion(address.state, address.country);
+}
+
+// The id of an already-in-flight 3DS verification, when the API refused a
+// create because one exists. iOS decodes it as `existing_intent_id` on the error
+// payload (`3DSecureObjects.swift:62-66`).
+function existingIntentIdFrom(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null) return null;
+  const raw = (error as { raw?: unknown }).raw;
+  if (typeof raw !== 'object' || raw === null) return null;
+  const details = (raw as { error?: unknown; error_details?: unknown });
+  for (const candidate of [details.error, details.error_details]) {
+    if (typeof candidate === 'object' && candidate !== null) {
+      const id = (candidate as { existing_intent_id?: unknown }).existing_intent_id;
+      if (typeof id === 'string' && id.length > 0) return id;
+    }
+  }
+  return null;
 }
 
 // 'YYYY-MM-DD' from the reducer's three DOB fields, or undefined when the user

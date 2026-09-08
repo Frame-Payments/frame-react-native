@@ -42,11 +42,32 @@ export async function submitProveOtp(code: string): Promise<void> {
   await FrameProveAuth.submitOtp(code);
 }
 
+// Latched when the applicant dismisses the Prove OTP sheet themselves. The
+// native side then resolves authenticate() with status=failed, which is
+// indistinguishable from a real Prove failure — but a deliberate cancel is not
+// something to recover from with a re-send and an error toast. iOS keeps the
+// same flag (`proveOTPCancelledByUser`, OnboardingContainerViewModel.swift:493).
+let cancelledByUser = false;
+
 /** Cancel the pending OTP request. Used by the OTP UI's Cancel button. The
- * underlying authenticate() promise resolves with status=failed afterwards. */
+ * underlying authenticate() promise resolves with status=failed afterwards;
+ * {@link consumeProveCancelledByUser} distinguishes that from a real failure. */
 export async function cancelProveOtp(): Promise<void> {
+  cancelledByUser = true;
   if (!FrameProveAuth) return;
   await FrameProveAuth.cancelOtp();
+}
+
+/**
+ * Whether the last Prove failure was the applicant cancelling, clearing the flag
+ * as it reads. Callers use it to skip the Twilio-fallback re-send and the error
+ * toast: the applicant dismissed the sheet and is back on the phone form, where
+ * tapping Continue starts this over.
+ */
+export function consumeProveCancelledByUser(): boolean {
+  const was = cancelledByUser;
+  cancelledByUser = false;
+  return was;
 }
 
 /** Forcibly cancel the in-flight Prove authentication. Resolves authenticate()
@@ -72,6 +93,8 @@ export async function cancelProveAuth(): Promise<void> {
  * pending until JS calls submitProveOtp(code) or cancelProveOtp().
  */
 export async function authenticateProve(authToken: string): Promise<ProveAuthResult> {
+  // A fresh run: any cancel latched by a previous attempt is stale.
+  cancelledByUser = false;
   if (!FrameProveAuth) {
     return { status: 'failed', message: 'Prove SDK is not linked.' };
   }

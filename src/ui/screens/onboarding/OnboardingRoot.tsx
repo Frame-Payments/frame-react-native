@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import type { OnboardingCapability, OnboardingResult } from '../../../types';
 import { showToast } from '../../primitives/toastCenter';
+import { consumeProveCancelledByUser } from '../../../prove';
 import { toToastMessage } from '../../../api-errors';
 import { beginOnboardingSession, endOnboardingSession } from '../../../auth';
 import { useOnboardingViewModel } from './useOnboardingViewModel';
@@ -286,6 +287,12 @@ export function OnboardingRoot({
                     });
                   return;
                 }
+                // A cancel is not a failure to recover from: the applicant
+                // dismissed the sheet and is back on the phone form, where
+                // tapping Continue starts this over. Re-sending and toasting
+                // would tell them something went wrong when nothing did. iOS
+                // guards the same way (OnboardingContainerViewModel.swift:493).
+                if (consumeProveCancelledByUser()) return;
                 // Prove failed → re-issue a Frame phone verification so the
                 // OTP confirm endpoint accepts the new id, then surface the
                 // failure message. Without re-issuing, confirmFrameOtp would
