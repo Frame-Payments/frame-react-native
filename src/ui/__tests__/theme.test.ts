@@ -8,43 +8,82 @@ import {
   resolveTheme,
 } from '../theme/defaults';
 
-describe('color tokens (mirror Android values{,-night}/colors.xml)', () => {
-  it('light primaryButton matches Android frame_primary_button', () => {
-    expect(lightColors.primaryButton).toBe('#324D52');
-    expect(darkColors.primaryButton).toBe('#506F8A');
+// Every assertion here mirrors frame-ios's actual default theme
+// (Sources/Frame/Theming/FrameTheme.swift's Colors.init/Fonts.init defaults),
+// converted from the SwiftUI/asset-catalog values those defaults resolve to
+// (Sources/Frame/Resources/Colors.xcassets/*.colorset/Contents.json for the
+// named-asset colors; Apple's documented Dynamic Type / system-color values
+// for the plain SwiftUI tokens like .headline, .red, Color(.systemBackground)).
+// A host that never overrides the theme should render visually identically on
+// iOS and RN.
+describe('color tokens (mirror Frame-iOS Colors.xcassets + system colors)', () => {
+  it('primaryButton matches MainButtonColor.colorset', () => {
+    expect(lightColors.primaryButton).toBe('#2B4146');
+    expect(darkColors.primaryButton).toBe('#50787F');
   });
 
-  it('light surface is white, dark surface is system dark', () => {
+  it('surface matches SurfaceColor.colorset', () => {
     expect(lightColors.surface).toBe('#FFFFFF');
     expect(darkColors.surface).toBe('#1C1C1E');
   });
 
-  it('strokes carry alpha (RRGGBBAA) — light ~20% black, dark ~20% white', () => {
-    expect(lightColors.surfaceStroke).toBe('#00000033');
-    expect(darkColors.surfaceStroke).toBe('#FFFFFF33');
-    expect(lightColors.disabledButtonStroke).toBe('#00000033');
-    expect(darkColors.disabledButtonStroke).toBe('#FFFFFF33');
+  it('surfaceStroke matches SurfaceStrokeColor.colorset', () => {
+    expect(lightColors.surfaceStroke).toBe('#C7C7C7');
+    expect(darkColors.surfaceStroke).toBe('#575759');
   });
 
-  it('error / toast match Material 3 dark error palette', () => {
-    expect(lightColors.error).toBe('#B00020');
-    expect(darkColors.error).toBe('#CF6679');
-    expect(lightColors.toastBackground).toBe('#B00020');
-    expect(darkColors.toastBackground).toBe('#CF6679');
-    expect(darkColors.toastText).toBe('#000000');
+  it('disabled-button trio matches UnfilledButton*.colorset', () => {
+    expect(lightColors.disabledButton).toBe('#F7F7F7');
+    expect(darkColors.disabledButton).toBe('#2E2E2E');
+    expect(lightColors.disabledButtonStroke).toBe('#D9D9D9');
+    expect(darkColors.disabledButtonStroke).toBe('#545454');
+    expect(lightColors.disabledButtonText).toBe('#6F6F6F');
+    expect(darkColors.disabledButtonText).toBe('#AEAEAE');
+  });
+
+  it('text colors match PrimaryTextColor / TextColorSecondary colorsets', () => {
+    expect(lightColors.textPrimary).toBe('#000000');
+    expect(darkColors.textPrimary).toBe('#FFFFFF');
+    // TextColorSecondary carries alpha: 60% light, 70% dark.
+    expect(lightColors.textSecondary).toBe('#2A2E2E99');
+    expect(darkColors.textSecondary).toBe('#EBEBEBB2');
+  });
+
+  it('error / toastBackground match SwiftUI .red (Apple systemRed)', () => {
+    expect(lightColors.error).toBe('#FF3B30');
+    expect(darkColors.error).toBe('#FF453A');
+    expect(lightColors.toastBackground).toBe('#FF3B30');
+    expect(darkColors.toastBackground).toBe('#FF453A');
+    // toastText is .white on both schemes in iOS — NOT scheme-dependent, unlike
+    // the previous RN default which flipped to black in dark mode.
     expect(lightColors.toastText).toBe('#FFFFFF');
+    expect(darkColors.toastText).toBe('#FFFFFF');
   });
 
-  it('secondary button background is transparent on both schemes', () => {
-    expect(lightColors.secondaryButton).toBe('#00000000');
-    expect(darkColors.secondaryButton).toBe('#00000000');
+  it('secondaryButton matches Color(.systemBackground) — opaque, not transparent', () => {
+    // iOS's default is Apple's semantic window background: opaque white in
+    // light mode, opaque black in dark mode. The previous RN default
+    // (#00000000, fully transparent on both schemes) did not match this.
+    expect(lightColors.secondaryButton).toBe('#FFFFFF');
+    expect(darkColors.secondaryButton).toBe('#000000');
   });
 
-  it('onboarding progress is white-on-brand on both schemes', () => {
+  it('secondaryButtonText reuses primaryButton\'s color, matching iOS', () => {
+    expect(lightColors.secondaryButtonText).toBe(lightColors.primaryButton);
+    expect(darkColors.secondaryButtonText).toBe(darkColors.primaryButton);
+  });
+
+  it('onboardingHeaderBackground matches OnboardingHeaderBackground.colorset', () => {
+    expect(lightColors.onboardingHeaderBackground).toBe('#FCFBF8');
+    expect(darkColors.onboardingHeaderBackground).toBe('#1F2D33');
+  });
+
+  it('onboarding progress indicator matches .white / .white.opacity(0.25) on both schemes', () => {
     expect(lightColors.onboardingProgressFilledOnBrand).toBe('#FFFFFF');
     expect(darkColors.onboardingProgressFilledOnBrand).toBe('#FFFFFF');
-    expect(lightColors.onboardingProgressEmptyOnBrand).toBe('#FFFFFF66');
-    expect(darkColors.onboardingProgressEmptyOnBrand).toBe('#FFFFFF66');
+    // 0.25 alpha -> 0x40 (64/255, rounded).
+    expect(lightColors.onboardingProgressEmptyOnBrand).toBe('#FFFFFF40');
+    expect(darkColors.onboardingProgressEmptyOnBrand).toBe('#FFFFFF40');
   });
 
   it('every public token is set on both schemes', () => {
@@ -75,42 +114,52 @@ describe('color tokens (mirror Android values{,-night}/colors.xml)', () => {
   });
 });
 
-describe('font tokens (Material 3 sizes + Frame weight overrides)', () => {
-  it('title/heading/headline get explicit weights to match iOS SwiftUI defaults', () => {
-    expect(fontWeights.title).toBe('700');
-    expect(fontWeights.heading).toBe('600');
+describe('font tokens (mirror Frame-iOS Fonts.init Dynamic Type defaults)', () => {
+  it('headline / button / heading get semibold weight, matching iOS', () => {
+    // iOS: headline = .headline (semibold); button = .headline (semibold);
+    // heading = .system(size: 18, weight: .semibold) — an explicit override.
     expect(fontWeights.headline).toBe('600');
-    expect(fontWeights.label).toBe('600');
     expect(fontWeights.button).toBe('600');
+    expect(fontWeights.heading).toBe('600');
   });
 
-  it('body / bodySmall / caption stay at regular weight', () => {
+  it('title / body / bodySmall / label / caption stay at regular weight', () => {
+    // iOS: title = .title (regular); body = .body (regular);
+    // bodySmall = .system(size: 14) (regular, no weight given);
+    // label = .subheadline (regular); caption = .caption (regular).
+    expect(fontWeights.title).toBe('400');
     expect(fontWeights.body).toBe('400');
     expect(fontWeights.bodySmall).toBe('400');
+    expect(fontWeights.label).toBe('400');
     expect(fontWeights.caption).toBe('400');
   });
 
-  it('sizes match the shipping defaults', () => {
-    // Frame iOS uses dynamic system tokens (.title, .headline, etc.); RN
-    // ships concrete pt sizes that visually align with those defaults on
-    // the iPhone reference size class. Keep these in sync with
-    // src/ui/theme/defaults.ts.
-    expect(defaultFonts.title.size).toBe(24);
-    expect(defaultFonts.heading.size).toBe(24);
-    expect(defaultFonts.headline.size).toBe(18);
-    expect(defaultFonts.body.size).toBe(14);
-    expect(defaultFonts.bodySmall.size).toBe(12);
-    expect(defaultFonts.label.size).toBe(14);
-    expect(defaultFonts.caption.size).toBe(11);
-    expect(defaultFonts.button.size).toBe(14);
+  it('sizes match iOS Dynamic Type point sizes at the default content-size category', () => {
+    // title = .title (title1) = 28pt.
+    expect(defaultFonts.title.size).toBe(28);
+    // heading = iOS's explicit .system(size: 18, weight: .semibold) override.
+    expect(defaultFonts.heading.size).toBe(18);
+    // headline = .headline = 17pt.
+    expect(defaultFonts.headline.size).toBe(17);
+    // body = .body = 17pt.
+    expect(defaultFonts.body.size).toBe(17);
+    // bodySmall = iOS's explicit .system(size: 14) override.
+    expect(defaultFonts.bodySmall.size).toBe(14);
+    // label = .subheadline = 15pt.
+    expect(defaultFonts.label.size).toBe(15);
+    // caption = .caption (caption1) = 12pt.
+    expect(defaultFonts.caption.size).toBe(12);
+    // button = .headline = 17pt (same style as headline, hence same size).
+    expect(defaultFonts.button.size).toBe(17);
   });
 
   it('line heights pair with sizes', () => {
-    expect(fontLineHeights.title).toBe(40);
-    expect(fontLineHeights.heading).toBe(36);
-    expect(fontLineHeights.headline).toBe(28);
-    expect(fontLineHeights.body).toBe(24);
+    expect(fontLineHeights.title).toBe(34);
+    expect(fontLineHeights.headline).toBe(22);
+    expect(fontLineHeights.body).toBe(22);
+    expect(fontLineHeights.label).toBe(20);
     expect(fontLineHeights.caption).toBe(16);
+    expect(fontLineHeights.button).toBe(22);
   });
 
   it('all font tokens default to "system"', () => {
@@ -121,7 +170,7 @@ describe('font tokens (Material 3 sizes + Frame weight overrides)', () => {
 });
 
 describe('radii', () => {
-  it('matches FrameRadii defaults (8 / 10 / 16)', () => {
+  it('matches FrameTheme.Radii defaults (8 / 10 / 16)', () => {
     expect(defaultRadii.small).toBe(8);
     expect(defaultRadii.medium).toBe(10);
     expect(defaultRadii.large).toBe(16);
