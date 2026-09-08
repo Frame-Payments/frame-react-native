@@ -37,6 +37,7 @@ export type {
   OnboardingCapability,
   OnboardingResult,
   OnboardingResultStatus,
+  OnboardingOutcome,
   WalletOwner,
   ApplePayOwner,
   PresentApplePayOptions,
@@ -48,6 +49,7 @@ export type {
   FrameThemeFonts,
   FrameThemeRadii,
 } from './types';
+export { isOnboardingApproved } from './types';
 export { ErrorCodes } from './errors';
 export type { FrameErrorShape, FrameErrorCode } from './errors';
 // Host apps need this to render a caught Frame error: the top-level `message`

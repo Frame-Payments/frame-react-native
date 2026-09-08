@@ -338,8 +338,15 @@ describe('validatePostalCode', () => {
 
 describe('validatePhoneE164', () => {
   it('accepts a valid US number', () => {
-    expect(validatePhoneE164('555 555 1212', 'US')).toBeNull();
+    expect(validatePhoneE164('415 555 1212', 'US')).toBeNull();
     expect(validatePhoneE164('+1 415 555 1212', 'US')).toBeNull();
+  });
+
+  // iOS's PhoneNumberKit `parse` is a full validity check, not a length check,
+  // so a correctly-sized number on an unassigned NANP exchange is rejected.
+  // RN used isPossible() here and accepted numbers iOS refused.
+  it('rejects a correctly-sized number on an unassigned exchange (iOS parity)', () => {
+    expect(validatePhoneE164('555 555 5555', 'US')).toBe('Enter a valid phone number');
   });
 
   it('accepts a valid international number', () => {

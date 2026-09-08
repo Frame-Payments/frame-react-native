@@ -3,6 +3,7 @@ import {
   validateEmail,
   validateFullName,
   validateNonEmpty,
+  validatePostalCode,
   validateZipUS,
 } from '../../../validation';
 
@@ -38,6 +39,7 @@ export interface CheckoutFieldErrors {
   addressCity?: string;
   addressState?: string;
   addressPostalCode?: string;
+  addressCountry?: string;
 }
 
 export interface CheckoutState {
@@ -181,11 +183,14 @@ export function shouldValidateAddress(state: CheckoutState): boolean {
 }
 
 export function hasUsablePaymentInput(state: CheckoutState): boolean {
-  // Either a saved card is selected, OR all new-card prerequisites are met.
-  if (isUsingSavedCard(state)) return true;
-  if (!state.cardComplete) return false;
+  // Name and email gate both paths, matching validateForSubmit — enabling Pay
+  // for a saved card without them would hand the user a button that fails
+  // validation on tap with no visible reason.
   if (validateFullName(state.customerName) !== null) return false;
   if (validateEmail(state.customerEmail) !== null) return false;
+  // A saved card needs nothing further; a new card needs its own fields.
+  if (isUsingSavedCard(state)) return true;
+  if (!state.cardComplete) return false;
   if (shouldValidateAddress(state)) {
     if (validateNonEmpty(state.address.line1, 'Address') !== null) return false;
     if (validateNonEmpty(state.address.city, 'City') !== null) return false;
@@ -203,18 +208,21 @@ export interface ValidationResult {
 }
 
 export function validateForSubmit(state: CheckoutState): ValidationResult {
-  if (isUsingSavedCard(state)) {
-    return { fieldErrors: {}, isValid: true };
-  }
   const errors: CheckoutFieldErrors = {};
+  const usingSaved = isUsingSavedCard(state);
 
+  // Name and email are validated on BOTH paths. iOS runs them unconditionally
+  // and only skips the card and address blocks for a saved card
+  // (`FrameCheckoutViewModel.swift:213-224`). Short-circuiting the whole
+  // validator for a saved card meant the transfer went out with whatever the
+  // customer-information fields happened to hold, including nothing.
   const nameError = validateFullName(state.customerName);
   if (nameError) errors.customerName = nameError;
 
   const emailError = validateEmail(state.customerEmail);
   if (emailError) errors.customerEmail = emailError;
 
-  if (shouldValidateAddress(state)) {
+  if (!usingSaved && shouldValidateAddress(state)) {
     const line1Error = validateNonEmpty(state.address.line1, 'Address');
     if (line1Error) errors.addressLine1 = line1Error;
 
@@ -224,13 +232,15 @@ export function validateForSubmit(state: CheckoutState): ValidationResult {
     const stateError = validateNonEmpty(state.address.state, 'State');
     if (stateError) errors.addressState = stateError;
 
-    if (state.address.country === 'US') {
-      const zipError = validateZipUS(state.address.postalCode);
-      if (zipError) errors.addressPostalCode = zipError;
-    } else {
-      const postalError = validateNonEmpty(state.address.postalCode, 'Postal code');
-      if (postalError) errors.addressPostalCode = postalError;
-    }
+    // Country-aware, matching iOS's Validators.validatePostalCode(_:countryCode:).
+    // validatePostalCode returns null for a country with no known format, so
+    // fall back to a presence check rather than accepting an empty value.
+    const postalError =
+      validatePostalCode(state.address.postalCode, state.address.country) ??
+      validateNonEmpty(state.address.postalCode, 'Postal code');
+    if (postalError) errors.addressPostalCode = postalError;
+
+    if (!state.address.country) errors.addressCountry = 'Select a country';
   }
 
   return { fieldErrors: errors, isValid: Object.keys(errors).length === 0 };

@@ -13,7 +13,7 @@ import { isNotFoundError } from '../../../api-errors';
 import { endOnboardingSession } from '../../../auth';
 import { warnOnce } from '../../../warn';
 import { PaymentAccountType, PaymentMethodType, type PaymentMethod as FramePaymentMethod } from 'framepayments';
-import type { OnboardingCapability, OnboardingResult } from '../../../types';
+import type { OnboardingCapability, OnboardingOutcome, OnboardingResult } from '../../../types';
 import {
   initialOnboardingState,
   onboardingReducer,
@@ -42,6 +42,7 @@ import {
 import {
   readAccountCapabilities,
   requiresIdentityDocument,
+  resolveOnboardingOutcome,
   trimCompletedCapabilities,
 } from './capabilities';
 
@@ -304,10 +305,30 @@ export function useOnboardingViewModel({
   // Reads from stateRef so the value reflects auto-created accounts (the
   // empty-account-create path in sendOtp dispatches SET_ACCOUNT_ID before the
   // user reaches the final step).
+  //
+  // Reaching the last step is not passing verification, so the account is
+  // re-fetched here and the capabilities are read for a verdict — otherwise a
+  // declined applicant is reported to the host as `completed` with nothing to
+  // distinguish them from an approved one. Mirrors iOS
+  // `resolveFinalOutcome()` (`OnboardingContainerViewModel.swift:162-181`)
+  // and the pre-onResult resolve at `OnboardingContainerView.swift:202-212`.
+  //
+  // The latch is taken up front: the fetch is async, and a second tap while it
+  // is in flight must not produce a second result.
   const complete = useCallback(() => {
     if (completedRef.current) return;
     completedRef.current = true;
-    onComplete({ status: 'completed', accountId: stateRef.current.accountId ?? undefined });
+    const accountId = stateRef.current.accountId ?? undefined;
+    const required = stateRef.current.requiredCapabilities;
+    void (async () => {
+      // A fetch failure must not claim success — iOS defaults to pendingReview
+      // for exactly this reason.
+      const account = accountId ? await client.sdk.accounts.get(accountId).catch(() => null) : null;
+      const outcome: OnboardingOutcome = account
+        ? resolveOnboardingOutcome(account, required)
+        : { status: 'pending_review' };
+      onComplete({ status: 'completed', accountId, outcome });
+    })();
   }, [onComplete]);
 
   const advance = useCallback(() => {

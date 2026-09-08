@@ -3,7 +3,9 @@ import {
   isCapabilityOutstanding,
   readAccountCapabilities,
   requiresIdentityDocument,
+  resolveOnboardingOutcome,
   trimCompletedCapabilities,
+  withDependencies,
 } from '../screens/onboarding/capabilities';
 
 describe('readAccountCapabilities', () => {
@@ -139,5 +141,118 @@ describe('trimCompletedCapabilities', () => {
       ],
     };
     expect(trimCompletedCapabilities(['kyc', 'bank_account_send'], account)).toEqual(['bank_account_send']);
+  });
+});
+
+describe('withDependencies', () => {
+  it('reaches phone_verification from kyc_prefill transitively, by way of kyc', () => {
+    expect([...withDependencies(['kyc_prefill'])].sort()).toEqual([
+      'kyc',
+      'kyc_prefill',
+      'phone_verification',
+    ]);
+  });
+
+  it('expands creator_shield into kyc + age_verification + phone_verification', () => {
+    expect([...withDependencies(['creator_shield'])].sort()).toEqual([
+      'age_verification',
+      'creator_shield',
+      'kyc',
+      'phone_verification',
+    ]);
+  });
+
+  it('leaves a capability with no edges alone', () => {
+    expect([...withDependencies(['card_send'])]).toEqual(['card_send']);
+  });
+
+  it('is empty for an empty request', () => {
+    expect(withDependencies([]).size).toBe(0);
+  });
+});
+
+describe('resolveOnboardingOutcome', () => {
+  it('approves when nothing relevant is outstanding', () => {
+    const account = { capabilities: [{ name: 'kyc', status: 'active' }] };
+    expect(resolveOnboardingOutcome(account, ['kyc'])).toEqual({ status: 'approved' });
+  });
+
+  it('judges the base kyc row that kyc_prefill drags in', () => {
+    // The KYC verdict never lands on kyc_prefill itself, so a host that only
+    // asked for kyc_prefill must still be judged against kyc.
+    const account = {
+      capabilities: [
+        { name: 'kyc_prefill', status: 'active' },
+        {
+          name: 'kyc',
+          status: 'pending',
+          errors: [{ code: 'verification_rejected', message: 'Could not verify identity.' }],
+        },
+      ],
+    };
+    expect(resolveOnboardingOutcome(account, ['kyc_prefill'])).toEqual({
+      status: 'declined',
+      message: 'Could not verify identity.',
+    });
+  });
+
+  it('a terminal failure declines and is never hidden behind a milder verdict', () => {
+    const account = {
+      capabilities: [
+        { name: 'card_send', status: 'pending', errors: [{ code: 'review_pending' }] },
+        { name: 'kyc', status: 'pending', errors: [{ code: 'verification_rejected', message: 'No.' }] },
+      ],
+    };
+    expect(resolveOnboardingOutcome(account, ['kyc', 'card_send'])).toEqual({
+      status: 'declined',
+      message: 'No.',
+    });
+  });
+
+  it('identity_mismatch and identity_not_found are actionable, not declines', () => {
+    for (const code of ['identity_mismatch', 'identity_not_found']) {
+      const account = {
+        capabilities: [{ name: 'kyc', status: 'pending', errors: [{ code, message: 'Check details.' }] }],
+      };
+      expect(resolveOnboardingOutcome(account, ['kyc'])).toEqual({
+        status: 'action_required',
+        message: 'Check details.',
+      });
+    }
+  });
+
+  it('transient and review codes are waits, so they stay pending_review', () => {
+    for (const code of ['provider_error', 'signals_unavailable', 'review_pending']) {
+      const account = { capabilities: [{ name: 'kyc', status: 'pending', errors: [{ code }] }] };
+      expect(resolveOnboardingOutcome(account, ['kyc'])).toEqual({ status: 'pending_review' });
+    }
+  });
+
+  it('an unrecognized failure type does not read as a demand for action', () => {
+    // A type added server-side must not be inferred as actionable.
+    const account = {
+      capabilities: [{ name: 'kyc', status: 'pending', errors: [{ code: 'invented_next_year' }] }],
+    };
+    expect(resolveOnboardingOutcome(account, ['kyc'])).toEqual({ status: 'pending_review' });
+  });
+
+  it('an outstanding capability with no error is pending_review', () => {
+    const account = { capabilities: [{ name: 'kyc', status: 'pending' }] };
+    expect(resolveOnboardingOutcome(account, ['kyc'])).toEqual({ status: 'pending_review' });
+  });
+
+  it('a required capability absent from the response is not a failure signal', () => {
+    // The server silently skips capabilities gated on a merchant switch that is
+    // off, so an absent row means the merchant is not entitled — not that the
+    // applicant fell short.
+    const account = { capabilities: [{ name: 'kyc', status: 'active' }] };
+    expect(resolveOnboardingOutcome(account, ['kyc', 'geo_compliance'])).toEqual({ status: 'approved' });
+  });
+
+  it('an empty required list judges every capability on the account', () => {
+    const account = {
+      capabilities: [{ name: 'kyc', status: 'pending', errors: [{ code: 'verification_rejected' }] }],
+    };
+    expect(resolveOnboardingOutcome(account, [])).toEqual({ status: 'declined', message: undefined });
   });
 });

@@ -175,53 +175,57 @@ export function CheckoutScreen({
           </View>
         ) : null}
 
+        {/* Customer Information renders on BOTH paths. iOS keeps it outside
+            the saved/new branch (FrameCheckoutView.swift:81-82) and validates
+            name + email unconditionally, so hiding it for a saved card left
+            the transfer carrying whatever those fields happened to hold. */}
+        <View style={styles.section}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              {
+                color: theme.colors.textSecondary,
+                fontSize: theme.fonts.headline.size,
+                fontWeight: theme.fontWeights.headline,
+                lineHeight: theme.fontLineHeights.headline,
+              },
+            ]}
+          >
+            Customer Information
+          </Text>
+          <View
+            style={[
+              styles.fieldContainer,
+              {
+                borderColor: theme.colors.surfaceStroke,
+                borderRadius: theme.radii.medium,
+                backgroundColor: theme.colors.surface,
+              },
+            ]}
+          >
+            <ValidatedTextField
+              prompt="Customer Name"
+              value={vm.state.customerName}
+              onChangeText={(v) => vm.dispatch({ type: 'SET_CUSTOMER_NAME', value: v })}
+              error={vm.state.fieldErrors.customerName}
+              autoCapitalize="words"
+              borderless
+            />
+            <View style={[styles.hDivider, { backgroundColor: theme.colors.surfaceStroke }]} />
+            <ValidatedTextField
+              prompt="Customer Email"
+              value={vm.state.customerEmail}
+              onChangeText={(v) => vm.dispatch({ type: 'SET_CUSTOMER_EMAIL', value: v })}
+              error={vm.state.fieldErrors.customerEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              borderless
+            />
+          </View>
+        </View>
+
         {!vm.isUsingSaved ? (
           <>
-            <View style={styles.section}>
-              <Text
-                style={[
-                  styles.sectionTitle,
-                  {
-                    color: theme.colors.textSecondary,
-                    fontSize: theme.fonts.headline.size,
-                    fontWeight: theme.fontWeights.headline,
-                    lineHeight: theme.fontLineHeights.headline,
-                  },
-                ]}
-              >
-                Customer Information
-              </Text>
-              <View
-                style={[
-                  styles.fieldContainer,
-                  {
-                    borderColor: theme.colors.surfaceStroke,
-                    borderRadius: theme.radii.medium,
-                    backgroundColor: theme.colors.surface,
-                  },
-                ]}
-              >
-                <ValidatedTextField
-                  prompt="Customer Name"
-                  value={vm.state.customerName}
-                  onChangeText={(v) => vm.dispatch({ type: 'SET_CUSTOMER_NAME', value: v })}
-                  error={vm.state.fieldErrors.customerName}
-                  autoCapitalize="words"
-                  borderless
-                />
-                <View style={[styles.hDivider, { backgroundColor: theme.colors.surfaceStroke }]} />
-                <ValidatedTextField
-                  prompt="Customer Email"
-                  value={vm.state.customerEmail}
-                  onChangeText={(v) => vm.dispatch({ type: 'SET_CUSTOMER_EMAIL', value: v })}
-                  error={vm.state.fieldErrors.customerEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  borderless
-                />
-              </View>
-            </View>
-
             <View style={styles.section}>
               <Text
                 style={[
