@@ -148,6 +148,25 @@ describe('confirmCharge', () => {
     ).rejects.toThrow('Card verification could not be started. Please try again.');
   });
 
+  it('refuses a non-https challenge URL', async () => {
+    // Defence in depth: a javascript:/file:/http: URL must never reach a WebView
+    // that is about to handle card authentication.
+    for (const url of ['javascript:alert(1)', 'http://issuer.test/3ds', 'file:///etc/passwd', 'nonsense']) {
+      await expect(
+        confirmCharge(charge(), {
+          confirm: async () =>
+            charge({
+              status: 'requires_three_d_secure',
+              next_action: { use_frame_sdk: { challenge_url: url } },
+            }),
+          reload: async () => null,
+          presentChallenge: async () => 'completed',
+          sleep: noSleep,
+        }),
+      ).rejects.toThrow('Card verification could not be started. Please try again.');
+    }
+  });
+
   it('polls rather than guessing when the confirm decodes to nothing', async () => {
     const outcome = await confirmCharge(charge(), {
       confirm: async () => null,

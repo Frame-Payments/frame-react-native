@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFrameTheme } from '../../theme/ThemeContext';
 import { BottomSheet } from '../../primitives/BottomSheet';
@@ -87,6 +87,19 @@ export function CheckoutScreen({
     const resolve = challengeResolver.current;
     challengeResolver.current = null;
     resolve?.(result);
+  }, []);
+
+  // Settle any open challenge on unmount. Without this, dismissing the sheet
+  // mid-challenge leaves the promise submit() is awaiting unresolved forever,
+  // wedging the in-flight guard. 'failed' rather than 'unavailable': the
+  // challenge did run, and the charge may still settle — the confirm loop then
+  // polls for the real answer rather than treating it as a decline.
+  useEffect(() => {
+    return () => {
+      const resolve = challengeResolver.current;
+      challengeResolver.current = null;
+      resolve?.('failed');
+    };
   }, []);
 
   const vm = useCheckoutViewModel({

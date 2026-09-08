@@ -100,7 +100,16 @@ function failureReason(charge: ConfirmableCharge): { code?: string; message?: st
 
 function challengeUrlOf(charge: ConfirmableCharge): string | null {
   const url = charge.next_action?.use_frame_sdk?.challenge_url;
-  return typeof url === 'string' && url.length > 0 ? url : null;
+  if (typeof url !== 'string' || url.length === 0) return null;
+  // Only load a challenge over https. The value comes from Frame's own API, so
+  // this is a defence-in-depth check rather than a suspected attack: a
+  // javascript:/file:/http: URL reaching a WebView that is about to handle card
+  // authentication is not something to leave to the response being well-formed.
+  try {
+    return new URL(url).protocol === 'https:' ? url : null;
+  } catch {
+    return null;
+  }
 }
 
 export interface ConfirmChargeOptions {

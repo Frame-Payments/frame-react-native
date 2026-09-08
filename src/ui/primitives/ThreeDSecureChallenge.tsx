@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFrameTheme } from '../theme/ThemeContext';
 import { isCallbackUrl, type ThreeDSecureChallengeResult } from '../../threeDSecure';
@@ -70,11 +70,17 @@ export function ThreeDSecureChallenge({ challengeUrl, onFinish }: ThreeDSecureCh
     onFinish(result);
   }
 
-  if (!WebView) {
-    // Reported on the next tick so the caller isn't re-entered mid-render.
-    setTimeout(() => report('unavailable'), 0);
-    return null;
-  }
+  // Reported from an effect rather than the render body: calling back during
+  // render re-enters the caller mid-commit, and a re-render before a
+  // setTimeout fires would schedule the callback more than once.
+  const unavailable = WebView === null;
+  useEffect(() => {
+    if (unavailable) report('unavailable');
+    // `report` is latched, so a re-run cannot double-report.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unavailable]);
+
+  if (!WebView) return null;
 
   return (
     <Modal

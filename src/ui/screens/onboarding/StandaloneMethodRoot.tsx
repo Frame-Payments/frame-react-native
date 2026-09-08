@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { BottomSheet } from '../../primitives/BottomSheet';
 import { showToast } from '../../primitives/toastCenter';
 import { toToastMessage } from '../../../api-errors';
@@ -59,7 +59,10 @@ export function StandaloneMethodRoot({
 
   // Guards against reporting twice when the host dismisses on the callback and
   // the unmount path also fires. iOS uses the same `didFinish` latch.
-  const [didFinish, setDidFinish] = useState(false);
+  //
+  // A ref, not state: state updates are async, so two calls in the same tick
+  // would both observe `false` and both report. The ref flips synchronously.
+  const didFinish = useRef(false);
 
   const vm = useOnboardingViewModel({
     accountId,
@@ -72,11 +75,11 @@ export function StandaloneMethodRoot({
 
   const finish = useCallback(
     (paymentMethodId: string) => {
-      if (didFinish) return;
-      setDidFinish(true);
+      if (didFinish.current) return;
+      didFinish.current = true;
       onComplete(paymentMethodId);
     },
-    [didFinish, onComplete],
+    [onComplete],
   );
 
   const surfaceError = useCallback((err: unknown) => {
