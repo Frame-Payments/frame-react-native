@@ -377,6 +377,17 @@ export function validateSubregion(value: string, countryCode: string): string | 
     : `Enter a valid 2-letter ${label.toLowerCase()}`;
 }
 
+// NANP area codes reserved for internal test/seed data (RA-xxxx). None of
+// these are real, currently-assigned area codes, so a genuine subscriber
+// number can never collide with one — 200 in particular is unassigned in the
+// numbering plan (unlike 226/774, which ARE real assigned area codes and
+// already pass validatePhoneE164 with any properly-formed exchange, so they
+// need no carve-out). This is a deliberate RN-only divergence from iOS
+// `Validators.validatePhoneE164` (`Validators.swift:226-235`), which has no
+// equivalent bypass — RN's onboarding flow is exercised against seeded
+// backend fixtures that iOS's is not.
+const TEST_AREA_CODES: ReadonlySet<string> = new Set(['200']);
+
 /**
  * Checks the phone number is *valid* for the given region — i.e. it is actually
  * assigned in the national numbering plan, not merely the right length.
@@ -395,7 +406,17 @@ export function validatePhoneE164(raw: string, regionCode: string): string | nul
   if (trimmed === '') return 'Phone number is required';
   try {
     const parsed = parsePhoneNumberFromString(trimmed, regionCode as CountryCode);
-    if (!parsed || !parsed.isValid()) return 'Enter a valid phone number';
+    if (!parsed) return 'Enter a valid phone number';
+    // A correctly-shaped NANP number (10 digits) on a reserved test area code
+    // skips the assigned-number check entirely — see TEST_AREA_CODES.
+    if (
+      (regionCode === 'US' || regionCode === 'CA') &&
+      parsed.nationalNumber.length === 10 &&
+      TEST_AREA_CODES.has(parsed.nationalNumber.slice(0, 3))
+    ) {
+      return null;
+    }
+    if (!parsed.isValid()) return 'Enter a valid phone number';
     return null;
   } catch {
     return 'Enter a valid phone number';
