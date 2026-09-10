@@ -43,6 +43,7 @@ import { resetClients } from '../client';
 import {
   __resetSonarSession,
   __setSessionStorage,
+  currentSessionId,
   ensureSession,
   refreshOnFlowEntry,
   warmUp,
@@ -241,5 +242,36 @@ describe('refreshOnFlowEntry', () => {
     await refreshOnFlowEntry(null);
     expect(calls[0]!.method).toBe('POST');
     expect(calls[0]!.body.account_id).toBeUndefined();
+  });
+});
+
+describe('currentSessionId', () => {
+  // Non-mutating peek — mirrors iOS SonarSessionStorage.currentSessionId(accountId:)
+  // (SonarSessionObjects.swift:95), used by ChargeIntentsAPI.createChargeIntent
+  // to attach a session to a customer-owner charge intent, which has no
+  // account to establish/adopt one through.
+  it('reads the legacy pre-account slot when accountId is null', async () => {
+    await storage.set('sess_legacy', null);
+    expect(await currentSessionId(null)).toBe('sess_legacy');
+  });
+
+  it('reads the account-scoped slot when accountId is given', async () => {
+    await storage.set('sess_acct', 'acct_1');
+    expect(await currentSessionId('acct_1')).toBe('sess_acct');
+  });
+
+  it('is undefined when nothing is stored — never establishes or adopts one', async () => {
+    expect(await currentSessionId(null)).toBeUndefined();
+    expect(calls).toHaveLength(0);
+  });
+
+  it('never throws — resolves undefined on a storage read failure', async () => {
+    __setSessionStorage({
+      ...storage,
+      get: async () => {
+        throw new Error('storage unavailable');
+      },
+    });
+    await expect(currentSessionId(null)).resolves.toBeUndefined();
   });
 });
