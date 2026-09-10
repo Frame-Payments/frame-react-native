@@ -1,4 +1,6 @@
 
+jest.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
+
 const mockFetchRemoteConfig = jest.fn();
 jest.mock('../remoteConfig', () => ({
   fetchRemoteConfig: () => mockFetchRemoteConfig(),
@@ -69,21 +71,32 @@ describe('suggestAddresses', () => {
     expect(mockFetchRemoteConfig).toHaveBeenCalledTimes(1);
   });
 
-  it('re-fetches the token once it has expired', async () => {
-    mockFetchRemoteConfig
-      .mockResolvedValueOnce({
-        mapbox: { accessToken: 'pk.old', expiresAt: new Date(Date.now() - 1000).toISOString() },
-      })
-      .mockResolvedValueOnce({ mapbox: { accessToken: 'pk.new' } });
-    mockFetchOnce({ suggestions: [] });
-    mockFetchOnce({ suggestions: [] });
+  it('re-fetches an expired token via the standalone endpoint, not the aggregate', async () => {
+    // fetchRemoteConfig() is process-cached for the whole run (see
+    // remoteConfig.ts), so calling it again after expiry would just hand
+    // back the SAME expired block forever — recovery has to bypass it.
+    // Mirrors iOS's getMapboxConfiguration() falling through to
+    // GET /v1/config/mapbox directly once the cached token hasExpired
+    // (ConfigurationAPI.swift:141-155), rather than invalidating its own
+    // aggregate cache.
+    mockFetchRemoteConfig.mockResolvedValueOnce({
+      mapbox: { accessToken: 'pk.old', expiresAt: new Date(Date.now() - 1000).toISOString() },
+    });
+    mockFetchOnce({ suggestions: [] }); // search #1, with pk.old
+    mockFetchOnce({ access_token: 'pk.new' }); // GET /v1/config/mapbox recovery
+    mockFetchOnce({ suggestions: [] }); // search #2, with pk.new
 
     await suggestAddresses('a', 'US', 3);
     await suggestAddresses('b', 'US', 3);
 
-    expect(mockFetchRemoteConfig).toHaveBeenCalledTimes(2);
-    const secondUrl = (global.fetch as jest.Mock).mock.calls[1]![0] as string;
-    expect(new URL(secondUrl).searchParams.get('access_token')).toBe('pk.new');
+    // The aggregate is fetched only once, up front — never again for recovery.
+    expect(mockFetchRemoteConfig).toHaveBeenCalledTimes(1);
+
+    const calls = (global.fetch as jest.Mock).mock.calls as Array<[string]>;
+    expect(calls).toHaveLength(3);
+    expect(calls[1]![0]).toBe('https://api.framepayments.com/v1/config/mapbox');
+    const secondSearchUrl = calls[2]![0];
+    expect(new URL(secondSearchUrl).searchParams.get('access_token')).toBe('pk.new');
   });
 
   it('drops the cached token on a 401/403 so the next call refetches', async () => {
