@@ -37,6 +37,7 @@ import { presentGooglePayFlow } from './googlePay';
 import { warnOnce } from './warn';
 import { initializeSift } from './sift';
 import { prefetchLegalConfiguration } from './legal';
+import { ensureAttested } from './attestation';
 import { fetchRemoteConfig } from './remoteConfig';
 
 const LINKING_ERROR =
@@ -88,6 +89,10 @@ function throwCoded(code: string, message: string): never {
  * @param options.googlePayMerchantId - Google Pay merchant identifier. Required to enable Google Pay
  *   in {@link presentCheckout} and {@link presentGooglePay}.
  * @param options.theme - Optional visual theme applied to all Frame-managed UI surfaces.
+ * @param options.accountId - The Frame account this app run belongs to, if known at launch
+ *   (e.g. a signed-in user). The Sonar session is then created already bound to it, rather
+ *   than created unscoped and bound on first flow entry. Leave unset if unknown — either way
+ *   one session covers the app run.
  *
  * @throws {FrameErrorShape} `INIT_FAILED` if `publishableKey` is missing,
  *   `theme` is not a plain object, or the native bridge fails to initialize.
@@ -109,6 +114,7 @@ export function initialize(options: {
   applePayMerchantId?: string;
   googlePayMerchantId?: string;
   theme?: FrameTheme;
+  accountId?: string;
 }): Promise<void> {
   if (!options?.publishableKey) {
     throwCoded(ErrorCodes.INIT_FAILED, 'Frame.initialize requires publishableKey');
@@ -144,6 +150,7 @@ async function runInitialize(options: {
   applePayMerchantId?: string;
   googlePayMerchantId?: string;
   theme?: FrameTheme;
+  accountId?: string;
 }): Promise<void> {
   try {
     await wrapPromise(
@@ -183,7 +190,10 @@ async function runInitialize(options: {
   // — submit-time encryption will re-await this promise via configureEvervault's
   void prefetchServiceConfigs();
   observeAppLifecycle();
-  void initializeSession();
+  void initializeSession(options.accountId);
+  if (Platform.OS === 'ios') {
+    void ensureAttested().catch(() => {});
+  }
   void prefetchLegalConfiguration();
   // Resolve the device IP asynchronously and reset the cached SDK client so
   // subsequent requests pick up the ip_address header. iOS resolves
