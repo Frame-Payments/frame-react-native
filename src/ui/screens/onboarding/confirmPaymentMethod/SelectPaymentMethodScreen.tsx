@@ -55,19 +55,6 @@ export function SelectPaymentMethodScreen({
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text
           style={[
-            styles.heading,
-            {
-              color: theme.colors.textPrimary,
-              fontSize: theme.fonts.heading.size,
-              fontWeight: theme.fontWeights.heading,
-              lineHeight: theme.fontLineHeights.heading,
-            },
-          ]}
-        >
-          Select A Payment Method
-        </Text>
-        <Text
-          style={[
             styles.body,
             {
               color: theme.colors.textSecondary,
@@ -194,9 +181,6 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
     scrollContent: {
       paddingHorizontal: FORM_SPACING.contentHorizontal,
       paddingBottom: FORM_SPACING.contentBottom,
-    },
-    heading: {
-      marginTop: FORM_SPACING.headingTop,
     },
     body: {
       marginTop: FORM_SPACING.headingTop,

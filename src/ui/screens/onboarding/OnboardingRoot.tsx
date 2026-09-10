@@ -19,7 +19,7 @@ import { UploadDocumentsListScreen } from './uploadDocuments/UploadDocumentsList
 import { CaptureScreen } from './uploadDocuments/CaptureScreen';
 import { ReviewScreen } from './uploadDocuments/ReviewScreen';
 import { VerificationSubmittedScreen } from './VerificationSubmittedScreen';
-import { areDocsComplete } from './onboardingSelectors';
+import { areDocsComplete, requiresDobInPhoneAuth } from './onboardingSelectors';
 
 export interface OnboardingRootProps {
   accountId: string | null;
@@ -467,6 +467,62 @@ export function OnboardingRoot({
   }
   const screenContent = renderScreen();
 
+  // Title + back-chevron for the header bar OnboardingChrome renders above
+  // each screen. Ports iOS's per-screen `PageHeaderView(headerTitle:)` +
+  // button action — RN previously wired neither, so no onboarding screen had
+  // a way back short of the X, which cancels the entire flow.
+  //
+  // Two distinct kinds of "back" here, matching iOS exactly:
+  //   • The entry sub-step of a top-level step (phone_auth, select payment,
+  //     select payout) walks the top-level flow backward via vm.back() —
+  //     mirrors iOS's `returnToPreviousStep` toggling the CONTAINER's step.
+  //   • A sub-step reached only from within its own top-level step
+  //     (customer_information, add payment/payout) goes to a fixed sibling
+  //     sub-step via vm.goTo() — mirrors iOS's LOCAL `identitySteps` /
+  //     `showAddPaymentMethod`-style state, which never touches the
+  //     container's own step.
+  // Sub-steps with no PageHeaderView on iOS (verify_phone, secure_3ds,
+  // geolocation) get neither — left as future work, not silently guessed at.
+  function titleAndBack(): { title?: string; onBack?: () => void } {
+    const { currentStep: step, subStep: sub } = vm.state;
+    if (step === 'personal_information') {
+      if (sub === 'phone_auth') {
+        return {
+          title: requiresDobInPhoneAuth(capabilities)
+            ? 'Enter Your Phone Number & DOB'
+            : 'Enter Your Phone Number',
+          onBack: vm.back,
+        };
+      }
+      if (sub === 'customer_information') {
+        return {
+          title: 'Personal Information',
+          onBack: () => vm.goTo('personal_information', 'phone_auth'),
+        };
+      }
+    }
+    if (step === 'confirm_payment_method') {
+      if (sub === 'select') return { title: 'Select A Payment Method', onBack: vm.back };
+      if (sub === 'add') {
+        return {
+          title: 'Add New Payment Method',
+          onBack: () => vm.goTo('confirm_payment_method', 'select'),
+        };
+      }
+    }
+    if (step === 'confirm_bank_account') {
+      if (sub === 'select') return { title: 'Select A Payout Method', onBack: vm.back };
+      if (sub === 'add') {
+        return {
+          title: 'Add Bank Account',
+          onBack: () => vm.goTo('confirm_bank_account', 'select'),
+        };
+      }
+    }
+    return {};
+  }
+  const { title, onBack } = titleAndBack();
+
   // Skip the BottomSheet chrome for screens that own their entire visual
   // surface — welcome, terminal "submitted," and the camera capture/review
   // pages. The chrome would otherwise paste an empty title bar + close
@@ -487,7 +543,7 @@ export function OnboardingRoot({
   if (isFullBleed) return screenContent;
 
   return (
-    <OnboardingChrome state={vm.state} onClose={onCancel}>
+    <OnboardingChrome state={vm.state} title={title} onBack={onBack} onClose={onCancel}>
       {screenContent}
     </OnboardingChrome>
   );
