@@ -16,7 +16,7 @@ import { electPayoutMethod } from '../../../payoutMethod';
 import { normalizeSubregion } from '../../../addressSubregions';
 import { ensureOnboardingSession } from '../../../onboardingSession';
 import { isNotFoundError } from '../../../api-errors';
-import { endOnboardingSession } from '../../../auth';
+import { beginOnboardingSession, endOnboardingSession } from '../../../auth';
 import { warnOnce } from '../../../warn';
 import { showToast } from '../../primitives/toastCenter';
 import { PaymentAccountType, PaymentMethodType, type PaymentMethod as FramePaymentMethod } from 'framepayments';
@@ -81,6 +81,15 @@ export interface OnboardingViewModelResult {
   /** Re-fetches the account and resolves the final OnboardingOutcome, caching
    *  it into state.finalOutcome. Returns the cached value if already resolved. */
   resolveFinalOutcome: () => Promise<OnboardingOutcome>;
+  /** Binds every onboarding request to a host-supplied session token and
+   *  records this flow as owning it. Call on mount when the host supplied a
+   *  clientSecret. */
+  beginOnboardingSessionOwned: (clientSecret: string) => void;
+  /** Ends the onboarding session only if this flow owns it (host-supplied via
+   *  beginOnboardingSessionOwned, or self-minted during the flow) — a flow
+   *  that never started a session leaves one another flow owns untouched.
+   *  Call on unmount/cancel/complete. Idempotent. */
+  endOnboardingSessionIfOwned: () => void;
   // Personal-info simple field setters (thin wrappers around dispatch so the
   // screens don't import the reducer directly).
   setPhoneCountry: (alpha2: string, callingCode: string) => void;
@@ -170,6 +179,26 @@ export function useOnboardingViewModel({
   // a `let` set once at construction — a ref for the same reason.
   const originallyRequiredCapabilitiesRef = useRef(capabilities);
 
+  // Onboarding-session ownership (FRA-6358 / FRA-6716). True when THIS flow
+  // began the active onboarding session — either from a host-supplied
+  // clientSecret or a self-minted one — and is therefore responsible for
+  // ending it on completion/dismiss. Without tracking this, a self-minted
+  // session (the publishable-key-only path — no host clientSecret) was never
+  // torn down: both hosts previously gated teardown on `clientSecret` being
+  // present, which a self-mint never satisfies. The leaked onb_sess_ then
+  // outranks pk_/sk_ on every later checkout/wallet call for the rest of the
+  // process. Mirrors iOS `ownsOnboardingSession`
+  // (`OnboardingContainerViewModel.swift:131`).
+  const ownsOnboardingSessionRef = useRef(false);
+  // Set once this flow has torn its session down, so a mint already in
+  // flight doesn't install a token afterwards. Latched independently of
+  // ownership: an in-flight self-mint must be refused even before this flow
+  // has claimed ownership, which is the exact ordering iOS's own regression
+  // test (`testMintCompletingAfterTeardownDoesNotInstallASession`) guards.
+  // Mirrors iOS `hasEndedOnboardingSession`
+  // (`OnboardingContainerViewModel.swift:135`).
+  const hasEndedOnboardingSessionRef = useRef(false);
+
   // ─── Init: compute flow + drop into the first step on mount ───
   useEffect(() => {
     const flow = computeFlow(capabilities, showIntroScreen, showCompletionScreen);
@@ -192,7 +221,9 @@ export function useOnboardingViewModel({
         // Host launched against an existing account: mint the onboarding
         // session before the prefetch so account-scoped requests use the
         // `onb_sess_...` bearer. Mirrors iOS checkExistingAccount.
-        await ensureOnboardingSession(initialAccountId);
+        if (await ensureOnboardingSession(initialAccountId, () => hasEndedOnboardingSessionRef.current)) {
+          ownsOnboardingSessionRef.current = true;
+        }
         if (cancelled) return;
 
         // Pull the account profile + saved methods in parallel. Failures are
@@ -226,8 +257,15 @@ export function useOnboardingViewModel({
           // Drop the session minted above against the bad id — it's scoped to a
           // nonexistent account, and ensureOnboardingSession returns early when
           // one is already active, so leaving it would make the post-create mint
-          // a no-op and send every request with a dead bearer.
-          endOnboardingSession();
+          // a no-op and send every request with a dead bearer. Gated on
+          // ownership, not a blanket clear: a HOST-supplied session (this flow
+          // never minted one, so ownsOnboardingSessionRef is still false here)
+          // must survive this branch — force-clearing it would wipe a token
+          // the host is still responsible for, before this flow ever owned it.
+          if (ownsOnboardingSessionRef.current) {
+            endOnboardingSession();
+            ownsOnboardingSessionRef.current = false;
+          }
           dispatch({ type: 'SET_ACCOUNT_ID', id: null });
           return;
         }
@@ -309,6 +347,33 @@ export function useOnboardingViewModel({
     // deps — using them as deps would loop on every step transition.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.requiredCapabilities]);
+
+  // Binds every onboarding request to a HOST-supplied session token and
+  // records that this flow owns it, so it's ended when the flow completes or
+  // is dismissed. The host-supplied counterpart to the two self-mint sites
+  // above — same ownership flag, so `endOnboardingSessionIfOwned` tears down
+  // whichever kind of session this flow actually started. Mirrors iOS
+  // `beginOnboardingSession(clientSecret:)`
+  // (`OnboardingContainerViewModel.swift:315-319`).
+  const beginOnboardingSessionOwned = useCallback((clientSecret: string) => {
+    beginOnboardingSession(clientSecret);
+    ownsOnboardingSessionRef.current = true;
+  }, []);
+
+  // Ends the onboarding session only when this flow began it — guarding on
+  // ownership is what keeps a flow that never started a session (or that
+  // hasn't finished self-minting one yet) from wiping one a DIFFERENT flow
+  // owns. The latch is set unconditionally, before the ownership check, so an
+  // in-flight self-mint is refused even when this flow doesn't own a session
+  // yet — that ordering is exactly what the untracked-ownership leak needed
+  // (FRA-6358). Mirrors iOS `endOnboardingSessionIfOwned()`
+  // (`OnboardingContainerViewModel.swift:324-331`).
+  const endOnboardingSessionIfOwned = useCallback(() => {
+    hasEndedOnboardingSessionRef.current = true;
+    if (!ownsOnboardingSessionRef.current) return;
+    endOnboardingSession();
+    ownsOnboardingSessionRef.current = false;
+  }, []);
 
   // ─── Navigation ───
   const cancel = useCallback(() => {
@@ -450,7 +515,9 @@ export function useOnboardingViewModel({
         // account-scoped requests (the no-SSN IDV calls in particular)
         // authenticate with an `onb_sess_...` bearer instead of the raw pk_/sk_.
         // Mirrors iOS beginOnboardingSessionIfNeeded.
-        await ensureOnboardingSession(accountId);
+        if (await ensureOnboardingSession(accountId, () => hasEndedOnboardingSessionRef.current)) {
+          ownsOnboardingSessionRef.current = true;
+        }
 
         dispatch({
           type: 'SET_IDENTITY_DOCUMENT_REQUIRED',
@@ -1186,6 +1253,8 @@ export function useOnboardingViewModel({
     cancel,
     complete,
     resolveFinalOutcome,
+    beginOnboardingSessionOwned,
+    endOnboardingSessionIfOwned,
     setPhoneCountry,
     setPhoneNumber,
     setDob,

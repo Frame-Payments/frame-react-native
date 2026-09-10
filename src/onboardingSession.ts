@@ -24,9 +24,26 @@ import { warnOnce } from './warn';
  *   • On any failure, warns once and returns rather than throwing, so a mint
  *     hiccup doesn't wedge the flow. Downstream `createIdvSession()` still
  *     guards on the session being present and surfaces a clear error there.
+ *
+ * @param hasEnded - Checked right before installing the minted token, not
+ *   just at the start: the mint is async, and the flow can tear its session
+ *   down (host dismissed, flow completed) while the request is still in
+ *   flight. A token that lands after teardown has nothing left to end it, so
+ *   it must not be installed — it would leak past onboarding into later
+ *   checkout/wallet calls exactly like the untracked-ownership bug this
+ *   guards. Mirrors iOS's `hasEndedOnboardingSession` check inside
+ *   `beginOnboardingSessionIfNeeded` (`OnboardingContainerViewModel.swift:305`).
+ * @returns `true` if this call minted and installed a new session — the
+ *   caller uses this to decide whether it now owns the session (see
+ *   `useOnboardingViewModel`'s `ownsOnboardingSessionRef`). `false` when a
+ *   session was already active, the mint failed, or teardown raced ahead of
+ *   the mint.
  */
-export async function ensureOnboardingSession(accountId: string): Promise<void> {
-  if (getActiveOnboardingSession()) return;
+export async function ensureOnboardingSession(
+  accountId: string,
+  hasEnded: () => boolean = () => false,
+): Promise<boolean> {
+  if (getActiveOnboardingSession()) return false;
   try {
     const session = await client.sdk.onboardingSessions.create(
       { account_id: accountId },
@@ -38,14 +55,17 @@ export async function ensureOnboardingSession(accountId: string): Promise<void> 
         'onb-sess-mint-empty',
         'POST /v1/onboarding_sessions returned no client_secret; onboarding requests will fall back to the configured key.',
       );
-      return;
+      return false;
     }
+    if (hasEnded()) return false;
     beginOnboardingSession(clientSecret);
+    return true;
   } catch (err) {
     warnOnce(
       'onb-sess-mint-failed',
       `Failed to mint an onboarding session (${err instanceof Error ? err.message : 'unknown error'}); ` +
         'onboarding requests will fall back to the configured key.',
     );
+    return false;
   }
 }

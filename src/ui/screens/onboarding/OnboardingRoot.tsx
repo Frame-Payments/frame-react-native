@@ -3,7 +3,6 @@ import type { OnboardingCapability, OnboardingResult } from '../../../types';
 import { showToast } from '../../primitives/toastCenter';
 import { consumeProveCancelledByUser } from '../../../prove';
 import { toToastMessage, isValidationError } from '../../../api-errors';
-import { beginOnboardingSession, endOnboardingSession } from '../../../auth';
 import { useOnboardingViewModel } from './useOnboardingViewModel';
 import { OnboardingChrome } from './OnboardingChrome';
 import { VerificationWelcomeScreen } from './personalInformation/VerificationWelcomeScreen';
@@ -58,22 +57,27 @@ export function OnboardingRoot({
   onCancel,
   onFail,
 }: OnboardingRootProps) {
+  const vm = useOnboardingViewModel({ accountId, capabilities, showIntroScreen, showCompletionScreen, onComplete, onCancel });
+
   // Begin/end the onboarding session at the mount boundary, mirroring iOS
   // OnboardingContainerView.onAppear/onDisappear. While active, every onboarding
   // request rides the `onb_sess_...` bearer (resolved inside framepayments), so
-  // the view model's calls need no per-call wiring. On unmount we safe-clear by
-  // token — endOnboardingSession only clears when this token is still the active
-  // one, so a newer flow's session isn't wiped, and the token can't leak into
-  // later checkout/wallet calls.
+  // the view model's calls need no per-call wiring.
+  //
+  // On unmount, endOnboardingSessionIfOwned — NOT a token-gated clear. A
+  // token-gated clear only fires here when the HOST supplied a clientSecret;
+  // the view model also self-mints one on the publishable-key-only path (no
+  // clientSecret at all), and that session was never torn down anywhere,
+  // leaking an account-scoped onb_sess_ into every later checkout/wallet call
+  // for the rest of the process (FRA-6358). Ownership tracking on the view
+  // model covers both cases from one call.
   useEffect(() => {
-    if (!clientSecret) return;
-    beginOnboardingSession(clientSecret);
+    if (clientSecret) vm.beginOnboardingSessionOwned(clientSecret);
     return () => {
-      endOnboardingSession(clientSecret);
+      vm.endOnboardingSessionIfOwned();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientSecret]);
-
-  const vm = useOnboardingViewModel({ accountId, capabilities, showIntroScreen, showCompletionScreen, onComplete, onCancel });
 
   // ─── Routing helpers ───
 

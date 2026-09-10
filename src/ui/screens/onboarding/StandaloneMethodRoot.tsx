@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { BottomSheet } from '../../primitives/BottomSheet';
 import { showToast } from '../../primitives/toastCenter';
 import { toToastMessage } from '../../../api-errors';
-import { beginOnboardingSession, endOnboardingSession } from '../../../auth';
 import { useOnboardingViewModel } from './useOnboardingViewModel';
 import { AddPaymentMethodScreen } from './confirmPaymentMethod/AddPaymentMethodScreen';
 import { AddPayoutMethodScreen } from './confirmBankAccount/AddPayoutMethodScreen';
@@ -31,14 +30,6 @@ export function StandaloneMethodRoot({
   onComplete,
   onCancel,
 }: StandaloneMethodRootProps) {
-  useEffect(() => {
-    if (!clientSecret) return;
-    beginOnboardingSession(clientSecret);
-    return () => {
-      endOnboardingSession(clientSecret);
-    };
-  }, [clientSecret]);
-
   const didFinish = useRef(false);
 
   const [showAddPayout, setShowAddPayout] = useState(false);
@@ -51,6 +42,22 @@ export function StandaloneMethodRoot({
     onComplete: () => {},
     onCancel,
   });
+
+  // Same session boundary as OnboardingRoot, via the view model's ownership
+  // tracking rather than a token-gated clear — see OnboardingRoot.tsx's
+  // longer comment for why a token-gated clear leaks a self-minted session.
+  // This flow's capabilities: [] means it never self-mints (that only
+  // happens on the personal-information path), but the unmount call is still
+  // unconditional and idempotent, matching iOS's `.onDisappear` calling
+  // `endOnboardingSessionIfOwned()` regardless of whether a session was ever
+  // begun.
+  useEffect(() => {
+    if (clientSecret) vm.beginOnboardingSessionOwned(clientSecret);
+    return () => {
+      vm.endOnboardingSessionIfOwned();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientSecret]);
 
   const finish = useCallback(
     (paymentMethodId: string) => {
