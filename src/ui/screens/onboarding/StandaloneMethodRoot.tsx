@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { BottomSheet } from '../../primitives/BottomSheet';
 import { showToast } from '../../primitives/toastCenter';
 import { toToastMessage } from '../../../api-errors';
@@ -64,6 +64,12 @@ export function StandaloneMethodRoot({
   // would both observe `false` and both report. The ref flips synchronously.
   const didFinish = useRef(false);
 
+  // `select_payout` only: the "Add Payout Method" row swaps this host over to
+  // the add form, standing in for iOS's navigation push. There is no back
+  // affordance because iOS's own add screen hides the back button
+  // (`SelectPayoutMethodView.swift:33`) — the close button ends the flow.
+  const [showAddPayout, setShowAddPayout] = useState(false);
+
   const vm = useOnboardingViewModel({
     accountId,
     capabilities: [],
@@ -86,6 +92,37 @@ export function StandaloneMethodRoot({
     if ((err as { code?: string }).code === 'USER_CANCELED') return;
     showToast(toToastMessage(err));
   }, []);
+
+  // Renders the add-payout form. Shared by `add_payout` mode and the
+  // "Add Payout Method" row inside `select_payout`, which pushes this same
+  // form rather than electing anything — see `showAddPayout` below.
+  function renderAddPayout() {
+    return (
+      <AddPayoutMethodScreen
+        state={vm.state}
+        onChangeAchField={vm.setAchField}
+        onChangeAchAccountType={vm.setAchAccountType}
+        onChangeManualMode={(value) => vm.dispatch({ type: 'SET_ACH_MANUAL_MODE', value })}
+        onChangeAddressField={vm.setAddressField}
+        onApplyAddress={vm.applyAddress}
+        onOpenPlaidLink={async () => {
+          const id = await vm.openPlaidLink();
+          // Adding a bank only attaches it; electing is what makes it the
+          // account's payout destination.
+          await vm.electSelectedPayoutMethod(id);
+          finish(id);
+          return id;
+        }}
+        onSubmitManualAch={async () => {
+          const id = await vm.submitManualAch();
+          vm.dispatch({ type: 'SET_ACH_MANUAL_MODE', value: false });
+          await vm.electSelectedPayoutMethod(id);
+          finish(id);
+          return id;
+        }}
+      />
+    );
+  }
 
   function renderScreen() {
     switch (mode) {
@@ -112,32 +149,12 @@ export function StandaloneMethodRoot({
           />
         );
       case 'add_payout':
-        return (
-          <AddPayoutMethodScreen
-            state={vm.state}
-            onChangeAchField={vm.setAchField}
-            onChangeAchAccountType={vm.setAchAccountType}
-            onChangeManualMode={(value) => vm.dispatch({ type: 'SET_ACH_MANUAL_MODE', value })}
-            onChangeAddressField={vm.setAddressField}
-            onApplyAddress={vm.applyAddress}
-            onOpenPlaidLink={async () => {
-              const id = await vm.openPlaidLink();
-              // Adding a bank only attaches it; electing is what makes it the
-              // account's payout destination.
-              await vm.electSelectedPayoutMethod(id);
-              finish(id);
-              return id;
-            }}
-            onSubmitManualAch={async () => {
-              const id = await vm.submitManualAch();
-              vm.dispatch({ type: 'SET_ACH_MANUAL_MODE', value: false });
-              await vm.electSelectedPayoutMethod(id);
-              finish(id);
-              return id;
-            }}
-          />
-        );
+        return renderAddPayout();
       case 'select_payout':
+        // The "Add Payout Method" row pushed the add form. iOS does the same
+        // with `navigationDestination(isPresented: $showAddPayoutMethod)`
+        // (`SelectPayoutMethodView.swift:30-34`).
+        if (showAddPayout) return renderAddPayout();
         return (
           <SelectPayoutMethodScreen
             state={vm.state}
@@ -145,8 +162,14 @@ export function StandaloneMethodRoot({
             onSelectMethod={(id) => vm.dispatch({ type: 'SELECT_PAYOUT_METHOD', id })}
             onContinue={() => {
               const selected = vm.state.selectedPayoutMethodId;
+              // `null` is the "Add Payout Method" row, not "nothing picked":
+              // SelectPayoutMethodScreen reports the add-new row as a null id.
+              // The in-flow host routes that to the add step
+              // (`OnboardingRoot.onSelectPayoutContinue`); standalone has no
+              // flow to advance, so it swaps the sub-screen instead. Toasting
+              // here — as this used to — left the add-a-bank path unreachable.
               if (selected === null) {
-                showToast('Select a payout method to continue.');
+                setShowAddPayout(true);
                 return;
               }
               // iOS gates completion on the election succeeding

@@ -149,6 +149,16 @@ export interface OnboardingState {
 
   // ─── ConfirmBankAccount ───
   savedPayoutMethods: ReadonlyArray<FramePaymentMethod>;
+  /**
+   * The payout method picked on SelectPayoutMethodScreen, or `null` for its
+   * "Add Payout Method" row — `null` means "add a new bank", NOT "nothing
+   * selected" (the screen always has one row selected).
+   *
+   * Every host that renders that screen must route `null` to the add-payout
+   * form: `OnboardingRoot` advances to the `add` sub-step, `StandaloneMethodRoot`
+   * swaps its sub-screen. Treating `null` as "nothing picked" makes the
+   * add-a-bank path unreachable.
+   */
   selectedPayoutMethodId: string | null;
   /**
    * The payment method the account currently pays out to, as reported by the
