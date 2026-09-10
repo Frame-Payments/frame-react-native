@@ -1,6 +1,6 @@
 import { getActiveOnboardingSession } from './auth';
 import { getIpAddress, getPublishableKey } from './config';
-import { FRAME_API_BASE_URL, frameUserAgent } from './client';
+import { FRAME_API_BASE_URL, SDK_VERSION, SDK_VERSION_HEADER, frameUserAgent } from './client';
 import { ErrorCodes, frameError } from './errors';
 import { warnOnce } from './warn';
 
@@ -27,6 +27,7 @@ export function frameRequestHeaders(extra?: Record<string, string>): Record<stri
   if (ip) headers.ip_address = ip;
   const userAgent = frameUserAgent();
   if (userAgent) headers['User-Agent'] = userAgent;
+  headers[SDK_VERSION_HEADER] = SDK_VERSION;
   return headers;
 }
 

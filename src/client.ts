@@ -11,8 +11,17 @@ import { attachNetworkLogger, resetNetworkLogger } from './debug/networkLogger';
 // resolveJsonModule + dropping tsconfig rootDir, both of which leak into the
 // compiled lib/ shape), so the value is duplicated here. `sdk-version.test.ts`
 // fails CI if these drift, so a release bump that misses this file is caught
-// before publish.
-const SDK_VERSION = '4.0.4';
+// before publish. Exported so bespokeRequest.ts can send the same version on
+// the X-Frame-SDK-Version header without duplicating it again.
+export const SDK_VERSION = '4.0.4';
+
+// iOS/Android both send the SDK version on its own header rather than
+// appending it to User-Agent, because User-Agent is pattern-matched exactly
+// server-side (Sift's platform detector, the native-SDK request routing
+// checked in getClient below) — appending a version there would reclassify
+// native traffic. Nothing reads this header server-side yet
+// (`Version.swift:26-27`); it exists so the version is on the wire.
+export const SDK_VERSION_HEADER = 'X-Frame-SDK-Version';
 
 // The framepayments SDK defaults to this host when no `baseURL` override is
 // passed to its ClientConfig (see framepayments' client.ts). We never override
@@ -65,6 +74,7 @@ function getClient(): FrameSDK {
   const defaultHeaders: Record<string, string> = {};
   if (ip) defaultHeaders.ip_address = ip;
   if (userAgent) defaultHeaders['User-Agent'] = userAgent;
+  defaultHeaders[SDK_VERSION_HEADER] = SDK_VERSION;
   sdk = new FrameSDK({
     apiKey,
     publishableKey,
