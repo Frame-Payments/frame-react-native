@@ -192,6 +192,37 @@ export default function App() {
     }
   };
 
+  const handleAddPaymentMethod = async () => {
+    setLoading('addPaymentMethod');
+    try {
+      // Mirrors iOS FrameExample-iOS's addPaymentMethodButton /
+      // FrameAddPaymentMethodView(accountId:) — no clientSecret, so this
+      // authenticates with the configured pk_/sk_ keys.
+      const paymentMethodId = await Frame.presentAddPaymentMethod({ accountId: DEMO_ACCOUNT_ID });
+      Alert.alert('Payment method added', paymentMethodId);
+    } catch (e: any) {
+      if (e.code === 'USER_CANCELED') return;
+      Alert.alert('Error', toToastMessage(e));
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleSelectPayoutMethod = async () => {
+    setLoading('selectPayoutMethod');
+    try {
+      // Mirrors iOS FrameExample-iOS's selectPayoutMethodButton /
+      // FrameSelectPayoutMethodView(accountId:onResult:).
+      const paymentMethodId = await Frame.presentSelectPayoutMethod({ accountId: DEMO_ACCOUNT_ID });
+      Alert.alert('Primary payout method', paymentMethodId);
+    } catch (e: any) {
+      if (e.code === 'USER_CANCELED') return;
+      Alert.alert('Error', toToastMessage(e));
+    } finally {
+      setLoading(null);
+    }
+  };
+
   const handleOnboarding = async () => {
     setLoading('onboarding');
     try {
@@ -345,6 +376,30 @@ export default function App() {
           <ActivityIndicator color="#fff" />
         ) : (
           <Text style={styles.buttonText}>Cart → Checkout</Text>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, (loading === 'addPaymentMethod' || !!initError) && styles.buttonDisabled]}
+        onPress={handleAddPaymentMethod}
+        disabled={!!loading || !!initError}
+      >
+        {loading === 'addPaymentMethod' ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Add New Payment Method</Text>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, (loading === 'selectPayoutMethod' || !!initError) && styles.buttonDisabled]}
+        onPress={handleSelectPayoutMethod}
+        disabled={!!loading || !!initError}
+      >
+        {loading === 'selectPayoutMethod' ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Set Primary Payout Method</Text>
         )}
       </TouchableOpacity>
 
