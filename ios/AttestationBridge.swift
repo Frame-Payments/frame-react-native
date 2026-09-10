@@ -3,16 +3,35 @@ import DeviceCheck
 import Security
 import React
 
-// Keychain key strings are deliberately identical to Frame iOS' DeviceAttestationManager
-// so a device that already attested via the native iOS SDK is recognised by the RN SDK
-// (and vice versa). Do not rename without a coordinated migration.
+// Keychain key strings mirror Frame iOS' DeviceAttestationManager, namespaced
+// by App Attest environment for the same reason iOS namespaces them: a key
+// minted by a local development build and a TestFlight/App Store build of the
+// same bundle ID would otherwise share one unscoped Keychain item, which
+// Apple then rejects at assertion time (`DeviceAttestationManager.swift:135-137`).
+// Do not rename the namespaced or legacy keys without a coordinated migration.
 
 @objc(FrameAttestation)
 public class FrameAttestation: NSObject {
 
   private let service = DCAppAttestService.shared
-  private let attestedKey = "com.framepayments.device-attest-key-id"
-  private let pendingKey = "com.framepayments.device-attest-key-id-pending"
+
+  // Mirrors iOS AppAttestEnvironment.current
+  // (`DeviceAttestationManager.swift:122-131`): a build with no embedded
+  // provisioning profile is a Store/TestFlight build (App Attest calls this
+  // "production"); a build with one (dev, ad-hoc, enterprise) is "development".
+  private var attestEnvironment: String {
+    Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision") == nil
+      ? "production"
+      : "development"
+  }
+
+  private var attestedKey: String { "com.framepayments.device-attest-key-id.\(attestEnvironment)" }
+  private var pendingKey: String { "com.framepayments.device-attest-key-id-pending.\(attestEnvironment)" }
+
+  // The pre-namespacing Keychain accounts. Read only to migrate away from
+  // (resetAttestation wipes them); never written.
+  private let legacyAttestedKey = "com.framepayments.device-attest-key-id"
+  private let legacyPendingKey = "com.framepayments.device-attest-key-id-pending"
 
   @objc public func isSupported(_ resolve: @escaping RCTPromiseResolveBlock,
                                  rejecter reject: @escaping RCTPromiseRejectBlock) {
@@ -122,6 +141,13 @@ public class FrameAttestation: NSObject {
                                       rejecter reject: @escaping RCTPromiseRejectBlock) {
     deleteKeychainItem(attestedKey)
     deleteKeychainItem(pendingKey)
+    // Also clear the pre-namespacing items — namespacing orphans rather than
+    // removes them, and a leftover orphan is still what an unscoped read
+    // (an older SDK version, or the native iOS SDK sharing this Keychain)
+    // would pick up. Mirrors iOS `resetAttestation()`
+    // (`DeviceAttestationManager.swift:293-300`).
+    deleteKeychainItem(legacyAttestedKey)
+    deleteKeychainItem(legacyPendingKey)
     resolve(nil)
   }
 
