@@ -32,6 +32,7 @@ import type {
 const PERSONAL_INFO_CAPABILITIES: ReadonlySet<OnboardingCapability> = new Set([
   'kyc',
   'kyc_prefill',
+  'idv',
   'phone_verification',
   'creator_shield',
   'geo_compliance',
