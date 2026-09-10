@@ -451,6 +451,9 @@ export function OnboardingRoot({
     if (currentStep === 'verification_submitted') {
       return (
         <VerificationSubmittedScreen
+          outcome={vm.state.finalOutcome}
+          isResolving={vm.state.isResolvingOutcome}
+          onResolve={() => void vm.resolveFinalOutcome()}
           onDone={() => vm.complete()}
         />
       );

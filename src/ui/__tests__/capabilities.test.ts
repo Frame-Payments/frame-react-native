@@ -1,8 +1,11 @@
 import {
   actionableRequirements,
+  hasActiveIdvCapability,
   isCapabilityOutstanding,
   readAccountCapabilities,
+  requiresCorrectedKycDetails,
   requiresIdentityDocument,
+  resolveBlockedOutcome,
   resolveOnboardingOutcome,
   trimCompletedCapabilities,
   withDependencies,
@@ -100,6 +103,57 @@ describe('requiresIdentityDocument', () => {
 
   it('is false for a null account', () => {
     expect(requiresIdentityDocument(null)).toBe(false);
+  });
+});
+
+describe('requiresCorrectedKycDetails', () => {
+  // FRA-6552: a KYC run rejected on complete-but-wrong details, surfaced as
+  // individual.kyc. Outranks the gov-ID signals in skipsSsnEntry — the
+  // applicant cannot fix rejected details through a field they cannot see.
+  it('detects the correction step-up', () => {
+    const account = {
+      capabilities: [{ name: 'kyc', status: 'pending', currently_due: ['individual.kyc'] }],
+    };
+    expect(requiresCorrectedKycDetails(account)).toBe(true);
+  });
+
+  it('is false when no capability lists the key', () => {
+    const account = {
+      capabilities: [{ name: 'kyc', status: 'pending', currently_due: ['individual.identity_document'] }],
+    };
+    expect(requiresCorrectedKycDetails(account)).toBe(false);
+  });
+
+  it('ignores the key on an ineligible capability, whose currently_due is dead', () => {
+    const account = {
+      capabilities: [{ name: 'kyc', status: 'ineligible', currently_due: ['individual.kyc'] }],
+    };
+    expect(requiresCorrectedKycDetails(account)).toBe(false);
+  });
+
+  it('is false for a null account', () => {
+    expect(requiresCorrectedKycDetails(null)).toBe(false);
+  });
+});
+
+describe('hasActiveIdvCapability', () => {
+  it('detects an active idv capability', () => {
+    const account = { capabilities: [{ name: 'idv', status: 'active' }] };
+    expect(hasActiveIdvCapability(account)).toBe(true);
+  });
+
+  it('is false when idv is present but not active', () => {
+    const account = { capabilities: [{ name: 'idv', status: 'pending' }] };
+    expect(hasActiveIdvCapability(account)).toBe(false);
+  });
+
+  it('is false when idv is absent', () => {
+    const account = { capabilities: [{ name: 'kyc', status: 'active' }] };
+    expect(hasActiveIdvCapability(account)).toBe(false);
+  });
+
+  it('is false for a null account', () => {
+    expect(hasActiveIdvCapability(null)).toBe(false);
   });
 });
 
@@ -243,5 +297,53 @@ describe('resolveOnboardingOutcome', () => {
       capabilities: [{ name: 'kyc', status: 'pending', errors: [{ code: 'verification_rejected' }] }],
     };
     expect(resolveOnboardingOutcome(account, [])).toEqual({ status: 'declined', message: undefined });
+  });
+});
+
+describe('resolveBlockedOutcome', () => {
+  it('is null when nothing is outstanding — belongs to the end-of-flow resolve', () => {
+    const account = { capabilities: [{ name: 'kyc', status: 'active' }] };
+    expect(resolveBlockedOutcome(account, ['kyc'])).toBeNull();
+  });
+
+  it('is null when an outstanding capability still has actionable requirements — a road remains', () => {
+    const account = {
+      capabilities: [{ name: 'kyc', status: 'pending', currently_due: ['individual.identity_document'] }],
+    };
+    expect(resolveBlockedOutcome(account, ['kyc'])).toBeNull();
+  });
+
+  it('is null on an in-flight run — no actionable requirements but no stated verdict either', () => {
+    const account = { capabilities: [{ name: 'kyc', status: 'pending' }] };
+    expect(resolveBlockedOutcome(account, ['kyc'])).toBeNull();
+  });
+
+  it('is null when the stated verdict is approved or pending_review', () => {
+    const declined = {
+      capabilities: [{ name: 'kyc', status: 'pending', errors: [{ code: 'provider_error' }] }],
+    };
+    expect(resolveBlockedOutcome(declined, ['kyc'])).toBeNull();
+  });
+
+  it('returns the verdict on a dead end: outstanding, no actionable requirements, declined', () => {
+    const account = {
+      capabilities: [
+        { name: 'kyc', status: 'pending', errors: [{ code: 'verification_rejected', message: 'No.' }] },
+      ],
+    };
+    expect(resolveBlockedOutcome(account, ['kyc'])).toEqual({ status: 'declined', message: 'No.' });
+  });
+
+  it('returns the verdict on a dead end that is actionable, not declined', () => {
+    const account = {
+      capabilities: [
+        { name: 'kyc', status: 'pending', errors: [{ code: 'identity_mismatch', message: 'Fix it.' }] },
+      ],
+    };
+    expect(resolveBlockedOutcome(account, ['kyc'])).toEqual({ status: 'action_required', message: 'Fix it.' });
+  });
+
+  it('is null for a null account', () => {
+    expect(resolveBlockedOutcome(null, ['kyc'])).toBeNull();
   });
 });

@@ -2,6 +2,7 @@ import { View } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import { shieldIconSvg } from './icons/shield-icon';
 import { personCheckSvg } from './icons/person-check';
+import { personAlertSvg } from './icons/person-alert';
 import { amexSvg, discoverSvg, mastercardSvg, visaSvg } from './icons/card-brands';
 import {
   bankIconSvg,
@@ -23,6 +24,7 @@ import {
 export type IconName =
   | 'shield-icon'
   | 'person-check'
+  | 'person-alert'
   | 'visa'
   | 'mastercard'
   | 'amex'
@@ -52,6 +54,7 @@ export interface IconProps {
 const SVG_BY_NAME: Record<IconName, string> = {
   'shield-icon': shieldIconSvg,
   'person-check': personCheckSvg,
+  'person-alert': personAlertSvg,
   visa: visaSvg,
   mastercard: mastercardSvg,
   amex: amexSvg,

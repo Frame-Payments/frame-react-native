@@ -47,8 +47,11 @@ import {
   skipsSsnEntry,
 } from './onboardingSelectors';
 import {
+  hasActiveIdvCapability,
   readAccountCapabilities,
+  requiresCorrectedKycDetails,
   requiresIdentityDocument,
+  resolveBlockedOutcome,
   resolveOnboardingOutcome,
   trimCompletedCapabilities,
 } from './capabilities';
@@ -75,6 +78,9 @@ export interface OnboardingViewModelResult {
   goTo: (step: OnboardingStep, subStep: OnboardingSubStep | null) => void;
   cancel: () => void;
   complete: () => void;
+  /** Re-fetches the account and resolves the final OnboardingOutcome, caching
+   *  it into state.finalOutcome. Returns the cached value if already resolved. */
+  resolveFinalOutcome: () => Promise<OnboardingOutcome>;
   // Personal-info simple field setters (thin wrappers around dispatch so the
   // screens don't import the reducer directly).
   setPhoneCountry: (alpha2: string, callingCode: string) => void;
@@ -157,6 +163,12 @@ export function useOnboardingViewModel({
   stateRef.current = state;
   const performingRef = useRef(false);
   const completedRef = useRef(false);
+  // The set the flow launched with — `state.requiredCapabilities` is drained
+  // as capabilities are satisfied (see reconcileCapabilities), so it cannot
+  // answer what the flow set out to do. Mirrors iOS
+  // `originallyRequiredCapabilities` (`OnboardingContainerViewModel.swift:39-40`),
+  // a `let` set once at construction — a ref for the same reason.
+  const originallyRequiredCapabilitiesRef = useRef(capabilities);
 
   // ─── Init: compute flow + drop into the first step on mount ───
   useEffect(() => {
@@ -245,6 +257,13 @@ export function useOnboardingViewModel({
             type: 'SET_IDENTITY_DOCUMENT_REQUIRED',
             required: requiresIdentityDocument(account),
           });
+          dispatch({
+            type: 'SET_CORRECTED_KYC_DETAILS_REQUIRED',
+            required: requiresCorrectedKycDetails(account),
+          });
+          if (hasActiveIdvCapability(account)) {
+            dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId: null });
+          }
           const payoutId = (account as { payout_payment_method_id?: unknown }).payout_payment_method_id;
           if (typeof payoutId === 'string') {
             dispatch({ type: 'SET_PRIMARY_PAYOUT_METHOD_ID', id: payoutId });
@@ -298,6 +317,40 @@ export function useOnboardingViewModel({
     onCancel();
   }, [onCancel]);
 
+  // Re-reads the account and resolves how onboarding actually ended.
+  // Capability status settles asynchronously (server-side KYC/IDV run after
+  // the last answer), so this always re-fetches rather than trusting state
+  // read earlier in the flow. Resolved against `originallyRequiredCapabilitiesRef`,
+  // not `state.requiredCapabilities` — the latter is drained as capabilities
+  // are satisfied and would silently exclude anything satisfied before this
+  // call, including everything when the whole list was already satisfied at
+  // mount (in which case an empty `required` makes resolveOnboardingOutcome
+  // consider every capability on the account — see its own doc comment).
+  //
+  // Caches into `state.finalOutcome` so VerificationSubmittedScreen (which
+  // resolves on arrival) and `complete()` (which resolves on Done, or
+  // immediately when the completion screen is skipped) share one fetch.
+  // Mirrors iOS `resolveFinalOutcome()`
+  // (`OnboardingContainerViewModel.swift:162-181`).
+  const resolveFinalOutcome = useCallback(async (): Promise<OnboardingOutcome> => {
+    if (stateRef.current.finalOutcome) return stateRef.current.finalOutcome;
+    const accountId = stateRef.current.accountId;
+    if (!accountId) return { status: 'pending_review' };
+    dispatch({ type: 'SET_RESOLVING_OUTCOME', resolving: true });
+    try {
+      // A fetch failure must not claim success — iOS defaults to pendingReview
+      // for exactly this reason.
+      const account = await client.sdk.accounts.get(accountId).catch(() => null);
+      const outcome: OnboardingOutcome = account
+        ? resolveOnboardingOutcome(account, originallyRequiredCapabilitiesRef.current)
+        : { status: 'pending_review' };
+      dispatch({ type: 'SET_FINAL_OUTCOME', outcome });
+      return outcome;
+    } finally {
+      dispatch({ type: 'SET_RESOLVING_OUTCOME', resolving: false });
+    }
+  }, []);
+
   // The completed result returns the accountId, not the payment-method id.
   // Reads from stateRef so the value reflects auto-created accounts (the
   // empty-account-create path in sendOtp dispatches SET_ACCOUNT_ID before the
@@ -306,15 +359,11 @@ export function useOnboardingViewModel({
     if (completedRef.current) return;
     completedRef.current = true;
     const accountId = stateRef.current.accountId ?? undefined;
-    const required = stateRef.current.requiredCapabilities;
     void (async () => {
-      const account = accountId ? await client.sdk.accounts.get(accountId).catch(() => null) : null;
-      const outcome: OnboardingOutcome = account
-        ? resolveOnboardingOutcome(account, required)
-        : { status: 'pending_review' };
+      const outcome = await resolveFinalOutcome();
       onComplete({ status: 'completed', accountId, outcome });
     })();
-  }, [onComplete]);
+  }, [onComplete, resolveFinalOutcome]);
 
   const advance = useCallback(() => {
     const current = stateRef.current;
@@ -407,6 +456,10 @@ export function useOnboardingViewModel({
           type: 'SET_IDENTITY_DOCUMENT_REQUIRED',
           required: requiresIdentityDocument(account),
         });
+        dispatch({
+          type: 'SET_CORRECTED_KYC_DETAILS_REQUIRED',
+          required: requiresCorrectedKycDetails(account),
+        });
       }
 
       const e164 = `+${current.phoneCountry.callingCode}${current.phoneNumber.replace(/\D+/g, '')}`;
@@ -442,12 +495,29 @@ export function useOnboardingViewModel({
   // iOS SDK's checkExistingAccount() call from sendOTPVerification (Prove
   // success) and confirmTwilioOTP (Twilio success). Non-fatal on failure —
   // the user can still complete the flow with mount-time prefill.
+  //
+  // Also re-seeds identityDocumentRequired/correctedKycDetailsRequired, not
+  // just PREFILL: phone verification is exactly when the backend runs
+  // identity resolution and can step the account up to
+  // `individual.identity_document` or `individual.kyc`. Missing that step-up
+  // here left the mandatory Persona run skippable and the SSN field visible
+  // on an account the backend would only accept a document for. iOS
+  // re-derives every capability-driven flag inside checkExistingAccount, not
+  // only the profile prefill.
   const refreshAccountAfterPhoneVerify = useCallback(async () => {
     const accountId = stateRef.current.accountId;
     if (!accountId) return;
     const account = await client.sdk.accounts.get(accountId).catch(() => null);
     if (!account) return;
     dispatch({ type: 'PREFILL', values: prefillFromAccount(account) });
+    dispatch({ type: 'SET_IDENTITY_DOCUMENT_REQUIRED', required: requiresIdentityDocument(account) });
+    dispatch({
+      type: 'SET_CORRECTED_KYC_DETAILS_REQUIRED',
+      required: requiresCorrectedKycDetails(account),
+    });
+    if (hasActiveIdvCapability(account)) {
+      dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId: null });
+    }
   }, []);
 
   const confirmFrameOtp = useCallback(async () => {
@@ -556,7 +626,7 @@ export function useOnboardingViewModel({
         const tos = buildTosPayload(current.termsOfServiceToken);
         if (tos) updateBody.terms_of_service = tos;
       }
-      await client.sdk.accounts.update(
+      const updatedAccount = await client.sdk.accounts.update(
         current.accountId,
         updateBody as Parameters<typeof client.sdk.accounts.update>[1],
       );
@@ -567,7 +637,53 @@ export function useOnboardingViewModel({
         dispatch({ type: 'SET_EXISTING_ACCOUNT_HAS_TOS', value: true });
       }
 
-      if (governmentIdRequired(current) && !current.identityVerifiedViaGovId) {
+      // Re-derive capability-driven flags from the UPDATE response, not the
+      // `current` snapshot taken before this request — the profile update
+      // itself can trigger the backend to run KYC on the newly-complete
+      // profile and come back demanding a document or corrected details.
+      // Reading stale state here would advance the user into a Persona
+      // decision that doesn't reflect what the server just decided. Mirrors
+      // iOS `submitPersonalInformation`
+      // (`OnboardingContainerViewModel.swift:822-825`).
+      dispatch({
+        type: 'SET_IDENTITY_DOCUMENT_REQUIRED',
+        required: requiresIdentityDocument(updatedAccount),
+      });
+      dispatch({
+        type: 'SET_CORRECTED_KYC_DETAILS_REQUIRED',
+        required: requiresCorrectedKycDetails(updatedAccount),
+      });
+      const refreshed: OnboardingState = {
+        ...current,
+        identityDocumentRequired: requiresIdentityDocument(updatedAccount),
+        correctedKycDetailsRequired: requiresCorrectedKycDetails(updatedAccount),
+      };
+
+      // Nothing left that the applicant can act on — launching Persona (or
+      // advancing to payment/payout) would present a Continue button that can
+      // never do anything. Land on the terminal screen with the real verdict
+      // instead. Mirrors iOS's `blockedOutcome(for:)` check at
+      // `OnboardingContainerViewModel.swift:830-832`, and `concludeOnboarding`
+      // (`:852-862`) for the truncate-to-terminal-step behavior.
+      const blocked = resolveBlockedOutcome(updatedAccount, originallyRequiredCapabilitiesRef.current);
+      if (blocked) {
+        dispatch({ type: 'SET_FINAL_OUTCOME', outcome: blocked });
+        if (showCompletionScreen) {
+          dispatch({ type: 'GO_TO_STEP', step: 'verification_submitted', subStep: null });
+        } else {
+          complete();
+        }
+        return;
+      }
+
+      // Government-ID verification is mandatory when the merchant requested
+      // `idv` or the backend stepped the account up via
+      // `individual.identity_document`. iOS runs Persona right here, after the
+      // profile update and before advancing, and only advances on success
+      // (`OnboardingContainerViewModel.submitPersonalInformation`,
+      // `:835-844`). A throw leaves the user on this screen with the toast, so
+      // they can retry rather than landing on a later step that cannot succeed.
+      if (governmentIdRequired(refreshed) && !refreshed.identityVerifiedViaGovId) {
         if (!isPersonaAvailable()) {
           throw frameError(
             ErrorCodes.PERSONA_UNAVAILABLE,
@@ -586,7 +702,7 @@ export function useOnboardingViewModel({
         advance();
       }
     });
-  }, [guardedAction, advance, runGovernmentIdVerification]);
+  }, [guardedAction, advance, complete, runGovernmentIdVerification, showCompletionScreen]);
 
   const verifyIdentityWithoutSsn = useCallback(async () => {
     return guardedAction(() => runGovernmentIdVerification());
@@ -1069,6 +1185,7 @@ export function useOnboardingViewModel({
     goTo,
     cancel,
     complete,
+    resolveFinalOutcome,
     setPhoneCountry,
     setPhoneNumber,
     setDob,

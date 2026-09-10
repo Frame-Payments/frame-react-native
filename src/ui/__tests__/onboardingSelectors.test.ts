@@ -494,6 +494,26 @@ describe('government-ID gating', () => {
     expect(skipsSsnEntry(stateWith(['idv']))).toBe(true);
   });
 
+  // FRA-6552: correctedKycDetailsRequired outranks both gov-ID signals — the
+  // applicant cannot fix rejected details through a field they cannot see.
+  it('skipsSsnEntry is false when corrected KYC details are required, even though verified via gov ID', () => {
+    let state = onboardingReducer(stateWith(['kyc']), {
+      type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID',
+      verified: true,
+      inquiryId: 'inq_1',
+    });
+    state = onboardingReducer(state, { type: 'SET_CORRECTED_KYC_DETAILS_REQUIRED', required: true });
+    expect(skipsSsnEntry(state)).toBe(false);
+  });
+
+  it('skipsSsnEntry is false when corrected KYC details are required, even though gov ID is required', () => {
+    const state = onboardingReducer(stateWith(['idv']), {
+      type: 'SET_CORRECTED_KYC_DETAILS_REQUIRED',
+      required: true,
+    });
+    expect(skipsSsnEntry(state)).toBe(false);
+  });
+
   it('SSN is validated on a plain kyc flow', () => {
     const errors = validateCustomerInformation(fillUS(stateWith(['kyc'])));
     expect(errors.ssnLast4).toBeDefined();

@@ -150,6 +150,7 @@ export function governmentIdRequired(state: OnboardingState): boolean {
 }
 
 export function skipsSsnEntry(state: OnboardingState): boolean {
+  if (state.correctedKycDetailsRequired) return false;
   return state.identityVerifiedViaGovId || governmentIdRequired(state);
 }
 
