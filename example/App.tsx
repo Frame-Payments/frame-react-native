@@ -64,7 +64,7 @@ const sampleCartItems = [
     id: '2',
     title: 'Zip Up Hoodie',
     amountInCents: 25000,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0573/6433/files/4f311c56-b5aa-4136-89d1-c820f8494ecc_large.jpg',
+    imageUrl: 'https://drinkarizona.com/cdn/shop/files/Arizona_Retro_BlossomHoodie_Back_Grey.png?v=1745962737',
   },
 ];
 
