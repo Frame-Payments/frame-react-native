@@ -2,7 +2,7 @@ import { useCallback, useEffect } from 'react';
 import type { OnboardingCapability, OnboardingResult } from '../../../types';
 import { showToast } from '../../primitives/toastCenter';
 import { consumeProveCancelledByUser } from '../../../prove';
-import { toToastMessage } from '../../../api-errors';
+import { toToastMessage, isValidationError } from '../../../api-errors';
 import { beginOnboardingSession, endOnboardingSession } from '../../../auth';
 import { useOnboardingViewModel } from './useOnboardingViewModel';
 import { OnboardingChrome } from './OnboardingChrome';
@@ -81,6 +81,12 @@ export function OnboardingRoot({
     (err: unknown) => {
       const code = (err as { code?: string }).code;
       if (code === 'USER_CANCELED') return;
+      // The view model already dispatched SET_FIELD_ERRORS with the specific
+      // per-field messages before throwing this — the inline errors already
+      // say what's wrong, so a generic "Something went wrong" toast on top
+      // would be redundant and confusing (e.g. a plain bad-phone-number
+      // rejection reading like a server error).
+      if (isValidationError(err)) return;
       // Use toToastMessage so we surface the server's `error_details.message`
       // from FrameAPIError.raw instead of the top-level generic message
       // (framepayments returns a useless "An error occured" / "An error

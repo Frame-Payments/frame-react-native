@@ -388,7 +388,7 @@ export function useOnboardingViewModel({
       const errors = validatePhoneAuth(current);
       if (Object.keys(errors).length > 0) {
         dispatch({ type: 'SET_FIELD_ERRORS', errors });
-        throw frameError(ErrorCodes.PAYMENT_FAILED, 'Resolve the highlighted fields and try again.');
+        throw frameError(ErrorCodes.VALIDATION_FAILED, 'Resolve the highlighted fields and try again.');
       }
       const forceFrameOtp = opts?.forceFrameOtp === true;
 
@@ -492,7 +492,7 @@ export function useOnboardingViewModel({
       const errors = validateOtp(current);
       if (Object.keys(errors).length > 0) {
         dispatch({ type: 'SET_FIELD_ERRORS', errors });
-        throw frameError(ErrorCodes.PAYMENT_FAILED, 'Enter the 6-digit code.');
+        throw frameError(ErrorCodes.VALIDATION_FAILED, 'Enter the 6-digit code.');
       }
       if (!current.accountId || !current.pendingVerificationId) {
         throw frameError(ErrorCodes.PAYMENT_FAILED, 'Phone verification session expired. Restart the step.');
@@ -585,7 +585,7 @@ export function useOnboardingViewModel({
       const errors = validateCustomerInformation(current);
       if (Object.keys(errors).length > 0) {
         dispatch({ type: 'SET_FIELD_ERRORS', errors });
-        throw frameError(ErrorCodes.PAYMENT_FAILED, 'Resolve the highlighted fields and try again.');
+        throw frameError(ErrorCodes.VALIDATION_FAILED, 'Resolve the highlighted fields and try again.');
       }
       if (!current.accountId) {
         throw frameError(ErrorCodes.PAYMENT_FAILED, 'No account id present. Restart onboarding.');
@@ -698,7 +698,7 @@ export function useOnboardingViewModel({
         const addressErrors = validateAddress(current.address, true);
         if (Object.keys(addressErrors).length > 0) {
           dispatch({ type: 'SET_FIELD_ERRORS', errors: addressErrors });
-          throw frameError(ErrorCodes.PAYMENT_FAILED, 'Resolve the highlighted fields and try again.');
+          throw frameError(ErrorCodes.VALIDATION_FAILED, 'Resolve the highlighted fields and try again.');
         }
         await ensureEvervaultConfigured();
         const [encryptedPan, encryptedCvc] = await Promise.all([
@@ -756,7 +756,7 @@ export function useOnboardingViewModel({
         const addressErrors = validateAddress(current.address, true);
         if (Object.keys(addressErrors).length > 0) {
           dispatch({ type: 'SET_FIELD_ERRORS', errors: addressErrors });
-          throw frameError(ErrorCodes.PAYMENT_FAILED, 'Resolve the highlighted fields and try again.');
+          throw frameError(ErrorCodes.VALIDATION_FAILED, 'Resolve the highlighted fields and try again.');
         }
         await client.sdk.paymentMethods.update(paymentMethodId, {
           billing: {
@@ -896,7 +896,7 @@ export function useOnboardingViewModel({
       const errors = validateAch(current.ach, current.address);
       if (Object.keys(errors).length > 0) {
         dispatch({ type: 'SET_FIELD_ERRORS', errors });
-        throw frameError(ErrorCodes.PAYMENT_FAILED, 'Resolve the highlighted fields and try again.');
+        throw frameError(ErrorCodes.VALIDATION_FAILED, 'Resolve the highlighted fields and try again.');
       }
 
       const billing = {

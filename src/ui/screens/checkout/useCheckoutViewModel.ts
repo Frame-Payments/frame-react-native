@@ -146,7 +146,7 @@ export function useCheckoutViewModel({
       const validation = validateForSubmit(current);
       if (!validation.isValid) {
         dispatch({ type: 'SET_FIELD_ERRORS', errors: validation.fieldErrors });
-        throw frameError(ErrorCodes.PAYMENT_FAILED, 'Resolve the highlighted fields and try again.');
+        throw frameError(ErrorCodes.VALIDATION_FAILED, 'Resolve the highlighted fields and try again.');
       }
 
       const usingSaved = isUsingSavedCard(current);
@@ -155,7 +155,7 @@ export function useCheckoutViewModel({
         if (cardErrors) {
           const firstError =
             cardErrors.pan ?? cardErrors.expiry ?? cardErrors.cvc ?? 'Enter valid card details';
-          throw frameError(ErrorCodes.PAYMENT_FAILED, firstError);
+          throw frameError(ErrorCodes.VALIDATION_FAILED, firstError);
         }
       }
 

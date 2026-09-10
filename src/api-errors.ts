@@ -93,6 +93,20 @@ export function isUnrecoverableCheckoutError(error: unknown): boolean {
   return UNRECOVERABLE_CHECKOUT_CODES.has(code);
 }
 
+/**
+ * Whether this error is a client-side field-validation rejection — the view
+ * model already dispatched `SET_FIELD_ERRORS` with the specific per-field
+ * messages before throwing (see `useCheckoutViewModel.submit` /
+ * `useOnboardingViewModel`'s `sendOtp`/`confirmFrameOtp`/etc). A screen
+ * catching this should NOT also show a generic toast — the inline errors
+ * already say what's wrong, and a toast on top reads like a real API failure
+ * for what's often just an unfilled or malformed field.
+ */
+export function isValidationError(error: unknown): boolean {
+  const code = isFrameError(error) ? error.code : normalizeToFrameError(error).code;
+  return code === ErrorCodes.VALIDATION_FAILED;
+}
+
 // A 404 from the API means the resource genuinely does not exist, as opposed to
 // a transport failure or a 5xx, which say nothing about whether it exists.
 // Callers use this to distinguish "the id is bad" from "we couldn't reach the

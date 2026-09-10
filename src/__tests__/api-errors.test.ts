@@ -5,6 +5,7 @@ import {
   isNotFoundError,
   isTransportError,
   isUnrecoverableCheckoutError,
+  isValidationError,
   DEFAULT_TOAST_FALLBACK,
 } from '../api-errors';
 import { ErrorCodes, isFrameError, frameError } from '../errors';
@@ -238,5 +239,38 @@ describe('isUnrecoverableCheckoutError', () => {
     expect(isUnrecoverableCheckoutError(undefined)).toBe(false);
     expect(isUnrecoverableCheckoutError('boom')).toBe(false);
     expect(isUnrecoverableCheckoutError(null)).toBe(false);
+  });
+});
+
+describe('isValidationError', () => {
+  // Regression: useCheckoutViewModel.submit() and every useOnboardingViewModel
+  // action that dispatches SET_FIELD_ERRORS (sendOtp, confirmFrameOtp,
+  // submitCustomerInformation, updateSavedPaymentMethodBilling,
+  // submitManualAch, and checkout's own address+card validation) used to throw
+  // PAYMENT_FAILED afterward — the same code a real declined-card/API failure
+  // uses — so the screen's generic toast fired on top of the inline field
+  // errors the view model had just set, on every plain validation failure
+  // (e.g. an unfilled required field, or "(200) 100-1695" failing phone
+  // validation) with no real API call involved at all.
+  it('flags VALIDATION_FAILED', () => {
+    const err = frameError(ErrorCodes.VALIDATION_FAILED, 'Resolve the highlighted fields and try again.');
+    expect(isValidationError(err)).toBe(true);
+  });
+
+  it('does not flag a real payment/API failure', () => {
+    expect(isValidationError(frameError(ErrorCodes.PAYMENT_FAILED, 'declined'))).toBe(false);
+    expect(isValidationError(frameError(ErrorCodes.API_VALIDATION, 'bad zip'))).toBe(false);
+    expect(isValidationError(frameError(ErrorCodes.API_NETWORK, 'timeout'))).toBe(false);
+  });
+
+  it('does not flag a FrameAPIError (server-side response)', () => {
+    const err = new FrameAPIError('An error occurred', 'unknown_error', 500, {});
+    expect(isValidationError(err)).toBe(false);
+  });
+
+  it('does not throw and returns false for a non-error value', () => {
+    expect(isValidationError(undefined)).toBe(false);
+    expect(isValidationError('boom')).toBe(false);
+    expect(isValidationError(null)).toBe(false);
   });
 });

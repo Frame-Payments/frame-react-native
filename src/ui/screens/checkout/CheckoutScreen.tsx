@@ -20,7 +20,7 @@ import { Icon, type IconName } from '../../assets';
 import { convertCentsToCurrencyString } from '../../../currency';
 import { addressFormatForCountry } from '../../../addressFormat';
 import { showToast } from '../../primitives/toastCenter';
-import { toToastMessage, isUnrecoverableCheckoutError } from '../../../api-errors';
+import { toToastMessage, isUnrecoverableCheckoutError, isValidationError } from '../../../api-errors';
 import { isFrameError, normalizeToFrameError, ErrorCodes } from '../../../errors';
 import { presentApplePayFlow } from '../../../applePay';
 import { presentGooglePayFlow } from '../../../googlePay';
@@ -175,11 +175,16 @@ export function CheckoutScreen({
         onFail(err);
         return;
       }
-      // Everything else — card declined, validation, transient transport —
-      // surfaces as a toast and leaves the sheet open so the user can correct
-      // the input and retry. Tearing the modal down here would discard the
-      // entered card and address for what is often a transient failure.
-      // Mirrors iOS `FrameCheckoutView.swift:428-436`.
+      // vm.submit() already dispatched SET_FIELD_ERRORS with the specific
+      // per-field messages before throwing this — the inline errors already
+      // say what's wrong, so a generic toast on top would be redundant (and
+      // read like a real API failure when it's really just an unfilled field).
+      if (isValidationError(err)) return;
+      // Everything else — card declined, transient transport — surfaces as a
+      // toast and leaves the sheet open so the user can correct the input and
+      // retry. Tearing the modal down here would discard the entered card and
+      // address for what is often a transient failure. Mirrors iOS
+      // `FrameCheckoutView.swift:428-436`.
       showToast(toToastMessage(err));
     }
   }
