@@ -279,7 +279,17 @@ export function OnboardingRoot({
                 // failure message. Without re-issuing, confirmFrameOtp would
                 // try to confirm the Prove-issued id.
                 if (result.message) showToast(result.message);
-                void vm.sendOtp({ forceFrameOtp: true }).catch(surfaceError);
+                void vm.sendOtp({ forceFrameOtp: true }).catch((err) => {
+                  surfaceError(err);
+                  // The retry itself came back on Prove again — sendOtp
+                  // refused to force a Twilio code screen for a number that
+                  // was never sent an SMS (see its own comment). Nothing left
+                  // to do but return to the phone form, matching iOS's
+                  // dismissProveOTPSheet() on the equivalent guard
+                  // (OnboardingContainerViewModel.swift:503-507) — staying on
+                  // the dead-end verify_phone screen would strand the user.
+                  vm.goTo('personal_information', 'phone_auth');
+                });
               }}
               onSetUi={vm.setVerifyPhoneUi}
               onResend={() => void vm.sendOtp().catch(surfaceError)}

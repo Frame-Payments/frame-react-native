@@ -539,12 +539,27 @@ export function useOnboardingViewModel({
         } as unknown as Parameters<typeof client.sdk.phoneVerifications.create>[1],
       );
 
-      // When the Prove branch has already failed, force the Frame OTP path
-      // even if the backend still returns a prove_auth_token. Prevents the
-      // user from being stuck in a loading_prove → otp_for_prove cycle.
-      const proveAuthToken = forceFrameOtp
-        ? null
-        : ((verification as { prove_auth_token?: string }).prove_auth_token ?? null);
+      const rawProveAuthToken = (verification as { prove_auth_token?: string }).prove_auth_token ?? null;
+
+      // When the Prove branch has already failed, the retry is expected to
+      // come back on Twilio (no prove_auth_token) — the backend's own
+      // end-to-end contract is create → refused confirm → create → confirm,
+      // deciding the fallback server-side. But only a Twilio verification can
+      // be confirmed with a typed code: if the retry comes back on Prove
+      // AGAIN, forcing otp_frame_api would strand the user on a code screen
+      // for a number the backend never sent an SMS to — confirmFrameOtp would
+      // fail on every attempt with no way out. Report the original failure
+      // instead of guessing a UI that can't work. Mirrors iOS
+      // `fallBackToTwilio`'s `guard let retry, retry.proveAuthToken == nil`
+      // (`OnboardingContainerViewModel.swift:503-507`).
+      if (forceFrameOtp && rawProveAuthToken) {
+        throw frameError(
+          ErrorCodes.PAYMENT_FAILED,
+          'Phone verification is temporarily unavailable. Please try again in a moment.',
+        );
+      }
+
+      const proveAuthToken = forceFrameOtp ? null : rawProveAuthToken;
       const ui: VerifyPhoneUi = proveAuthToken ? 'loading_prove' : 'otp_frame_api';
       dispatch({
         type: 'SET_VERIFY_PHONE',
