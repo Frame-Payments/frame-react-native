@@ -145,19 +145,6 @@ export function VerifyPhoneScreen({
       <View style={styles.content}>
         <Text
           style={[
-            styles.heading,
-            {
-              color: theme.colors.textPrimary,
-              fontSize: theme.fonts.heading.size,
-              fontWeight: theme.fontWeights.heading,
-              lineHeight: theme.fontLineHeights.heading,
-            },
-          ]}
-        >
-          Enter Verification Code
-        </Text>
-        <Text
-          style={[
             styles.body,
             {
               color: theme.colors.textSecondary,
@@ -232,7 +219,6 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
       paddingTop: FORM_SPACING.headingBottom,
       gap: FORM_SPACING.fieldGap,
     },
-    heading: {},
     body: {
       marginBottom: 8,
     },

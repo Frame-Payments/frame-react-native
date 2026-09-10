@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import type { OnboardingCapability, OnboardingResult } from '../../../types';
 import { showToast } from '../../primitives/toastCenter';
-import { consumeProveCancelledByUser } from '../../../prove';
+import { consumeProveCancelledByUser, cancelProveOtp } from '../../../prove';
 import { toToastMessage, isValidationError } from '../../../api-errors';
 import { useOnboardingViewModel } from './useOnboardingViewModel';
 import { OnboardingChrome } from './OnboardingChrome';
@@ -508,6 +508,25 @@ export function OnboardingRoot({
         return {
           title: 'Personal Information',
           onBack: () => vm.goTo('personal_information', 'phone_auth'),
+        };
+      }
+      if (sub === 'verify_phone') {
+        return {
+          title: 'Enter Verification Code',
+          onBack: () => {
+            // iOS branches this exact button action on `type`
+            // (SecurePMVerificationView.swift:61-67): `.proveOtp` — Prove
+            // itself is asking for a code, a fallback WITHIN the Prove
+            // flow — cancels the pending Prove request; `.phone` — a plain
+            // Frame/Twilio-issued OTP (the initial send, or the fallback
+            // AFTER a Prove failure) — is a local back to the phone form.
+            // `verifyPhoneUi` is RN's equivalent of iOS's `type`:
+            // 'otp_for_prove' = .proveOtp, 'otp_frame_api' = .phone.
+            if (vm.state.verifyPhoneUi === 'otp_for_prove') {
+              void cancelProveOtp();
+            }
+            vm.goTo('personal_information', 'phone_auth');
+          },
         };
       }
     }
