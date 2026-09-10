@@ -75,6 +75,49 @@ describe('toToastMessage', () => {
     });
     expect(toToastMessage(err)).toBe('Error: Unprocessable Entity');
   });
+
+  // Risk/geo-compliance rejections come back as bare codes, not human text —
+  // without the mapping a shopper sees "Error: geo_compliance_vpn_detected"
+  // verbatim. Mirrors iOS riskMessage(for:) (CommonObjects.swift:222-233).
+  it('maps sonar_session_required to human copy', () => {
+    const err = new FrameAPIError('An error occurred', 'unknown_error', 422, {
+      error_details: { message: 'sonar_session_required' },
+    });
+    expect(toToastMessage(err)).toBe("Error: We couldn't verify this device. Please try again.");
+  });
+
+  it('maps geo_compliance_blocked to human copy', () => {
+    const err = new FrameAPIError('An error occurred', 'unknown_error', 403, {
+      error: 'geo_compliance_blocked',
+    });
+    expect(toToastMessage(err)).toBe("Error: Payments aren't available in your location.");
+  });
+
+  it('maps geo_compliance_vpn_detected to human copy', () => {
+    const err = new FrameAPIError('An error occurred', 'unknown_error', 403, {
+      error_details: 'geo_compliance_vpn_detected',
+    });
+    expect(toToastMessage(err)).toBe('Error: Please turn off your VPN or proxy and try again.');
+  });
+
+  it('risk-code mapping is case-insensitive and trims whitespace', () => {
+    const err = new FrameAPIError('An error occurred', 'unknown_error', 422, {
+      error_details: { message: '  SONAR_SESSION_REQUIRED  ' },
+    });
+    expect(toToastMessage(err)).toBe("Error: We couldn't verify this device. Please try again.");
+  });
+
+  it('leaves an unrecognized message untouched', () => {
+    const err = new FrameAPIError('An error occurred', 'unknown_error', 422, {
+      error_details: { message: 'Card submitted is not a test card' },
+    });
+    expect(toToastMessage(err)).toBe('Error: Card submitted is not a test card');
+  });
+
+  it('maps a risk code surfaced via error.message with no envelope', () => {
+    const err = new FrameAPIError('geo_compliance_blocked', 'unknown_error', 403, null);
+    expect(toToastMessage(err)).toBe("Error: Payments aren't available in your location.");
+  });
 });
 
 describe('isNotFoundError', () => {
