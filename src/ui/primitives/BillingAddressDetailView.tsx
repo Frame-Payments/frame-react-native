@@ -141,6 +141,11 @@ export function BillingAddressDetailView({
         keyboardType={format.postalKeyboard}
         textContentType="postalCode"
         autoComplete="postal-code"
+        // US zip is capped at 5 digits; an international postal code has no
+        // universal length. Mirrors iOS
+        // `characterLimit: allowsInternational ? nil : 5`
+        // (BillingAddressDetailView.swift:178).
+        characterLimit={international ? undefined : 5}
       />
       {international ? (
         <CountryPicker
