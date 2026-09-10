@@ -3,6 +3,7 @@ import { PaymentMethodType } from 'framepayments';
 import { client, hasSecretKey, requireSecretKeyFor } from '../../../client';
 import { configureEvervault, encryptWithEvervault } from '../../../evervault';
 import { sessionIdForPayment } from '../../../sonarSession';
+import { setSiftUserId } from '../../../sift';
 import { normalizeSubregion } from '../../../addressSubregions';
 import { __internal as configInternal } from '../../../config';
 import { ErrorCodes, frameError } from '../../../errors';
@@ -79,6 +80,15 @@ export function useCheckoutViewModel({
       try {
         const account = await client.sdk.accounts.get(accountId);
         if (cancelled) return;
+        // Associates collected Sift device events with this account, so the
+        // risk model isn't scored on anonymous-only signal. Mirrors iOS
+        // SiftManager.collectLoginEvent, called from every successful
+        // AccountsAPI.getAccountWith (AccountsAPI.swift:128) — the FULL
+        // iOS event also carries $ip/$user_email, which sift-react-native's
+        // bridge has no generic event-append API to send (FRA-6648);
+        // setSiftUserId at least associates the session, which
+        // sift-react-native's own setUserId call is the documented way to do.
+        if (account?.id) setSiftUserId(account.id);
         const individual = (account?.profile as { individual?: unknown } | null | undefined)
           ?.individual as
           | { name?: { first_name?: unknown; last_name?: unknown }; email?: unknown }

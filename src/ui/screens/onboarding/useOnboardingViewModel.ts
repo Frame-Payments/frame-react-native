@@ -15,6 +15,7 @@ import {
 import { electPayoutMethod } from '../../../payoutMethod';
 import { normalizeSubregion } from '../../../addressSubregions';
 import { ensureOnboardingSession } from '../../../onboardingSession';
+import { setSiftUserId } from '../../../sift';
 import { isNotFoundError } from '../../../api-errors';
 import { beginOnboardingSession, endOnboardingSession } from '../../../auth';
 import { warnOnce } from '../../../warn';
@@ -406,6 +407,11 @@ export function useOnboardingViewModel({
       // A fetch failure must not claim success — iOS defaults to pendingReview
       // for exactly this reason.
       const account = await client.sdk.accounts.get(accountId).catch(() => null);
+      // Associates collected Sift device events with this account. Mirrors
+      // iOS SiftManager.collectLoginEvent, called from every successful
+      // AccountsAPI.getAccountWith (AccountsAPI.swift:128) — see the fuller
+      // note at useCheckoutViewModel.ts's own account-fetch call.
+      if (account?.id) setSiftUserId(account.id);
       const outcome: OnboardingOutcome = account
         ? resolveOnboardingOutcome(account, originallyRequiredCapabilitiesRef.current)
         : { status: 'pending_review' };
@@ -511,6 +517,12 @@ export function useOnboardingViewModel({
         }
         accountId = account.id;
         dispatch({ type: 'SET_ACCOUNT_ID', id: accountId });
+        // Associates collected Sift device events with this account. Mirrors
+        // iOS SiftManager.collectLoginEvent, called from every successful
+        // AccountsAPI.createAccount as well as getAccountWith
+        // (AccountsAPI.swift:60, :128) — see the fuller note at
+        // useCheckoutViewModel.ts's own account-fetch call.
+        setSiftUserId(accountId);
         // Mint the account-scoped onboarding session now so downstream
         // account-scoped requests (the no-SSN IDV calls in particular)
         // authenticate with an `onb_sess_...` bearer instead of the raw pk_/sk_.
@@ -591,6 +603,11 @@ export function useOnboardingViewModel({
     if (!accountId) return;
     const account = await client.sdk.accounts.get(accountId).catch(() => null);
     if (!account) return;
+    // Associates collected Sift device events with this account. Mirrors
+    // iOS SiftManager.collectLoginEvent, called from every successful
+    // AccountsAPI.getAccountWith (AccountsAPI.swift:128) — see the fuller
+    // note at useCheckoutViewModel.ts's own account-fetch call.
+    if (account.id) setSiftUserId(account.id);
     dispatch({ type: 'PREFILL', values: prefillFromAccount(account) });
     dispatch({ type: 'SET_IDENTITY_DOCUMENT_REQUIRED', required: requiresIdentityDocument(account) });
     dispatch({
@@ -1353,6 +1370,11 @@ async function reconcileCapabilities(
   try {
     await client.sdk.capabilities.request(accountId, { capabilities: [...missing] });
     const refreshed = await client.sdk.accounts.get(accountId).catch(() => null);
+    // Associates collected Sift device events with this account. Mirrors
+    // iOS SiftManager.collectLoginEvent, called from every successful
+    // AccountsAPI.getAccountWith (AccountsAPI.swift:128) — see the fuller
+    // note at useCheckoutViewModel.ts's own account-fetch call.
+    if (refreshed?.id) setSiftUserId(refreshed.id);
     return refreshed ?? account;
   } catch {
     // Non-fatal — fall back to the original account so the user can still
