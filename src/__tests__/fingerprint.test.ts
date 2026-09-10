@@ -19,11 +19,17 @@ class MockAgent {
   }
   getVisitorId = mockGetVisitorId;
 }
-jest.mock(
-  '@fingerprintjs/fingerprintjs-pro-react-native',
-  () => ({ FingerprintJsProAgent: MockAgent }),
-  { virtual: true },
-);
+// No `{ virtual: true }` here: that flag tells Jest the module doesn't really
+// exist on disk, which is false — it's a real devDependency
+// (package.json:79). Passing `virtual: true` for a genuinely resolvable
+// module is undefined behavior per Jest's own docs, and it showed up as a
+// real one: under worker parallelism (reproduced locally with
+// `--maxWorkers=2`, never with `--maxWorkers=1`), `loadSdk()`'s `require()`
+// would intermittently resolve the real installed package instead of this
+// mock, so `isFingerprintAvailable()`/`getFingerprintVisitorId()` saw the
+// unmocked `FingerprintJsProAgent` and failed. A plain `jest.mock` for an
+// existing module has none of that ambiguity.
+jest.mock('@fingerprintjs/fingerprintjs-pro-react-native', () => ({ FingerprintJsProAgent: MockAgent }));
 
 import { __resetFingerprint, getFingerprintVisitorId, isFingerprintAvailable } from '../fingerprint';
 
