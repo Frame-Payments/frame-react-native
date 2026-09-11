@@ -24,20 +24,6 @@ import { warnOnce } from './warn';
  *   • On any failure, warns once and returns rather than throwing, so a mint
  *     hiccup doesn't wedge the flow. Downstream `createIdvSession()` still
  *     guards on the session being present and surfaces a clear error there.
- *
- * @param hasEnded - Checked right before installing the minted token, not
- *   just at the start: the mint is async, and the flow can tear its session
- *   down (host dismissed, flow completed) while the request is still in
- *   flight. A token that lands after teardown has nothing left to end it, so
- *   it must not be installed — it would leak past onboarding into later
- *   checkout/wallet calls exactly like the untracked-ownership bug this
- *   guards. Mirrors iOS's `hasEndedOnboardingSession` check inside
- *   `beginOnboardingSessionIfNeeded` (`OnboardingContainerViewModel.swift:305`).
- * @returns `true` if this call minted and installed a new session — the
- *   caller uses this to decide whether it now owns the session (see
- *   `useOnboardingViewModel`'s `ownsOnboardingSessionRef`). `false` when a
- *   session was already active, the mint failed, or teardown raced ahead of
- *   the mint.
  */
 export async function ensureOnboardingSession(
   accountId: string,

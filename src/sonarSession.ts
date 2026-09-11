@@ -308,17 +308,6 @@ export async function sessionIdForPayment(accountId: string): Promise<string | u
   }
 }
 
-/**
- * Reads whatever session id is currently stored for `accountId`, without
- * establishing, refreshing, or adopting one. `null` accountId reads the
- * legacy pre-account slot — the correct read for a charge intent with no
- * account to resolve through (a customer-owner wallet payment), matching how
- * that same intent will still carry a session on iOS: `accountId: nil` there
- * reads the same legacy slot, it does not mean "no session." Mirrors iOS
- * `SonarSessionStorage.currentSessionId(accountId:)`
- * (`SonarSessionObjects.swift:95`), used by
- * `ChargeIntentsAPI.createChargeIntent` (`ChargeIntentsAPI.swift:53`).
- */
 export async function currentSessionId(accountId: string | null): Promise<string | undefined> {
   const value = await storage.get(accountId).catch(() => null);
   return value ?? undefined;

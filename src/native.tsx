@@ -89,10 +89,6 @@ function throwCoded(code: string, message: string): never {
  * @param options.googlePayMerchantId - Google Pay merchant identifier. Required to enable Google Pay
  *   in {@link presentCheckout} and {@link presentGooglePay}.
  * @param options.theme - Optional visual theme applied to all Frame-managed UI surfaces.
- * @param options.accountId - The Frame account this app run belongs to, if known at launch
- *   (e.g. a signed-in user). The Sonar session is then created already bound to it, rather
- *   than created unscoped and bound on first flow entry. Leave unset if unknown — either way
- *   one session covers the app run.
  *
  * @throws {FrameErrorShape} `INIT_FAILED` if `publishableKey` is missing,
  *   `theme` is not a plain object, or the native bridge fails to initialize.

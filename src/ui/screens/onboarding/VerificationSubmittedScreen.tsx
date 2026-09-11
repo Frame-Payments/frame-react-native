@@ -6,14 +6,6 @@ import { Icon, type IconName } from '../../assets';
 import { FORM_SPACING } from './formSpacing';
 import type { OnboardingOutcome } from '../../../types';
 
-// Mirror of iOS VerificationSubmittedView
-// (`Sources/FrameOnboarding/Views/Identity/Identification/VerificationSubmittedView.swift`).
-// The final screen of the onboarding flow. Renders from the resolved
-// OnboardingOutcome rather than asserting success — only `approved` gets the
-// congratulatory copy. Resolves on arrival (the effect below), matching
-// iOS's `.task` on this view: capability status settles after the
-// applicant's last answer, so the outcome is fetched fresh here rather than
-// reusing earlier state.
 
 export interface VerificationSubmittedScreenProps {
   outcome: OnboardingOutcome | null;
@@ -91,7 +83,6 @@ export function VerificationSubmittedScreen({
   );
 }
 
-// person-check only for an approval; every other ending shows the alert mark.
 function iconFor(outcome: OnboardingOutcome | null): IconName {
   return outcome?.status === 'approved' ? 'person-check' : 'person-alert';
 }
@@ -110,13 +101,11 @@ function titleFor(outcome: OnboardingOutcome | null): string {
   }
 }
 
-// Prefers the server-authored message so every Frame surface says the same words.
 function bodyFor(outcome: OnboardingOutcome | null): string {
   switch (outcome?.status) {
     case 'approved':
       return "Congratulations! You've submitted your identity verification check. You're ready to proceed.";
     case 'declined':
-      // No retry affordance: a terminal decline cannot be changed by trying again.
       return (
         outcome.message ??
         "We weren't able to verify your identity. Please contact support if you think this is a mistake."

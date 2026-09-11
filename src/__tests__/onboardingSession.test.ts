@@ -1,12 +1,3 @@
-/**
- * Tests for ensureOnboardingSession — the on-device self-mint used on the
- * publishable-key-only onboarding path (POST /v1/onboarding_sessions with
- * usePublishableKey: true). The `hasEnded` late-check and boolean return are
- * what useOnboardingViewModel's ownership tracking (FRA-6358 / FRA-6716)
- * relies on: without them a self-minted session can be installed AFTER the
- * flow has already torn its session down, leaking an account-scoped
- * onb_sess_ into every later checkout/wallet call.
- */
 
 const mockPlatform = { OS: 'ios' as 'ios' | 'android' };
 jest.mock('react-native', () => ({ Platform: mockPlatform }));
@@ -79,11 +70,6 @@ describe('ensureOnboardingSession', () => {
     expect(console.warn).toHaveBeenCalledTimes(1);
   });
 
-  // The core of the ownership-leak fix: a mint that resolves AFTER the flow
-  // has already torn its session down must not install the token — it would
-  // have nothing left to end it, leaking an account-scoped session past
-  // onboarding. Mirrors iOS's `hasEndedOnboardingSession` guard inside
-  // `beginOnboardingSessionIfNeeded` (OnboardingContainerViewModel.swift:305).
   it('does not install the token when hasEnded() is true by the time the mint resolves', async () => {
     let resolveCreate!: (v: { client_secret: string }) => void;
     onboardingSessionsCreate.mockImplementationOnce(
@@ -93,8 +79,6 @@ describe('ensureOnboardingSession', () => {
     let hasEnded = false;
     const pending = ensureOnboardingSession('acct_1', () => hasEnded);
 
-    // Teardown races ahead of the mint — this is what the flow does when the
-    // host dismisses or completion runs while the mint is still in flight.
     hasEnded = true;
     resolveCreate({ client_secret: 'onb_sess_late' });
 

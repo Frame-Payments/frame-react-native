@@ -116,12 +116,6 @@ async function createPaymentMethodAndCharge(
       { type: 'card', customer: owner.id, _wallet: wallet },
       { usePublishableKey: true },
     );
-    // A ChargeIntent has no account to resolve a session through, but iOS's
-    // `accountId: nil` read is NOT "no session" — it reads the legacy
-    // pre-account slot (`SonarSessionStorage.currentSessionId(accountId:)`,
-    // `SonarSessionObjects.swift:95`), which every charge intent carries
-    // regardless of owner. Never blocks: a missing session leaves the field
-    // absent and the server's own rejection (if any) is authoritative.
     const sonarSessionId = await currentSessionId(null);
     const intent = await client.sdk.chargeIntents.create({
       amount: options.amountCents,
@@ -130,10 +124,6 @@ async function createPaymentMethodAndCharge(
       payment_method: pm.id,
       confirm: true,
       ...(sonarSessionId ? { sonar_session_id: sonarSessionId } : {}),
-      // fraud_signals isn't declared on CreateChargeIntentParams — same
-      // runtime-safe-cast pattern used elsewhere for wire fields the npm SDK
-      // omits. Mirrors iOS's automatic client_ip injection on every charge
-      // intent (`ChargeIntentsAPI.swift:53-56`).
       ...(getIpAddress() ? { fraud_signals: { client_ip: getIpAddress() } } : {}),
     } as unknown as Parameters<typeof client.sdk.chargeIntents.create>[0]);
     if (!intent || typeof intent.id !== 'string') {

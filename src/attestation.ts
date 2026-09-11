@@ -159,8 +159,6 @@ interface AssertionResult {
   clientData: string;
 }
 
-/** One attempt at generating an assertion with the currently stored key. No recovery.
- *  Mirrors iOS `assertOnce` (`DeviceAttestationManager.swift:264-...`). */
 async function assertOnce(paymentData: Uint8Array): Promise<AssertionResult> {
   const keyId = await FrameAttestation.attestedKeyId();
   if (!keyId) {
@@ -191,29 +189,6 @@ async function assertOnce(paymentData: Uint8Array): Promise<AssertionResult> {
   };
 }
 
-/**
- * Generates an assertion bound to `paymentData`. Mirrors iOS
- * `generateAssertionForPayment` — wraps the payment payload into a clientData
- * JSON, SHA-256 hashes it, calls App Attest, and returns all three fields
- * base64-encoded so the caller can embed them in the Apple Pay payment-method
- * request.
- *
- * The returned `clientData` is the exact bytes the SHA-256 was computed over.
- * Frame's backend must re-hash the submitted `clientData` (rather than parse +
- * re-serialize as JSON) to verify the assertion — that's how Apple specifies
- * App Attest assertions work. Each platform is self-consistent; the byte
- * sequence across iOS and RN is not guaranteed to match (iOS uses
- * `JSONSerialization`, RN uses `JSON.stringify`) and does not need to.
- *
- * On a local `generateAssertion` failure — a stored key Apple no longer
- * recognises (App Attest environment mismatch, a server-side revoke, a
- * restored-from-backup device) — resets attestation and re-attests once
- * before retrying. Without this, the failure is permanent: every later
- * attempt fails identically until the app is reinstalled. Bounded to a single
- * retry: `assertOnce` is called directly, never through this function, so the
- * recovery path cannot recurse. Mirrors iOS `generateAssertionForPayment`
- * (`DeviceAttestationManager.swift:248-262`).
- */
 export async function generateAssertionForPayment(paymentData: Uint8Array): Promise<AssertionResult> {
   guardIos();
   try {

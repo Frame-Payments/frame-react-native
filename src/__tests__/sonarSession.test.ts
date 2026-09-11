@@ -246,10 +246,6 @@ describe('refreshOnFlowEntry', () => {
 });
 
 describe('currentSessionId', () => {
-  // Non-mutating peek — mirrors iOS SonarSessionStorage.currentSessionId(accountId:)
-  // (SonarSessionObjects.swift:95), used by ChargeIntentsAPI.createChargeIntent
-  // to attach a session to a customer-owner charge intent, which has no
-  // account to establish/adopt one through.
   it('reads the legacy pre-account slot when accountId is null', async () => {
     await storage.set('sess_legacy', null);
     expect(await currentSessionId(null)).toBe('sess_legacy');

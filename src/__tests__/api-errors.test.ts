@@ -76,9 +76,6 @@ describe('toToastMessage', () => {
     expect(toToastMessage(err)).toBe('Error: Unprocessable Entity');
   });
 
-  // Risk/geo-compliance rejections come back as bare codes, not human text —
-  // without the mapping a shopper sees "Error: geo_compliance_vpn_detected"
-  // verbatim. Mirrors iOS riskMessage(for:) (CommonObjects.swift:222-233).
   it('maps sonar_session_required to human copy', () => {
     const err = new FrameAPIError('An error occurred', 'unknown_error', 422, {
       error_details: { message: 'sonar_session_required' },

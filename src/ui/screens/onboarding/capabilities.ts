@@ -11,9 +11,6 @@ const PRODUCT_GRANT_REVOKED = 'product_grant_revoked';
 
 const IDENTITY_DOCUMENT_REQUIREMENT = 'individual.identity_document';
 
-// A KYC run rejected on complete-but-wrong details, so corrected data is the
-// road forward (FRA-6552). iOS `CapabilityRequirementKey.kyc`
-// (`CapabilityObjects.swift:73-74`).
 const KYC_CORRECTION_REQUIREMENT = 'individual.kyc';
 
 export function readAccountCapabilities(
@@ -161,20 +158,6 @@ export function resolveOnboardingOutcome(
   return fallback;
 }
 
-/**
- * The outcome to end on when this account has no road left, or `null` while
- * one remains. A dead end is a capability that still blocks onboarding but
- * lists no work the applicant can do — launching Persona (or any other step)
- * against it would present a Continue button that can never succeed.
- *
- * Distinct from {@link resolveOnboardingOutcome}: nothing outstanding, or an
- * outstanding capability that still has actionable requirements, means a
- * road remains and belongs to the end-of-flow resolve instead. An in-flight
- * run also reports nothing due, so this only concludes on a stated verdict
- * (`declined` / `action_required`) — `approved`/`pending_review` return
- * `null` so the caller keeps going. Mirrors iOS `blockedOutcome(for:)`
- * (`OnboardingContainerViewModel.swift:864-883`).
- */
 export function resolveBlockedOutcome(
   account: { capabilities?: unknown[] } | null | undefined,
   required: ReadonlyArray<OnboardingCapability>,

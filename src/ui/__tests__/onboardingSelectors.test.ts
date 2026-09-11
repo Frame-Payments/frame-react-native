@@ -95,13 +95,6 @@ describe('computeFlow — capability → step mapping', () => {
     expect(entrySubStep('personal_information')).toBe('phone_auth');
   });
 
-  // Regression: idv was missing from PERSONAL_INFO_CAPABILITIES, so
-  // presentOnboarding({ capabilities: ['idv'] }) produced
-  // [verification_welcome, verification_submitted] with no
-  // personal_information step at all — the applicant saw the intro, tapped
-  // Continue, and landed directly on the completion screen with no account
-  // ever created and no Persona run. iOS routes .idv to .personalInformation
-  // alongside .kyc/.phoneVerification/etc (OnboardingContainerView.swift:39).
   it('idv alone routes to personal_information, matching iOS OnboardingContainerView.swift:39', () => {
     expect(computeFlow(['idv'])).toEqual([
       'verification_welcome',
@@ -509,8 +502,6 @@ describe('government-ID gating', () => {
     expect(skipsSsnEntry(stateWith(['idv']))).toBe(true);
   });
 
-  // FRA-6552: correctedKycDetailsRequired outranks both gov-ID signals — the
-  // applicant cannot fix rejected details through a field they cannot see.
   it('skipsSsnEntry is false when corrected KYC details are required, even though verified via gov ID', () => {
     let state = onboardingReducer(stateWith(['kyc']), {
       type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID',

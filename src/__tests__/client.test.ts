@@ -149,11 +149,6 @@ describe('defaultHeaders', () => {
     });
   });
 
-  // Regression (FRA-6716 #18): iOS/Android send the SDK version on its own
-  // header alongside every request — RN previously never sent it at all, so
-  // traffic was unversioned on the wire. Mirrors iOS
-  // `applySharedHeaders` (FrameNetworking.swift:283-288) / `versionHeader`
-  // (Version.swift:26).
   it('always sends X-Frame-SDK-Version matching package.json', () => {
     setConfig({ secretKey: 'sk_test', publishableKey: 'pk_test', debugMode: false });
     void client.sdk;

@@ -107,9 +107,6 @@ describe('requiresIdentityDocument', () => {
 });
 
 describe('requiresCorrectedKycDetails', () => {
-  // FRA-6552: a KYC run rejected on complete-but-wrong details, surfaced as
-  // individual.kyc. Outranks the gov-ID signals in skipsSsnEntry — the
-  // applicant cannot fix rejected details through a field they cannot see.
   it('detects the correction step-up', () => {
     const account = {
       capabilities: [{ name: 'kyc', status: 'pending', currently_due: ['individual.kyc'] }],

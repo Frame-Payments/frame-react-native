@@ -72,13 +72,6 @@ describe('suggestAddresses', () => {
   });
 
   it('re-fetches an expired token via the standalone endpoint, not the aggregate', async () => {
-    // fetchRemoteConfig() is process-cached for the whole run (see
-    // remoteConfig.ts), so calling it again after expiry would just hand
-    // back the SAME expired block forever — recovery has to bypass it.
-    // Mirrors iOS's getMapboxConfiguration() falling through to
-    // GET /v1/config/mapbox directly once the cached token hasExpired
-    // (ConfigurationAPI.swift:141-155), rather than invalidating its own
-    // aggregate cache.
     mockFetchRemoteConfig.mockResolvedValueOnce({
       mapbox: { accessToken: 'pk.old', expiresAt: new Date(Date.now() - 1000).toISOString() },
     });
@@ -89,7 +82,6 @@ describe('suggestAddresses', () => {
     await suggestAddresses('a', 'US', 3);
     await suggestAddresses('b', 'US', 3);
 
-    // The aggregate is fetched only once, up front — never again for recovery.
     expect(mockFetchRemoteConfig).toHaveBeenCalledTimes(1);
 
     const calls = (global.fetch as jest.Mock).mock.calls as Array<[string]>;

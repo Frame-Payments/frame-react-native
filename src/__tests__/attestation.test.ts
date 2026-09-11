@@ -192,11 +192,6 @@ describe('generateAssertionForPayment', () => {
   });
 
   it('recovers from an App Attest assertion failure by resetting and re-attesting once', async () => {
-    // A stored key Apple no longer recognises (environment mismatch, a
-    // server-side revoke) — the first assertOnce fails, so
-    // generateAssertionForPayment resets, re-attests, and retries once.
-    // Regression: this used to throw immediately with no recovery, leaving
-    // every later Apple Pay attempt permanently broken.
     attestedKeyId.mockResolvedValue('key_attested');
     generateAssertion.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce('assertion_base64');
 
@@ -208,8 +203,6 @@ describe('generateAssertionForPayment', () => {
   });
 
   it('re-attests via ensureAttested (not just resetAttestation) before the retry', async () => {
-    // ensureAttested's own flow (generateKey -> attest -> promoteKey) must run
-    // so the retry has a fresh key, not just a wiped one.
     attestedKeyId.mockResolvedValueOnce('key_stale').mockResolvedValueOnce(null).mockResolvedValue('key_fresh');
     generateAssertion.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce('assertion_base64');
 
@@ -227,8 +220,6 @@ describe('generateAssertionForPayment', () => {
     await expect(generateAssertionForPayment(new Uint8Array([1]))).rejects.toMatchObject({
       code: 'ATTESTATION_FAILED',
     });
-    // Exactly one retry: the first attempt plus one recovery attempt, not an
-    // unbounded loop.
     expect(generateAssertion).toHaveBeenCalledTimes(2);
     expect(resetAttestationBridge).toHaveBeenCalledTimes(1);
   });

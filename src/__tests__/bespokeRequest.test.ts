@@ -46,9 +46,6 @@ describe('frameRequestHeaders', () => {
     expect(headers['X-Custom']).toBe('1');
   });
 
-  // Regression (FRA-6716 #18): iOS sends the SDK version on its own header on
-  // every request (FrameNetworking.swift:283-288); bespoke calls previously
-  // never sent it, leaving this traffic unversioned on the wire.
   it('always sends X-Frame-SDK-Version', () => {
     expect(frameRequestHeaders()['X-Frame-SDK-Version']).toBe(SDK_VERSION);
   });

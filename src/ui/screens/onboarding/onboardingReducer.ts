@@ -105,17 +105,7 @@ export interface OnboardingState {
   termsOfServiceToken: string | null;
   existingAccountHasTOS: boolean;
 
-  /**
-   * How onboarding actually ended, resolved on arrival at
-   * VerificationSubmittedScreen (or, when showCompletionScreen is false,
-   * just before the flow reports completion). `null` until resolved.
-   * Mirrors iOS `OnboardingContainerViewModel.finalOutcome`
-   * (`OnboardingContainerViewModel.swift:100`) — cached so a screen re-render
-   * or a second completion tap doesn't re-fetch.
-   */
   finalOutcome: OnboardingOutcome | null;
-  /** Whether `finalOutcome` is being fetched. Drives the "Checking your
-   *  verification…" spinner on VerificationSubmittedScreen. */
   isResolvingOutcome: boolean;
 
   // ─── PersonalInformation: phone-auth ───
@@ -138,13 +128,6 @@ export interface OnboardingState {
   ssnLast4: string;
   identityVerifiedViaGovId: boolean;
   identityDocumentRequired: boolean;
-  /**
-   * Whether a KYC run was rejected on complete-but-wrong details (FRA-6552).
-   * Outranks both `identityVerifiedViaGovId` and `identityDocumentRequired`
-   * when deciding whether the SSN field shows — see `skipsSsnEntry`. Mirrors
-   * iOS `correctedKycDetailsRequired`
-   * (`OnboardingContainerViewModel.swift:93-95`).
-   */
   correctedKycDetailsRequired: boolean;
   // The pre-created Persona inquiry id (`inq_...`) from POST /idv/session, kept
   // for reference/debugging after the flow completes.

@@ -62,15 +62,6 @@ export function OnboardingRoot({
   // Begin/end the onboarding session at the mount boundary, mirroring iOS
   // OnboardingContainerView.onAppear/onDisappear. While active, every onboarding
   // request rides the `onb_sess_...` bearer (resolved inside framepayments), so
-  // the view model's calls need no per-call wiring.
-  //
-  // On unmount, endOnboardingSessionIfOwned — NOT a token-gated clear. A
-  // token-gated clear only fires here when the HOST supplied a clientSecret;
-  // the view model also self-mints one on the publishable-key-only path (no
-  // clientSecret at all), and that session was never torn down anywhere,
-  // leaking an account-scoped onb_sess_ into every later checkout/wallet call
-  // for the rest of the process (FRA-6358). Ownership tracking on the view
-  // model covers both cases from one call.
   useEffect(() => {
     if (clientSecret) vm.beginOnboardingSessionOwned(clientSecret);
     return () => {
@@ -281,13 +272,6 @@ export function OnboardingRoot({
                 if (result.message) showToast(result.message);
                 void vm.sendOtp({ forceFrameOtp: true }).catch((err) => {
                   surfaceError(err);
-                  // The retry itself came back on Prove again — sendOtp
-                  // refused to force a Twilio code screen for a number that
-                  // was never sent an SMS (see its own comment). Nothing left
-                  // to do but return to the phone form, matching iOS's
-                  // dismissProveOTPSheet() on the equivalent guard
-                  // (OnboardingContainerViewModel.swift:503-507) — staying on
-                  // the dead-end verify_phone screen would strand the user.
                   vm.goTo('personal_information', 'phone_auth');
                 });
               }}
@@ -477,22 +461,6 @@ export function OnboardingRoot({
   }
   const screenContent = renderScreen();
 
-  // Title + back-chevron for the header bar OnboardingChrome renders above
-  // each screen. Ports iOS's per-screen `PageHeaderView(headerTitle:)` +
-  // button action — RN previously wired neither, so no onboarding screen had
-  // a way back short of the X, which cancels the entire flow.
-  //
-  // Two distinct kinds of "back" here, matching iOS exactly:
-  //   • The entry sub-step of a top-level step (phone_auth, select payment,
-  //     select payout) walks the top-level flow backward via vm.back() —
-  //     mirrors iOS's `returnToPreviousStep` toggling the CONTAINER's step.
-  //   • A sub-step reached only from within its own top-level step
-  //     (customer_information, add payment/payout) goes to a fixed sibling
-  //     sub-step via vm.goTo() — mirrors iOS's LOCAL `identitySteps` /
-  //     `showAddPaymentMethod`-style state, which never touches the
-  //     container's own step.
-  // Sub-steps with no PageHeaderView on iOS (verify_phone, secure_3ds,
-  // geolocation) get neither — left as future work, not silently guessed at.
   function titleAndBack(): { title?: string; onBack?: () => void } {
     const { currentStep: step, subStep: sub } = vm.state;
     if (step === 'personal_information') {
@@ -514,14 +482,6 @@ export function OnboardingRoot({
         return {
           title: 'Enter Verification Code',
           onBack: () => {
-            // iOS branches this exact button action on `type`
-            // (SecurePMVerificationView.swift:61-67): `.proveOtp` — Prove
-            // itself is asking for a code, a fallback WITHIN the Prove
-            // flow — cancels the pending Prove request; `.phone` — a plain
-            // Frame/Twilio-issued OTP (the initial send, or the fallback
-            // AFTER a Prove failure) — is a local back to the phone form.
-            // `verifyPhoneUi` is RN's equivalent of iOS's `type`:
-            // 'otp_for_prove' = .proveOtp, 'otp_frame_api' = .phone.
             if (vm.state.verifyPhoneUi === 'otp_for_prove') {
               void cancelProveOtp();
             }

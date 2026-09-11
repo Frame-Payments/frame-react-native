@@ -21,15 +21,6 @@ function extractFromEnvelope(raw: unknown): string | undefined {
   return undefined;
 }
 
-/**
- * Human copy for the risk and geo-compliance rejections, which the server
- * reports as bare codes (`sonar_session_required`) that would otherwise be
- * shown to shoppers verbatim. Mirrors iOS `riskMessage(for:)`
- * (`CommonObjects.swift:222-233`).
- *
- * @returns The replacement message, or `undefined` if `message` is not one of
- *   these codes.
- */
 function riskMessage(message: string): string | undefined {
   switch (message.trim().toLowerCase()) {
     case 'sonar_session_required':

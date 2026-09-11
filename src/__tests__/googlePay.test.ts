@@ -68,8 +68,6 @@ beforeEach(() => {
   mockPlatform.OS = 'android';
 });
 
-// Matches sonarSession.test.ts's own fakeStorage — a Map-backed SessionStorage,
-// pre-account slot keyed under a sentinel since Map can't key on null.
 function fakeStorage() {
   const values = new Map<string, string>();
   const k = (a: string | null) => a ?? '__pre__';
@@ -210,10 +208,6 @@ describe('presentGooglePayFlow — customer owner happy path', () => {
     expect(chargeIntentsCreate.mock.calls[0][0].currency).toBe('usd');
   });
 
-  // A ChargeIntent has no account to resolve a session through, but iOS's
-  // accountId: nil read is NOT "no session" — it reads the legacy pre-account
-  // slot, which every charge intent carries regardless of owner. Regression:
-  // this used to be omitted entirely on the customer-owner path.
   it('attaches sonar_session_id from the legacy pre-account slot when one is stored', async () => {
     const storage = fakeStorage();
     await storage.set('sess_legacy_1', null);
@@ -231,9 +225,6 @@ describe('presentGooglePayFlow — customer owner happy path', () => {
     expect(chargeIntentsCreate.mock.calls[0][0]).not.toHaveProperty('sonar_session_id');
   });
 
-  // Mirrors iOS's automatic client_ip injection on every charge intent
-  // (ChargeIntentsAPI.swift:53-56) — RN previously never sent fraud_signals
-  // on a wallet charge intent at all.
   it('attaches fraud_signals.client_ip when a device IP is known', async () => {
     __internal.setIpAddress('203.0.113.42');
     await presentGooglePayFlow({ amountCents: 1000, owner: { type: 'customer', id: 'cus_1' } });

@@ -43,14 +43,6 @@ export function StandaloneMethodRoot({
     onCancel,
   });
 
-  // Same session boundary as OnboardingRoot, via the view model's ownership
-  // tracking rather than a token-gated clear — see OnboardingRoot.tsx's
-  // longer comment for why a token-gated clear leaks a self-minted session.
-  // This flow's capabilities: [] means it never self-mints (that only
-  // happens on the personal-information path), but the unmount call is still
-  // unconditional and idempotent, matching iOS's `.onDisappear` calling
-  // `endOnboardingSessionIfOwned()` regardless of whether a session was ever
-  // begun.
   useEffect(() => {
     if (clientSecret) vm.beginOnboardingSessionOwned(clientSecret);
     return () => {

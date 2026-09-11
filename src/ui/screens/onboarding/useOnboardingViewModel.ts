@@ -79,17 +79,8 @@ export interface OnboardingViewModelResult {
   goTo: (step: OnboardingStep, subStep: OnboardingSubStep | null) => void;
   cancel: () => void;
   complete: () => void;
-  /** Re-fetches the account and resolves the final OnboardingOutcome, caching
-   *  it into state.finalOutcome. Returns the cached value if already resolved. */
   resolveFinalOutcome: () => Promise<OnboardingOutcome>;
-  /** Binds every onboarding request to a host-supplied session token and
-   *  records this flow as owning it. Call on mount when the host supplied a
-   *  clientSecret. */
   beginOnboardingSessionOwned: (clientSecret: string) => void;
-  /** Ends the onboarding session only if this flow owns it (host-supplied via
-   *  beginOnboardingSessionOwned, or self-minted during the flow) — a flow
-   *  that never started a session leaves one another flow owns untouched.
-   *  Call on unmount/cancel/complete. Idempotent. */
   endOnboardingSessionIfOwned: () => void;
   // Personal-info simple field setters (thin wrappers around dispatch so the
   // screens don't import the reducer directly).
@@ -173,31 +164,9 @@ export function useOnboardingViewModel({
   stateRef.current = state;
   const performingRef = useRef(false);
   const completedRef = useRef(false);
-  // The set the flow launched with — `state.requiredCapabilities` is drained
-  // as capabilities are satisfied (see reconcileCapabilities), so it cannot
-  // answer what the flow set out to do. Mirrors iOS
-  // `originallyRequiredCapabilities` (`OnboardingContainerViewModel.swift:39-40`),
-  // a `let` set once at construction — a ref for the same reason.
   const originallyRequiredCapabilitiesRef = useRef(capabilities);
 
-  // Onboarding-session ownership (FRA-6358 / FRA-6716). True when THIS flow
-  // began the active onboarding session — either from a host-supplied
-  // clientSecret or a self-minted one — and is therefore responsible for
-  // ending it on completion/dismiss. Without tracking this, a self-minted
-  // session (the publishable-key-only path — no host clientSecret) was never
-  // torn down: both hosts previously gated teardown on `clientSecret` being
-  // present, which a self-mint never satisfies. The leaked onb_sess_ then
-  // outranks pk_/sk_ on every later checkout/wallet call for the rest of the
-  // process. Mirrors iOS `ownsOnboardingSession`
-  // (`OnboardingContainerViewModel.swift:131`).
   const ownsOnboardingSessionRef = useRef(false);
-  // Set once this flow has torn its session down, so a mint already in
-  // flight doesn't install a token afterwards. Latched independently of
-  // ownership: an in-flight self-mint must be refused even before this flow
-  // has claimed ownership, which is the exact ordering iOS's own regression
-  // test (`testMintCompletingAfterTeardownDoesNotInstallASession`) guards.
-  // Mirrors iOS `hasEndedOnboardingSession`
-  // (`OnboardingContainerViewModel.swift:135`).
   const hasEndedOnboardingSessionRef = useRef(false);
 
   // ─── Init: compute flow + drop into the first step on mount ───
@@ -258,11 +227,6 @@ export function useOnboardingViewModel({
           // Drop the session minted above against the bad id — it's scoped to a
           // nonexistent account, and ensureOnboardingSession returns early when
           // one is already active, so leaving it would make the post-create mint
-          // a no-op and send every request with a dead bearer. Gated on
-          // ownership, not a blanket clear: a HOST-supplied session (this flow
-          // never minted one, so ownsOnboardingSessionRef is still false here)
-          // must survive this branch — force-clearing it would wipe a token
-          // the host is still responsible for, before this flow ever owned it.
           if (ownsOnboardingSessionRef.current) {
             endOnboardingSession();
             ownsOnboardingSessionRef.current = false;
@@ -349,26 +313,11 @@ export function useOnboardingViewModel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.requiredCapabilities]);
 
-  // Binds every onboarding request to a HOST-supplied session token and
-  // records that this flow owns it, so it's ended when the flow completes or
-  // is dismissed. The host-supplied counterpart to the two self-mint sites
-  // above — same ownership flag, so `endOnboardingSessionIfOwned` tears down
-  // whichever kind of session this flow actually started. Mirrors iOS
-  // `beginOnboardingSession(clientSecret:)`
-  // (`OnboardingContainerViewModel.swift:315-319`).
   const beginOnboardingSessionOwned = useCallback((clientSecret: string) => {
     beginOnboardingSession(clientSecret);
     ownsOnboardingSessionRef.current = true;
   }, []);
 
-  // Ends the onboarding session only when this flow began it — guarding on
-  // ownership is what keeps a flow that never started a session (or that
-  // hasn't finished self-minting one yet) from wiping one a DIFFERENT flow
-  // owns. The latch is set unconditionally, before the ownership check, so an
-  // in-flight self-mint is refused even when this flow doesn't own a session
-  // yet — that ordering is exactly what the untracked-ownership leak needed
-  // (FRA-6358). Mirrors iOS `endOnboardingSessionIfOwned()`
-  // (`OnboardingContainerViewModel.swift:324-331`).
   const endOnboardingSessionIfOwned = useCallback(() => {
     hasEndedOnboardingSessionRef.current = true;
     if (!ownsOnboardingSessionRef.current) return;
@@ -383,34 +332,13 @@ export function useOnboardingViewModel({
     onCancel();
   }, [onCancel]);
 
-  // Re-reads the account and resolves how onboarding actually ended.
-  // Capability status settles asynchronously (server-side KYC/IDV run after
-  // the last answer), so this always re-fetches rather than trusting state
-  // read earlier in the flow. Resolved against `originallyRequiredCapabilitiesRef`,
-  // not `state.requiredCapabilities` — the latter is drained as capabilities
-  // are satisfied and would silently exclude anything satisfied before this
-  // call, including everything when the whole list was already satisfied at
-  // mount (in which case an empty `required` makes resolveOnboardingOutcome
-  // consider every capability on the account — see its own doc comment).
-  //
-  // Caches into `state.finalOutcome` so VerificationSubmittedScreen (which
-  // resolves on arrival) and `complete()` (which resolves on Done, or
-  // immediately when the completion screen is skipped) share one fetch.
-  // Mirrors iOS `resolveFinalOutcome()`
-  // (`OnboardingContainerViewModel.swift:162-181`).
   const resolveFinalOutcome = useCallback(async (): Promise<OnboardingOutcome> => {
     if (stateRef.current.finalOutcome) return stateRef.current.finalOutcome;
     const accountId = stateRef.current.accountId;
     if (!accountId) return { status: 'pending_review' };
     dispatch({ type: 'SET_RESOLVING_OUTCOME', resolving: true });
     try {
-      // A fetch failure must not claim success — iOS defaults to pendingReview
-      // for exactly this reason.
       const account = await client.sdk.accounts.get(accountId).catch(() => null);
-      // Associates collected Sift device events with this account. Mirrors
-      // iOS SiftManager.collectLoginEvent, called from every successful
-      // AccountsAPI.getAccountWith (AccountsAPI.swift:128) — see the fuller
-      // note at useCheckoutViewModel.ts's own account-fetch call.
       if (account?.id) setSiftUserId(account.id);
       const outcome: OnboardingOutcome = account
         ? resolveOnboardingOutcome(account, originallyRequiredCapabilitiesRef.current)
@@ -517,11 +445,6 @@ export function useOnboardingViewModel({
         }
         accountId = account.id;
         dispatch({ type: 'SET_ACCOUNT_ID', id: accountId });
-        // Associates collected Sift device events with this account. Mirrors
-        // iOS SiftManager.collectLoginEvent, called from every successful
-        // AccountsAPI.createAccount as well as getAccountWith
-        // (AccountsAPI.swift:60, :128) — see the fuller note at
-        // useCheckoutViewModel.ts's own account-fetch call.
         setSiftUserId(accountId);
         // Mint the account-scoped onboarding session now so downstream
         // account-scoped requests (the no-SSN IDV calls in particular)
@@ -553,17 +476,6 @@ export function useOnboardingViewModel({
 
       const rawProveAuthToken = (verification as { prove_auth_token?: string }).prove_auth_token ?? null;
 
-      // When the Prove branch has already failed, the retry is expected to
-      // come back on Twilio (no prove_auth_token) — the backend's own
-      // end-to-end contract is create → refused confirm → create → confirm,
-      // deciding the fallback server-side. But only a Twilio verification can
-      // be confirmed with a typed code: if the retry comes back on Prove
-      // AGAIN, forcing otp_frame_api would strand the user on a code screen
-      // for a number the backend never sent an SMS to — confirmFrameOtp would
-      // fail on every attempt with no way out. Report the original failure
-      // instead of guessing a UI that can't work. Mirrors iOS
-      // `fallBackToTwilio`'s `guard let retry, retry.proveAuthToken == nil`
-      // (`OnboardingContainerViewModel.swift:503-507`).
       if (forceFrameOtp && rawProveAuthToken) {
         throw frameError(
           ErrorCodes.PAYMENT_FAILED,
@@ -589,24 +501,11 @@ export function useOnboardingViewModel({
   // iOS SDK's checkExistingAccount() call from sendOTPVerification (Prove
   // success) and confirmTwilioOTP (Twilio success). Non-fatal on failure —
   // the user can still complete the flow with mount-time prefill.
-  //
-  // Also re-seeds identityDocumentRequired/correctedKycDetailsRequired, not
-  // just PREFILL: phone verification is exactly when the backend runs
-  // identity resolution and can step the account up to
-  // `individual.identity_document` or `individual.kyc`. Missing that step-up
-  // here left the mandatory Persona run skippable and the SSN field visible
-  // on an account the backend would only accept a document for. iOS
-  // re-derives every capability-driven flag inside checkExistingAccount, not
-  // only the profile prefill.
   const refreshAccountAfterPhoneVerify = useCallback(async () => {
     const accountId = stateRef.current.accountId;
     if (!accountId) return;
     const account = await client.sdk.accounts.get(accountId).catch(() => null);
     if (!account) return;
-    // Associates collected Sift device events with this account. Mirrors
-    // iOS SiftManager.collectLoginEvent, called from every successful
-    // AccountsAPI.getAccountWith (AccountsAPI.swift:128) — see the fuller
-    // note at useCheckoutViewModel.ts's own account-fetch call.
     if (account.id) setSiftUserId(account.id);
     dispatch({ type: 'PREFILL', values: prefillFromAccount(account) });
     dispatch({ type: 'SET_IDENTITY_DOCUMENT_REQUIRED', required: requiresIdentityDocument(account) });
@@ -736,14 +635,6 @@ export function useOnboardingViewModel({
         dispatch({ type: 'SET_EXISTING_ACCOUNT_HAS_TOS', value: true });
       }
 
-      // Re-derive capability-driven flags from the UPDATE response, not the
-      // `current` snapshot taken before this request — the profile update
-      // itself can trigger the backend to run KYC on the newly-complete
-      // profile and come back demanding a document or corrected details.
-      // Reading stale state here would advance the user into a Persona
-      // decision that doesn't reflect what the server just decided. Mirrors
-      // iOS `submitPersonalInformation`
-      // (`OnboardingContainerViewModel.swift:822-825`).
       dispatch({
         type: 'SET_IDENTITY_DOCUMENT_REQUIRED',
         required: requiresIdentityDocument(updatedAccount),
@@ -758,12 +649,6 @@ export function useOnboardingViewModel({
         correctedKycDetailsRequired: requiresCorrectedKycDetails(updatedAccount),
       };
 
-      // Nothing left that the applicant can act on — launching Persona (or
-      // advancing to payment/payout) would present a Continue button that can
-      // never do anything. Land on the terminal screen with the real verdict
-      // instead. Mirrors iOS's `blockedOutcome(for:)` check at
-      // `OnboardingContainerViewModel.swift:830-832`, and `concludeOnboarding`
-      // (`:852-862`) for the truncate-to-terminal-step behavior.
       const blocked = resolveBlockedOutcome(updatedAccount, originallyRequiredCapabilitiesRef.current);
       if (blocked) {
         dispatch({ type: 'SET_FINAL_OUTCOME', outcome: blocked });
@@ -1370,10 +1255,6 @@ async function reconcileCapabilities(
   try {
     await client.sdk.capabilities.request(accountId, { capabilities: [...missing] });
     const refreshed = await client.sdk.accounts.get(accountId).catch(() => null);
-    // Associates collected Sift device events with this account. Mirrors
-    // iOS SiftManager.collectLoginEvent, called from every successful
-    // AccountsAPI.getAccountWith (AccountsAPI.swift:128) — see the fuller
-    // note at useCheckoutViewModel.ts's own account-fetch call.
     if (refreshed?.id) setSiftUserId(refreshed.id);
     return refreshed ?? account;
   } catch {
