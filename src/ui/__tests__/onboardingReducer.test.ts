@@ -49,6 +49,22 @@ describe('onboardingReducer — account', () => {
     s = onboardingReducer(s, { type: 'SET_ACCOUNT_LOADED', loaded: true });
     expect(s.accountLoaded).toBe(true);
   });
+
+  it('SET_FINAL_OUTCOME writes the resolved outcome, starting from null', () => {
+    let s = initialOnboardingState(baseCaps, null);
+    expect(s.finalOutcome).toBeNull();
+    s = onboardingReducer(s, { type: 'SET_FINAL_OUTCOME', outcome: { status: 'declined', message: 'x' } });
+    expect(s.finalOutcome).toEqual({ status: 'declined', message: 'x' });
+  });
+
+  it('SET_RESOLVING_OUTCOME flips the flag, starting from false', () => {
+    let s = initialOnboardingState(baseCaps, null);
+    expect(s.isResolvingOutcome).toBe(false);
+    s = onboardingReducer(s, { type: 'SET_RESOLVING_OUTCOME', resolving: true });
+    expect(s.isResolvingOutcome).toBe(true);
+    s = onboardingReducer(s, { type: 'SET_RESOLVING_OUTCOME', resolving: false });
+    expect(s.isResolvingOutcome).toBe(false);
+  });
 });
 
 describe('onboardingReducer — phone-auth + verify-phone', () => {

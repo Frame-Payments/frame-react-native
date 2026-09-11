@@ -153,27 +153,13 @@ async function runEnsureAttested(): Promise<string> {
   return keyId;
 }
 
-/**
- * Generates an assertion bound to `paymentData`. Mirrors iOS
- * `generateAssertionForPayment` — wraps the payment payload into a clientData
- * JSON, SHA-256 hashes it, calls App Attest, and returns all three fields
- * base64-encoded so the caller can embed them in the Apple Pay payment-method
- * request.
- *
- * The returned `clientData` is the exact bytes the SHA-256 was computed over.
- * Frame's backend must re-hash the submitted `clientData` (rather than parse +
- * re-serialize as JSON) to verify the assertion — that's how Apple specifies
- * App Attest assertions work. Each platform is self-consistent; the byte
- * sequence across iOS and RN is not guaranteed to match (iOS uses
- * `JSONSerialization`, RN uses `JSON.stringify`) and does not need to.
- */
-export async function generateAssertionForPayment(paymentData: Uint8Array): Promise<{
+interface AssertionResult {
   keyId: string;
   assertion: string;
   clientData: string;
-}> {
-  guardIos();
+}
 
+async function assertOnce(paymentData: Uint8Array): Promise<AssertionResult> {
   const keyId = await FrameAttestation.attestedKeyId();
   if (!keyId) {
     throw frameError(ErrorCodes.NOT_ATTESTED, 'No attested key on this device. Call ensureAttested() first.');
@@ -201,6 +187,18 @@ export async function generateAssertionForPayment(paymentData: Uint8Array): Prom
     assertion,
     clientData: bytesToBase64(clientDataBytes),
   };
+}
+
+export async function generateAssertionForPayment(paymentData: Uint8Array): Promise<AssertionResult> {
+  guardIos();
+  try {
+    return await assertOnce(paymentData);
+  } catch (err) {
+    if ((err as { code?: string }).code !== ErrorCodes.ATTESTATION_FAILED) throw err;
+    await FrameAttestation.resetAttestation();
+    await ensureAttested();
+    return assertOnce(paymentData);
+  }
 }
 
 /** Clears the attested key id so the next `ensureAttested()` runs a fresh flow. */

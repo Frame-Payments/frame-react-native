@@ -89,20 +89,6 @@ export function CustomerInformationScreen({
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
-      <Text
-        style={[
-          styles.heading,
-          {
-            color: theme.colors.textPrimary,
-            fontSize: theme.fonts.heading.size,
-            fontWeight: theme.fontWeights.heading,
-            lineHeight: theme.fontLineHeights.heading,
-          },
-        ]}
-      >
-        Personal Information
-      </Text>
-
       {/* Customer Information container */}
       <Text style={[styles.sectionLabel, sectionLabelStyle]}>Customer Information</Text>
       <View style={containerStyle}>
@@ -278,10 +264,7 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
     content: {
       paddingHorizontal: FORM_SPACING.contentHorizontal,
       paddingBottom: FORM_SPACING.contentBottom,
-    },
-    heading: {
-      marginTop: FORM_SPACING.headingTop,
-      marginBottom: FORM_SPACING.headingBottom,
+      paddingTop: FORM_SPACING.headingTop,
     },
     sectionLabel: {
       marginTop: FORM_SPACING.fieldGap,

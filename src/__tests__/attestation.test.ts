@@ -191,12 +191,45 @@ describe('generateAssertionForPayment', () => {
     expect(decoded.challenge).toBe(Buffer.from([0xde, 0xad, 0xbe, 0xef]).toString('base64'));
   });
 
-  it('throws ATTESTATION_FAILED when App Attest rejects the assertion', async () => {
-    attestedKeyId.mockResolvedValueOnce('key_attested');
-    generateAssertion.mockRejectedValueOnce(new Error('boom'));
+  it('recovers from an App Attest assertion failure by resetting and re-attesting once', async () => {
+    attestedKeyId.mockResolvedValue('key_attested');
+    generateAssertion.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce('assertion_base64');
+
+    const result = await generateAssertionForPayment(new Uint8Array([1]));
+
+    expect(result.assertion).toBe('assertion_base64');
+    expect(resetAttestationBridge).toHaveBeenCalledTimes(1);
+    expect(generateAssertion).toHaveBeenCalledTimes(2);
+  });
+
+  it('re-attests via ensureAttested (not just resetAttestation) before the retry', async () => {
+    attestedKeyId.mockResolvedValueOnce('key_stale').mockResolvedValueOnce(null).mockResolvedValue('key_fresh');
+    generateAssertion.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce('assertion_base64');
+
+    const result = await generateAssertionForPayment(new Uint8Array([1]));
+
+    expect(result.keyId).toBe('key_fresh');
+    expect(generateKey).toHaveBeenCalledTimes(1);
+    expect(promoteKey).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws ATTESTATION_FAILED when the retry also fails — bounded to one retry', async () => {
+    attestedKeyId.mockResolvedValue('key_attested');
+    generateAssertion.mockRejectedValue(new Error('still broken'));
+
     await expect(generateAssertionForPayment(new Uint8Array([1]))).rejects.toMatchObject({
       code: 'ATTESTATION_FAILED',
     });
+    expect(generateAssertion).toHaveBeenCalledTimes(2);
+    expect(resetAttestationBridge).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not attempt recovery for a non-ATTESTATION_FAILED error (e.g. NOT_ATTESTED)', async () => {
+    attestedKeyId.mockResolvedValue(null);
+    await expect(generateAssertionForPayment(new Uint8Array([1]))).rejects.toMatchObject({
+      code: 'NOT_ATTESTED',
+    });
+    expect(resetAttestationBridge).not.toHaveBeenCalled();
   });
 
   it('throws PLATFORM_UNSUPPORTED on Android', async () => {

@@ -3,16 +3,22 @@ import DeviceCheck
 import Security
 import React
 
-// Keychain key strings are deliberately identical to Frame iOS' DeviceAttestationManager
-// so a device that already attested via the native iOS SDK is recognised by the RN SDK
-// (and vice versa). Do not rename without a coordinated migration.
-
 @objc(FrameAttestation)
 public class FrameAttestation: NSObject {
 
   private let service = DCAppAttestService.shared
-  private let attestedKey = "com.framepayments.device-attest-key-id"
-  private let pendingKey = "com.framepayments.device-attest-key-id-pending"
+
+  private var attestEnvironment: String {
+    Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision") == nil
+      ? "production"
+      : "development"
+  }
+
+  private var attestedKey: String { "com.framepayments.device-attest-key-id.\(attestEnvironment)" }
+  private var pendingKey: String { "com.framepayments.device-attest-key-id-pending.\(attestEnvironment)" }
+
+  private let legacyAttestedKey = "com.framepayments.device-attest-key-id"
+  private let legacyPendingKey = "com.framepayments.device-attest-key-id-pending"
 
   @objc public func isSupported(_ resolve: @escaping RCTPromiseResolveBlock,
                                  rejecter reject: @escaping RCTPromiseRejectBlock) {
@@ -122,6 +128,8 @@ public class FrameAttestation: NSObject {
                                       rejecter reject: @escaping RCTPromiseRejectBlock) {
     deleteKeychainItem(attestedKey)
     deleteKeychainItem(pendingKey)
+    deleteKeychainItem(legacyAttestedKey)
+    deleteKeychainItem(legacyPendingKey)
     resolve(nil)
   }
 

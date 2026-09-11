@@ -25,8 +25,11 @@ import { warnOnce } from './warn';
  *     hiccup doesn't wedge the flow. Downstream `createIdvSession()` still
  *     guards on the session being present and surfaces a clear error there.
  */
-export async function ensureOnboardingSession(accountId: string): Promise<void> {
-  if (getActiveOnboardingSession()) return;
+export async function ensureOnboardingSession(
+  accountId: string,
+  hasEnded: () => boolean = () => false,
+): Promise<boolean> {
+  if (getActiveOnboardingSession()) return false;
   try {
     const session = await client.sdk.onboardingSessions.create(
       { account_id: accountId },
@@ -38,14 +41,17 @@ export async function ensureOnboardingSession(accountId: string): Promise<void> 
         'onb-sess-mint-empty',
         'POST /v1/onboarding_sessions returned no client_secret; onboarding requests will fall back to the configured key.',
       );
-      return;
+      return false;
     }
+    if (hasEnded()) return false;
     beginOnboardingSession(clientSecret);
+    return true;
   } catch (err) {
     warnOnce(
       'onb-sess-mint-failed',
       `Failed to mint an onboarding session (${err instanceof Error ? err.message : 'unknown error'}); ` +
         'onboarding requests will fall back to the configured key.',
     );
+    return false;
   }
 }

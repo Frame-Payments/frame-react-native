@@ -3,6 +3,7 @@ import { PaymentMethodType } from 'framepayments';
 import { client, hasSecretKey, requireSecretKeyFor } from '../../../client';
 import { configureEvervault, encryptWithEvervault } from '../../../evervault';
 import { sessionIdForPayment } from '../../../sonarSession';
+import { setSiftUserId } from '../../../sift';
 import { normalizeSubregion } from '../../../addressSubregions';
 import { __internal as configInternal } from '../../../config';
 import { ErrorCodes, frameError } from '../../../errors';
@@ -79,6 +80,7 @@ export function useCheckoutViewModel({
       try {
         const account = await client.sdk.accounts.get(accountId);
         if (cancelled) return;
+        if (account?.id) setSiftUserId(account.id);
         const individual = (account?.profile as { individual?: unknown } | null | undefined)
           ?.individual as
           | { name?: { first_name?: unknown; last_name?: unknown }; email?: unknown }

@@ -39,8 +39,9 @@ jest.mock('framepayments', () => {
   return { FrameSDK: MockFrameSDK, FrameAPIError: MockFrameAPIError };
 });
 
-import { setConfig, resetConfig } from '../config';
+import { setConfig, resetConfig, __internal } from '../config';
 import { resetClients } from '../client';
+import { __setSessionStorage, __resetSonarSession } from '../sonarSession';
 import {
   canMakeApplePay as canMakeApplePayJS,
   presentApplePayFlow,
@@ -76,6 +77,8 @@ beforeEach(() => {
   transfersCreate.mockClear().mockResolvedValue({ id: 'tr_789' });
   resetConfig();
   resetClients();
+  __resetSonarSession();
+  __setSessionStorage(fakeStorage());
   setConfig({
     publishableKey: 'pk_test',
     secretKey: 'sk_test',
@@ -84,6 +87,18 @@ beforeEach(() => {
   });
   mockPlatform.OS = 'ios';
 });
+
+function fakeStorage() {
+  const values = new Map<string, string>();
+  const k = (a: string | null) => a ?? '__pre__';
+  return {
+    get: async (a: string | null) => values.get(k(a)) ?? null,
+    set: async (v: string, a: string | null) => void values.set(k(a), v),
+    clear: async (a: string | null) => void values.delete(k(a)),
+    lastRefresh: async () => null,
+    setLastRefresh: async () => {},
+  };
+}
 
 describe('canMakeApplePay (JS wrapper)', () => {
   it('returns false on Android without calling the bridge', async () => {
@@ -201,6 +216,36 @@ describe('presentApplePayFlow — customer owner happy path', () => {
     await presentApplePayFlow({ amount: 1000, owner: { type: 'customer', id: 'cus_1' } });
     expect(presentApplePay.mock.calls[0][0].currency).toBe('usd');
     expect(chargeIntentsCreate.mock.calls[0][0].currency).toBe('usd');
+  });
+
+  it('attaches sonar_session_id from the legacy pre-account slot when one is stored', async () => {
+    const storage = fakeStorage();
+    await storage.set('sess_legacy_1', null);
+    __setSessionStorage(storage);
+
+    await presentApplePayFlow({ amount: 1000, owner: { type: 'customer', id: 'cus_1' } });
+
+    expect(chargeIntentsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ sonar_session_id: 'sess_legacy_1' }),
+    );
+  });
+
+  it('omits sonar_session_id on the customer-owner path when no legacy session is stored', async () => {
+    await presentApplePayFlow({ amount: 1000, owner: { type: 'customer', id: 'cus_1' } });
+    expect(chargeIntentsCreate.mock.calls[0][0]).not.toHaveProperty('sonar_session_id');
+  });
+
+  it('attaches fraud_signals.client_ip when a device IP is known', async () => {
+    __internal.setIpAddress('203.0.113.42');
+    await presentApplePayFlow({ amount: 1000, owner: { type: 'customer', id: 'cus_1' } });
+    expect(chargeIntentsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ fraud_signals: { client_ip: '203.0.113.42' } }),
+    );
+  });
+
+  it('omits fraud_signals when no device IP is known', async () => {
+    await presentApplePayFlow({ amount: 1000, owner: { type: 'customer', id: 'cus_1' } });
+    expect(chargeIntentsCreate.mock.calls[0][0]).not.toHaveProperty('fraud_signals');
   });
 });
 

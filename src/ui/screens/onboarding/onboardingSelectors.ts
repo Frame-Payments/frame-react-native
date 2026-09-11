@@ -32,6 +32,7 @@ import type {
 const PERSONAL_INFO_CAPABILITIES: ReadonlySet<OnboardingCapability> = new Set([
   'kyc',
   'kyc_prefill',
+  'idv',
   'phone_verification',
   'creator_shield',
   'geo_compliance',
@@ -150,6 +151,7 @@ export function governmentIdRequired(state: OnboardingState): boolean {
 }
 
 export function skipsSsnEntry(state: OnboardingState): boolean {
+  if (state.correctedKycDetailsRequired) return false;
   return state.identityVerifiedViaGovId || governmentIdRequired(state);
 }
 

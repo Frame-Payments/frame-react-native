@@ -86,20 +86,6 @@ export function AddPayoutMethodScreen({
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <Text
-          style={[
-            styles.heading,
-            {
-              color: theme.colors.textPrimary,
-              fontSize: theme.fonts.heading.size,
-              fontWeight: theme.fontWeights.heading,
-              lineHeight: theme.fontLineHeights.heading,
-            },
-          ]}
-        >
-          Add Bank Account
-        </Text>
-
         {plaidAvailable ? (
           <View style={styles.plaidBlock}>
             <Button
@@ -213,10 +199,7 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
     scrollContent: {
       paddingHorizontal: FORM_SPACING.contentHorizontal,
       paddingBottom: FORM_SPACING.contentBottom,
-    },
-    heading: {
-      marginTop: FORM_SPACING.headingTop,
-      marginBottom: FORM_SPACING.headingBottom,
+      paddingTop: FORM_SPACING.headingTop,
     },
     plaidBlock: {
       marginBottom: 8,

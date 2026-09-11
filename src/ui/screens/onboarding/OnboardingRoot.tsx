@@ -1,9 +1,8 @@
 import { useCallback, useEffect } from 'react';
 import type { OnboardingCapability, OnboardingResult } from '../../../types';
 import { showToast } from '../../primitives/toastCenter';
-import { consumeProveCancelledByUser } from '../../../prove';
+import { consumeProveCancelledByUser, cancelProveOtp } from '../../../prove';
 import { toToastMessage, isValidationError } from '../../../api-errors';
-import { beginOnboardingSession, endOnboardingSession } from '../../../auth';
 import { useOnboardingViewModel } from './useOnboardingViewModel';
 import { OnboardingChrome } from './OnboardingChrome';
 import { VerificationWelcomeScreen } from './personalInformation/VerificationWelcomeScreen';
@@ -20,7 +19,7 @@ import { UploadDocumentsListScreen } from './uploadDocuments/UploadDocumentsList
 import { CaptureScreen } from './uploadDocuments/CaptureScreen';
 import { ReviewScreen } from './uploadDocuments/ReviewScreen';
 import { VerificationSubmittedScreen } from './VerificationSubmittedScreen';
-import { areDocsComplete } from './onboardingSelectors';
+import { areDocsComplete, requiresDobInPhoneAuth } from './onboardingSelectors';
 
 export interface OnboardingRootProps {
   accountId: string | null;
@@ -58,22 +57,18 @@ export function OnboardingRoot({
   onCancel,
   onFail,
 }: OnboardingRootProps) {
+  const vm = useOnboardingViewModel({ accountId, capabilities, showIntroScreen, showCompletionScreen, onComplete, onCancel });
+
   // Begin/end the onboarding session at the mount boundary, mirroring iOS
   // OnboardingContainerView.onAppear/onDisappear. While active, every onboarding
   // request rides the `onb_sess_...` bearer (resolved inside framepayments), so
-  // the view model's calls need no per-call wiring. On unmount we safe-clear by
-  // token — endOnboardingSession only clears when this token is still the active
-  // one, so a newer flow's session isn't wiped, and the token can't leak into
-  // later checkout/wallet calls.
   useEffect(() => {
-    if (!clientSecret) return;
-    beginOnboardingSession(clientSecret);
+    if (clientSecret) vm.beginOnboardingSessionOwned(clientSecret);
     return () => {
-      endOnboardingSession(clientSecret);
+      vm.endOnboardingSessionIfOwned();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientSecret]);
-
-  const vm = useOnboardingViewModel({ accountId, capabilities, showIntroScreen, showCompletionScreen, onComplete, onCancel });
 
   // ─── Routing helpers ───
 
@@ -275,7 +270,10 @@ export function OnboardingRoot({
                 // failure message. Without re-issuing, confirmFrameOtp would
                 // try to confirm the Prove-issued id.
                 if (result.message) showToast(result.message);
-                void vm.sendOtp({ forceFrameOtp: true }).catch(surfaceError);
+                void vm.sendOtp({ forceFrameOtp: true }).catch((err) => {
+                  surfaceError(err);
+                  vm.goTo('personal_information', 'phone_auth');
+                });
               }}
               onSetUi={vm.setVerifyPhoneUi}
               onResend={() => void vm.sendOtp().catch(surfaceError)}
@@ -451,6 +449,9 @@ export function OnboardingRoot({
     if (currentStep === 'verification_submitted') {
       return (
         <VerificationSubmittedScreen
+          outcome={vm.state.finalOutcome}
+          isResolving={vm.state.isResolvingOutcome}
+          onResolve={() => void vm.resolveFinalOutcome()}
           onDone={() => vm.complete()}
         />
       );
@@ -459,6 +460,57 @@ export function OnboardingRoot({
     return null;
   }
   const screenContent = renderScreen();
+
+  function titleAndBack(): { title?: string; onBack?: () => void } {
+    const { currentStep: step, subStep: sub } = vm.state;
+    if (step === 'personal_information') {
+      if (sub === 'phone_auth') {
+        return {
+          title: requiresDobInPhoneAuth(capabilities)
+            ? 'Enter Your Phone Number & DOB'
+            : 'Enter Your Phone Number',
+          onBack: vm.back,
+        };
+      }
+      if (sub === 'customer_information') {
+        return {
+          title: 'Personal Information',
+          onBack: () => vm.goTo('personal_information', 'phone_auth'),
+        };
+      }
+      if (sub === 'verify_phone') {
+        return {
+          title: 'Enter Verification Code',
+          onBack: () => {
+            if (vm.state.verifyPhoneUi === 'otp_for_prove') {
+              void cancelProveOtp();
+            }
+            vm.goTo('personal_information', 'phone_auth');
+          },
+        };
+      }
+    }
+    if (step === 'confirm_payment_method') {
+      if (sub === 'select') return { title: 'Select A Payment Method', onBack: vm.back };
+      if (sub === 'add') {
+        return {
+          title: 'Add New Payment Method',
+          onBack: () => vm.goTo('confirm_payment_method', 'select'),
+        };
+      }
+    }
+    if (step === 'confirm_bank_account') {
+      if (sub === 'select') return { title: 'Select A Payout Method', onBack: vm.back };
+      if (sub === 'add') {
+        return {
+          title: 'Add Bank Account',
+          onBack: () => vm.goTo('confirm_bank_account', 'select'),
+        };
+      }
+    }
+    return {};
+  }
+  const { title, onBack } = titleAndBack();
 
   // Skip the BottomSheet chrome for screens that own their entire visual
   // surface — welcome, terminal "submitted," and the camera capture/review
@@ -480,7 +532,7 @@ export function OnboardingRoot({
   if (isFullBleed) return screenContent;
 
   return (
-    <OnboardingChrome state={vm.state} onClose={onCancel}>
+    <OnboardingChrome state={vm.state} title={title} onBack={onBack} onClose={onCancel}>
       {screenContent}
     </OnboardingChrome>
   );

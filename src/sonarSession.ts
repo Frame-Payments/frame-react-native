@@ -307,3 +307,8 @@ export async function sessionIdForPayment(accountId: string): Promise<string | u
     return undefined;
   }
 }
+
+export async function currentSessionId(accountId: string | null): Promise<string | undefined> {
+  const value = await storage.get(accountId).catch(() => null);
+  return value ?? undefined;
+}

@@ -37,6 +37,7 @@ import { presentGooglePayFlow } from './googlePay';
 import { warnOnce } from './warn';
 import { initializeSift } from './sift';
 import { prefetchLegalConfiguration } from './legal';
+import { ensureAttested } from './attestation';
 import { fetchRemoteConfig } from './remoteConfig';
 
 const LINKING_ERROR =
@@ -109,6 +110,7 @@ export function initialize(options: {
   applePayMerchantId?: string;
   googlePayMerchantId?: string;
   theme?: FrameTheme;
+  accountId?: string;
 }): Promise<void> {
   if (!options?.publishableKey) {
     throwCoded(ErrorCodes.INIT_FAILED, 'Frame.initialize requires publishableKey');
@@ -144,6 +146,7 @@ async function runInitialize(options: {
   applePayMerchantId?: string;
   googlePayMerchantId?: string;
   theme?: FrameTheme;
+  accountId?: string;
 }): Promise<void> {
   try {
     await wrapPromise(
@@ -183,7 +186,10 @@ async function runInitialize(options: {
   // — submit-time encryption will re-await this promise via configureEvervault's
   void prefetchServiceConfigs();
   observeAppLifecycle();
-  void initializeSession();
+  void initializeSession(options.accountId);
+  if (Platform.OS === 'ios') {
+    void ensureAttested().catch(() => {});
+  }
   void prefetchLegalConfiguration();
   // Resolve the device IP asynchronously and reset the cached SDK client so
   // subsequent requests pick up the ip_address header. iOS resolves

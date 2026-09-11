@@ -1,4 +1,6 @@
 import { fetchRemoteConfig } from './remoteConfig';
+import { frameRequestHeaders } from './bespokeRequest';
+import { FRAME_API_BASE_URL } from './client';
 import { subregionsForCountry } from './addressSubregions';
 import type { BillingAddress } from './types';
 
@@ -19,10 +21,29 @@ function isExpired(expiresAt: string | undefined): boolean {
   return Number.isFinite(parsed) && parsed <= Date.now();
 }
 
+async function fetchMapboxConfig(): Promise<{ accessToken?: string; expiresAt?: string } | null> {
+  try {
+    const response = await fetch(`${FRAME_API_BASE_URL}/v1/config/mapbox`, {
+      method: 'GET',
+      headers: frameRequestHeaders(),
+    });
+    if (!response.ok) return null;
+    const body = (await response.json()) as { access_token?: unknown; expires_at?: unknown };
+    return {
+      accessToken: typeof body.access_token === 'string' ? body.access_token : undefined,
+      expiresAt: typeof body.expires_at === 'string' ? body.expires_at : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function getToken(): Promise<string | null> {
   if (cachedToken && !isExpired(cachedExpiresAt)) return cachedToken;
-  const config = await fetchRemoteConfig();
-  const block = config?.mapbox;
+
+  const block = cachedExpiresAt
+    ? await fetchMapboxConfig()
+    : (await fetchRemoteConfig())?.mapbox;
   if (!block?.accessToken) return null;
   cachedToken = block.accessToken;
   cachedExpiresAt = block.expiresAt;

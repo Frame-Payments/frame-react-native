@@ -31,7 +31,7 @@ jest.mock('framepayments', () => ({
 }));
 
 import { setConfig, resetConfig, __internal } from '../config';
-import { client, warmClients, resetClients, requireSecretKeyFor, hasSecretKey } from '../client';
+import { client, warmClients, resetClients, requireSecretKeyFor, hasSecretKey, SDK_VERSION } from '../client';
 import { ErrorCodes } from '../errors';
 
 beforeEach(() => {
@@ -47,7 +47,11 @@ describe('client.sdk', () => {
     expect(inst.apiKey).toBe('sk_test');
     expect(inst.publishableKey).toBe('pk_test');
     expect(frameSdkConstructorCalls).toEqual([
-      { apiKey: 'sk_test', publishableKey: 'pk_test', defaultHeaders: { 'User-Agent': 'iOS' } },
+      {
+        apiKey: 'sk_test',
+        publishableKey: 'pk_test',
+        defaultHeaders: { 'User-Agent': 'iOS', 'X-Frame-SDK-Version': SDK_VERSION },
+      },
     ]);
   });
 
@@ -91,7 +95,11 @@ describe('warmClients', () => {
     setConfig({ secretKey: 'sk_only', debugMode: false });
     expect(warmClients()).toBe(true);
     expect(frameSdkConstructorCalls).toEqual([
-      { apiKey: 'sk_only', publishableKey: undefined, defaultHeaders: { 'User-Agent': 'iOS' } },
+      {
+        apiKey: 'sk_only',
+        publishableKey: undefined,
+        defaultHeaders: { 'User-Agent': 'iOS', 'X-Frame-SDK-Version': SDK_VERSION },
+      },
     ]);
   });
 
@@ -106,7 +114,10 @@ describe('defaultHeaders', () => {
     setConfig({ secretKey: 'sk_test', publishableKey: 'pk_test', debugMode: false });
     void client.sdk;
     // Jest's react-native mock defaults Platform.OS to 'ios'.
-    expect(frameSdkConstructorCalls[0].defaultHeaders).toEqual({ 'User-Agent': 'iOS' });
+    expect(frameSdkConstructorCalls[0].defaultHeaders).toEqual({
+      'User-Agent': 'iOS',
+      'X-Frame-SDK-Version': SDK_VERSION,
+    });
   });
 
   it('adds ip_address alongside User-Agent when the IP is cached', () => {
@@ -116,13 +127,17 @@ describe('defaultHeaders', () => {
     expect(frameSdkConstructorCalls[0].defaultHeaders).toEqual({
       ip_address: '203.0.113.42',
       'User-Agent': 'iOS',
+      'X-Frame-SDK-Version': SDK_VERSION,
     });
   });
 
   it('picks up a late-arriving IP after resetClients()', () => {
     setConfig({ secretKey: 'sk_test', publishableKey: 'pk_test', debugMode: false });
     void client.sdk;
-    expect(frameSdkConstructorCalls[0].defaultHeaders).toEqual({ 'User-Agent': 'iOS' });
+    expect(frameSdkConstructorCalls[0].defaultHeaders).toEqual({
+      'User-Agent': 'iOS',
+      'X-Frame-SDK-Version': SDK_VERSION,
+    });
 
     __internal.setIpAddress('198.51.100.7');
     resetClients();
@@ -130,7 +145,14 @@ describe('defaultHeaders', () => {
     expect(frameSdkConstructorCalls[1].defaultHeaders).toEqual({
       ip_address: '198.51.100.7',
       'User-Agent': 'iOS',
+      'X-Frame-SDK-Version': SDK_VERSION,
     });
+  });
+
+  it('always sends X-Frame-SDK-Version matching package.json', () => {
+    setConfig({ secretKey: 'sk_test', publishableKey: 'pk_test', debugMode: false });
+    void client.sdk;
+    expect(frameSdkConstructorCalls[0].defaultHeaders?.['X-Frame-SDK-Version']).toBe(SDK_VERSION);
   });
 
   it('sends versioned Android User-Agent so WalletController#mobile_sdk_request? matches', () => {

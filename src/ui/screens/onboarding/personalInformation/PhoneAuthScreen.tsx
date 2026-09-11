@@ -49,7 +49,6 @@ export function PhoneAuthScreen({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const showDob = requiresDobInPhoneAuth(capabilities);
   const showTos = requiresTosInPhoneAuth(capabilities);
-  const heading = showDob ? 'Enter Your Phone Number & DOB' : 'Enter Your Phone Number';
 
   // iOS UserIdentificationView.authenticationView fires
   // generateTermsOfServiceToken() once in .onAppear (line 148-153). Mirror it
@@ -64,19 +63,6 @@ export function PhoneAuthScreen({
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
-      <Text
-        style={[
-          styles.heading,
-          {
-            color: theme.colors.textPrimary,
-            fontSize: theme.fonts.heading.size,
-            fontWeight: theme.fontWeights.heading,
-            lineHeight: theme.fontLineHeights.heading,
-          },
-        ]}
-      >
-        {heading}
-      </Text>
       <Text
         style={[
           styles.body,
@@ -139,10 +125,7 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
     content: {
       paddingHorizontal: FORM_SPACING.contentHorizontal,
       paddingBottom: FORM_SPACING.contentBottom,
-    },
-    heading: {
-      marginTop: FORM_SPACING.headingTop,
-      marginBottom: FORM_SPACING.headingBottom,
+      paddingTop: FORM_SPACING.headingTop,
     },
     body: {
       marginBottom: FORM_SPACING.subheadBottom,

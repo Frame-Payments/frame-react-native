@@ -11,6 +11,8 @@ const PRODUCT_GRANT_REVOKED = 'product_grant_revoked';
 
 const IDENTITY_DOCUMENT_REQUIREMENT = 'individual.identity_document';
 
+const KYC_CORRECTION_REQUIREMENT = 'individual.kyc';
+
 export function readAccountCapabilities(
   account: { capabilities?: unknown[] } | null | undefined,
 ): ReadonlyArray<AccountCapabilityRow> {
@@ -48,6 +50,20 @@ export function requiresIdentityDocument(
   return readAccountCapabilities(account).some((row) =>
     actionableRequirements(row).includes(IDENTITY_DOCUMENT_REQUIREMENT),
   );
+}
+
+export function requiresCorrectedKycDetails(
+  account: { capabilities?: unknown[] } | null | undefined,
+): boolean {
+  return readAccountCapabilities(account).some((row) =>
+    actionableRequirements(row).includes(KYC_CORRECTION_REQUIREMENT),
+  );
+}
+
+export function hasActiveIdvCapability(
+  account: { capabilities?: unknown[] } | null | undefined,
+): boolean {
+  return readAccountCapabilities(account).some((row) => row.name === 'idv' && row.status === 'active');
 }
 
 export function trimCompletedCapabilities(
@@ -140,4 +156,19 @@ export function resolveOnboardingOutcome(
   }
 
   return fallback;
+}
+
+export function resolveBlockedOutcome(
+  account: { capabilities?: unknown[] } | null | undefined,
+  required: ReadonlyArray<OnboardingCapability>,
+): OnboardingOutcome | null {
+  const rows = readAccountCapabilities(account);
+  if (rows.length === 0) return null;
+
+  const outstanding = rows.filter(isCapabilityOutstanding);
+  if (outstanding.length === 0) return null;
+  if (outstanding.some((row) => actionableRequirements(row).length > 0)) return null;
+
+  const outcome = resolveOnboardingOutcome(account, required);
+  return outcome.status === 'declined' || outcome.status === 'action_required' ? outcome : null;
 }

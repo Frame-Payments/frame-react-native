@@ -141,6 +141,7 @@ export function BillingAddressDetailView({
         keyboardType={format.postalKeyboard}
         textContentType="postalCode"
         autoComplete="postal-code"
+        characterLimit={international ? undefined : 5}
       />
       {international ? (
         <CountryPicker

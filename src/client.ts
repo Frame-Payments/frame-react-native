@@ -11,8 +11,9 @@ import { attachNetworkLogger, resetNetworkLogger } from './debug/networkLogger';
 // resolveJsonModule + dropping tsconfig rootDir, both of which leak into the
 // compiled lib/ shape), so the value is duplicated here. `sdk-version.test.ts`
 // fails CI if these drift, so a release bump that misses this file is caught
-// before publish.
-const SDK_VERSION = '4.0.4';
+export const SDK_VERSION = '4.0.4';
+
+export const SDK_VERSION_HEADER = 'X-Frame-SDK-Version';
 
 // The framepayments SDK defaults to this host when no `baseURL` override is
 // passed to its ClientConfig (see framepayments' client.ts). We never override
@@ -65,6 +66,7 @@ function getClient(): FrameSDK {
   const defaultHeaders: Record<string, string> = {};
   if (ip) defaultHeaders.ip_address = ip;
   if (userAgent) defaultHeaders['User-Agent'] = userAgent;
+  defaultHeaders[SDK_VERSION_HEADER] = SDK_VERSION;
   sdk = new FrameSDK({
     apiKey,
     publishableKey,

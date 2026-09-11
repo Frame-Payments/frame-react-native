@@ -195,9 +195,6 @@ export default function App() {
   const handleAddPaymentMethod = async () => {
     setLoading('addPaymentMethod');
     try {
-      // Mirrors iOS FrameExample-iOS's addPaymentMethodButton /
-      // FrameAddPaymentMethodView(accountId:) — no clientSecret, so this
-      // authenticates with the configured pk_/sk_ keys.
       const paymentMethodId = await Frame.presentAddPaymentMethod({ accountId: DEMO_ACCOUNT_ID });
       Alert.alert('Payment method added', paymentMethodId);
     } catch (e: any) {
@@ -211,8 +208,6 @@ export default function App() {
   const handleSelectPayoutMethod = async () => {
     setLoading('selectPayoutMethod');
     try {
-      // Mirrors iOS FrameExample-iOS's selectPayoutMethodButton /
-      // FrameSelectPayoutMethodView(accountId:onResult:).
       const paymentMethodId = await Frame.presentSelectPayoutMethod({ accountId: DEMO_ACCOUNT_ID });
       Alert.alert('Primary payout method', paymentMethodId);
     } catch (e: any) {
@@ -226,8 +221,6 @@ export default function App() {
   const handleOnboarding = async () => {
     setLoading('onboarding');
     try {
-      // In production, mint the onboarding-session token on YOUR backend
-      // (POST /v1/onboarding_sessions, authenticated with sk_) and hand the
       // client_secret to the app. Here the demo uses the server-side `frameSDK`
       // (apiKey) to stand in for that backend.
       //

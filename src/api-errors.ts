@@ -21,12 +21,25 @@ function extractFromEnvelope(raw: unknown): string | undefined {
   return undefined;
 }
 
+function riskMessage(message: string): string | undefined {
+  switch (message.trim().toLowerCase()) {
+    case 'sonar_session_required':
+      return "We couldn't verify this device. Please try again.";
+    case 'geo_compliance_blocked':
+      return "Payments aren't available in your location.";
+    case 'geo_compliance_vpn_detected':
+      return 'Please turn off your VPN or proxy and try again.';
+    default:
+      return undefined;
+  }
+}
+
 export function toToastMessage(error: unknown, fallback: string = DEFAULT_TOAST_FALLBACK): string {
   if (error instanceof FrameAPIError) {
     const fromEnvelope = extractFromEnvelope(error.raw);
-    if (fromEnvelope) return `Error: ${fromEnvelope}`;
+    if (fromEnvelope) return `Error: ${riskMessage(fromEnvelope) ?? fromEnvelope}`;
     if (typeof error.message === 'string' && error.message.length > 0 && error.message !== 'An error occurred') {
-      return `Error: ${error.message}`;
+      return `Error: ${riskMessage(error.message) ?? error.message}`;
     }
     return `Error: ${fallback}`;
   }

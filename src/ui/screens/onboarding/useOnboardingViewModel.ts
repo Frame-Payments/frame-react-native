@@ -15,8 +15,9 @@ import {
 import { electPayoutMethod } from '../../../payoutMethod';
 import { normalizeSubregion } from '../../../addressSubregions';
 import { ensureOnboardingSession } from '../../../onboardingSession';
+import { setSiftUserId } from '../../../sift';
 import { isNotFoundError } from '../../../api-errors';
-import { endOnboardingSession } from '../../../auth';
+import { beginOnboardingSession, endOnboardingSession } from '../../../auth';
 import { warnOnce } from '../../../warn';
 import { showToast } from '../../primitives/toastCenter';
 import { PaymentAccountType, PaymentMethodType, type PaymentMethod as FramePaymentMethod } from 'framepayments';
@@ -47,8 +48,11 @@ import {
   skipsSsnEntry,
 } from './onboardingSelectors';
 import {
+  hasActiveIdvCapability,
   readAccountCapabilities,
+  requiresCorrectedKycDetails,
   requiresIdentityDocument,
+  resolveBlockedOutcome,
   resolveOnboardingOutcome,
   trimCompletedCapabilities,
 } from './capabilities';
@@ -75,6 +79,9 @@ export interface OnboardingViewModelResult {
   goTo: (step: OnboardingStep, subStep: OnboardingSubStep | null) => void;
   cancel: () => void;
   complete: () => void;
+  resolveFinalOutcome: () => Promise<OnboardingOutcome>;
+  beginOnboardingSessionOwned: (clientSecret: string) => void;
+  endOnboardingSessionIfOwned: () => void;
   // Personal-info simple field setters (thin wrappers around dispatch so the
   // screens don't import the reducer directly).
   setPhoneCountry: (alpha2: string, callingCode: string) => void;
@@ -157,6 +164,10 @@ export function useOnboardingViewModel({
   stateRef.current = state;
   const performingRef = useRef(false);
   const completedRef = useRef(false);
+  const originallyRequiredCapabilitiesRef = useRef(capabilities);
+
+  const ownsOnboardingSessionRef = useRef(false);
+  const hasEndedOnboardingSessionRef = useRef(false);
 
   // ─── Init: compute flow + drop into the first step on mount ───
   useEffect(() => {
@@ -180,7 +191,9 @@ export function useOnboardingViewModel({
         // Host launched against an existing account: mint the onboarding
         // session before the prefetch so account-scoped requests use the
         // `onb_sess_...` bearer. Mirrors iOS checkExistingAccount.
-        await ensureOnboardingSession(initialAccountId);
+        if (await ensureOnboardingSession(initialAccountId, () => hasEndedOnboardingSessionRef.current)) {
+          ownsOnboardingSessionRef.current = true;
+        }
         if (cancelled) return;
 
         // Pull the account profile + saved methods in parallel. Failures are
@@ -214,8 +227,10 @@ export function useOnboardingViewModel({
           // Drop the session minted above against the bad id — it's scoped to a
           // nonexistent account, and ensureOnboardingSession returns early when
           // one is already active, so leaving it would make the post-create mint
-          // a no-op and send every request with a dead bearer.
-          endOnboardingSession();
+          if (ownsOnboardingSessionRef.current) {
+            endOnboardingSession();
+            ownsOnboardingSessionRef.current = false;
+          }
           dispatch({ type: 'SET_ACCOUNT_ID', id: null });
           return;
         }
@@ -245,6 +260,13 @@ export function useOnboardingViewModel({
             type: 'SET_IDENTITY_DOCUMENT_REQUIRED',
             required: requiresIdentityDocument(account),
           });
+          dispatch({
+            type: 'SET_CORRECTED_KYC_DETAILS_REQUIRED',
+            required: requiresCorrectedKycDetails(account),
+          });
+          if (hasActiveIdvCapability(account)) {
+            dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId: null });
+          }
           const payoutId = (account as { payout_payment_method_id?: unknown }).payout_payment_method_id;
           if (typeof payoutId === 'string') {
             dispatch({ type: 'SET_PRIMARY_PAYOUT_METHOD_ID', id: payoutId });
@@ -291,12 +313,42 @@ export function useOnboardingViewModel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.requiredCapabilities]);
 
+  const beginOnboardingSessionOwned = useCallback((clientSecret: string) => {
+    beginOnboardingSession(clientSecret);
+    ownsOnboardingSessionRef.current = true;
+  }, []);
+
+  const endOnboardingSessionIfOwned = useCallback(() => {
+    hasEndedOnboardingSessionRef.current = true;
+    if (!ownsOnboardingSessionRef.current) return;
+    endOnboardingSession();
+    ownsOnboardingSessionRef.current = false;
+  }, []);
+
   // ─── Navigation ───
   const cancel = useCallback(() => {
     if (completedRef.current) return;
     completedRef.current = true;
     onCancel();
   }, [onCancel]);
+
+  const resolveFinalOutcome = useCallback(async (): Promise<OnboardingOutcome> => {
+    if (stateRef.current.finalOutcome) return stateRef.current.finalOutcome;
+    const accountId = stateRef.current.accountId;
+    if (!accountId) return { status: 'pending_review' };
+    dispatch({ type: 'SET_RESOLVING_OUTCOME', resolving: true });
+    try {
+      const account = await client.sdk.accounts.get(accountId).catch(() => null);
+      if (account?.id) setSiftUserId(account.id);
+      const outcome: OnboardingOutcome = account
+        ? resolveOnboardingOutcome(account, originallyRequiredCapabilitiesRef.current)
+        : { status: 'pending_review' };
+      dispatch({ type: 'SET_FINAL_OUTCOME', outcome });
+      return outcome;
+    } finally {
+      dispatch({ type: 'SET_RESOLVING_OUTCOME', resolving: false });
+    }
+  }, []);
 
   // The completed result returns the accountId, not the payment-method id.
   // Reads from stateRef so the value reflects auto-created accounts (the
@@ -306,15 +358,11 @@ export function useOnboardingViewModel({
     if (completedRef.current) return;
     completedRef.current = true;
     const accountId = stateRef.current.accountId ?? undefined;
-    const required = stateRef.current.requiredCapabilities;
     void (async () => {
-      const account = accountId ? await client.sdk.accounts.get(accountId).catch(() => null) : null;
-      const outcome: OnboardingOutcome = account
-        ? resolveOnboardingOutcome(account, required)
-        : { status: 'pending_review' };
+      const outcome = await resolveFinalOutcome();
       onComplete({ status: 'completed', accountId, outcome });
     })();
-  }, [onComplete]);
+  }, [onComplete, resolveFinalOutcome]);
 
   const advance = useCallback(() => {
     const current = stateRef.current;
@@ -397,15 +445,22 @@ export function useOnboardingViewModel({
         }
         accountId = account.id;
         dispatch({ type: 'SET_ACCOUNT_ID', id: accountId });
+        setSiftUserId(accountId);
         // Mint the account-scoped onboarding session now so downstream
         // account-scoped requests (the no-SSN IDV calls in particular)
         // authenticate with an `onb_sess_...` bearer instead of the raw pk_/sk_.
         // Mirrors iOS beginOnboardingSessionIfNeeded.
-        await ensureOnboardingSession(accountId);
+        if (await ensureOnboardingSession(accountId, () => hasEndedOnboardingSessionRef.current)) {
+          ownsOnboardingSessionRef.current = true;
+        }
 
         dispatch({
           type: 'SET_IDENTITY_DOCUMENT_REQUIRED',
           required: requiresIdentityDocument(account),
+        });
+        dispatch({
+          type: 'SET_CORRECTED_KYC_DETAILS_REQUIRED',
+          required: requiresCorrectedKycDetails(account),
         });
       }
 
@@ -419,12 +474,16 @@ export function useOnboardingViewModel({
         } as unknown as Parameters<typeof client.sdk.phoneVerifications.create>[1],
       );
 
-      // When the Prove branch has already failed, force the Frame OTP path
-      // even if the backend still returns a prove_auth_token. Prevents the
-      // user from being stuck in a loading_prove → otp_for_prove cycle.
-      const proveAuthToken = forceFrameOtp
-        ? null
-        : ((verification as { prove_auth_token?: string }).prove_auth_token ?? null);
+      const rawProveAuthToken = (verification as { prove_auth_token?: string }).prove_auth_token ?? null;
+
+      if (forceFrameOtp && rawProveAuthToken) {
+        throw frameError(
+          ErrorCodes.PAYMENT_FAILED,
+          'Phone verification is temporarily unavailable. Please try again in a moment.',
+        );
+      }
+
+      const proveAuthToken = forceFrameOtp ? null : rawProveAuthToken;
       const ui: VerifyPhoneUi = proveAuthToken ? 'loading_prove' : 'otp_frame_api';
       dispatch({
         type: 'SET_VERIFY_PHONE',
@@ -447,7 +506,16 @@ export function useOnboardingViewModel({
     if (!accountId) return;
     const account = await client.sdk.accounts.get(accountId).catch(() => null);
     if (!account) return;
+    if (account.id) setSiftUserId(account.id);
     dispatch({ type: 'PREFILL', values: prefillFromAccount(account) });
+    dispatch({ type: 'SET_IDENTITY_DOCUMENT_REQUIRED', required: requiresIdentityDocument(account) });
+    dispatch({
+      type: 'SET_CORRECTED_KYC_DETAILS_REQUIRED',
+      required: requiresCorrectedKycDetails(account),
+    });
+    if (hasActiveIdvCapability(account)) {
+      dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId: null });
+    }
   }, []);
 
   const confirmFrameOtp = useCallback(async () => {
@@ -556,7 +624,7 @@ export function useOnboardingViewModel({
         const tos = buildTosPayload(current.termsOfServiceToken);
         if (tos) updateBody.terms_of_service = tos;
       }
-      await client.sdk.accounts.update(
+      const updatedAccount = await client.sdk.accounts.update(
         current.accountId,
         updateBody as Parameters<typeof client.sdk.accounts.update>[1],
       );
@@ -567,7 +635,39 @@ export function useOnboardingViewModel({
         dispatch({ type: 'SET_EXISTING_ACCOUNT_HAS_TOS', value: true });
       }
 
-      if (governmentIdRequired(current) && !current.identityVerifiedViaGovId) {
+      dispatch({
+        type: 'SET_IDENTITY_DOCUMENT_REQUIRED',
+        required: requiresIdentityDocument(updatedAccount),
+      });
+      dispatch({
+        type: 'SET_CORRECTED_KYC_DETAILS_REQUIRED',
+        required: requiresCorrectedKycDetails(updatedAccount),
+      });
+      const refreshed: OnboardingState = {
+        ...current,
+        identityDocumentRequired: requiresIdentityDocument(updatedAccount),
+        correctedKycDetailsRequired: requiresCorrectedKycDetails(updatedAccount),
+      };
+
+      const blocked = resolveBlockedOutcome(updatedAccount, originallyRequiredCapabilitiesRef.current);
+      if (blocked) {
+        dispatch({ type: 'SET_FINAL_OUTCOME', outcome: blocked });
+        if (showCompletionScreen) {
+          dispatch({ type: 'GO_TO_STEP', step: 'verification_submitted', subStep: null });
+        } else {
+          complete();
+        }
+        return;
+      }
+
+      // Government-ID verification is mandatory when the merchant requested
+      // `idv` or the backend stepped the account up via
+      // `individual.identity_document`. iOS runs Persona right here, after the
+      // profile update and before advancing, and only advances on success
+      // (`OnboardingContainerViewModel.submitPersonalInformation`,
+      // `:835-844`). A throw leaves the user on this screen with the toast, so
+      // they can retry rather than landing on a later step that cannot succeed.
+      if (governmentIdRequired(refreshed) && !refreshed.identityVerifiedViaGovId) {
         if (!isPersonaAvailable()) {
           throw frameError(
             ErrorCodes.PERSONA_UNAVAILABLE,
@@ -586,7 +686,7 @@ export function useOnboardingViewModel({
         advance();
       }
     });
-  }, [guardedAction, advance, runGovernmentIdVerification]);
+  }, [guardedAction, advance, complete, runGovernmentIdVerification, showCompletionScreen]);
 
   const verifyIdentityWithoutSsn = useCallback(async () => {
     return guardedAction(() => runGovernmentIdVerification());
@@ -1069,6 +1169,9 @@ export function useOnboardingViewModel({
     goTo,
     cancel,
     complete,
+    resolveFinalOutcome,
+    beginOnboardingSessionOwned,
+    endOnboardingSessionIfOwned,
     setPhoneCountry,
     setPhoneNumber,
     setDob,
@@ -1152,6 +1255,7 @@ async function reconcileCapabilities(
   try {
     await client.sdk.capabilities.request(accountId, { capabilities: [...missing] });
     const refreshed = await client.sdk.accounts.get(accountId).catch(() => null);
+    if (refreshed?.id) setSiftUserId(refreshed.id);
     return refreshed ?? account;
   } catch {
     // Non-fatal — fall back to the original account so the user can still

@@ -116,20 +116,6 @@ export function AddPaymentMethodScreen({
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <Text
-          style={[
-            styles.heading,
-            {
-              color: theme.colors.textPrimary,
-              fontSize: theme.fonts.heading.size,
-              fontWeight: theme.fontWeights.heading,
-              lineHeight: theme.fontLineHeights.heading,
-            },
-          ]}
-        >
-          Add New Payment Method
-        </Text>
-
         {showApplePay ? (
           <View style={styles.applePayBlock}>
             <ApplePayButton buttonType="setUp" onPress={handleApplePay} />
@@ -205,10 +191,7 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
     scrollContent: {
       paddingHorizontal: FORM_SPACING.contentHorizontal,
       paddingBottom: FORM_SPACING.contentBottom,
-    },
-    heading: {
-      marginTop: FORM_SPACING.headingTop,
-      marginBottom: FORM_SPACING.headingBottom,
+      paddingTop: FORM_SPACING.headingTop,
     },
     applePayBlock: {
       marginBottom: 8,

@@ -1,5 +1,5 @@
 import type { PaymentMethod as FramePaymentMethod } from 'framepayments';
-import type { OnboardingCapability } from '../../../types';
+import type { OnboardingCapability, OnboardingOutcome } from '../../../types';
 
 // Onboarding state machine. Ports OnboardingContainerViewModel.swift (647 lines)
 // + FrameOnboarding.kt (1492 lines) into a single pure reducer + selectors.
@@ -105,6 +105,9 @@ export interface OnboardingState {
   termsOfServiceToken: string | null;
   existingAccountHasTOS: boolean;
 
+  finalOutcome: OnboardingOutcome | null;
+  isResolvingOutcome: boolean;
+
   // ─── PersonalInformation: phone-auth ───
   phoneCountry: PhoneCountry;
   phoneNumber: string;
@@ -125,6 +128,7 @@ export interface OnboardingState {
   ssnLast4: string;
   identityVerifiedViaGovId: boolean;
   identityDocumentRequired: boolean;
+  correctedKycDetailsRequired: boolean;
   // The pre-created Persona inquiry id (`inq_...`) from POST /idv/session, kept
   // for reference/debugging after the flow completes.
   govIdInquiryId: string | null;
@@ -164,6 +168,8 @@ export type OnboardingAction =
   // Account
   | { type: 'SET_ACCOUNT_ID'; id: string | null }
   | { type: 'SET_ACCOUNT_LOADED'; loaded: boolean }
+  | { type: 'SET_FINAL_OUTCOME'; outcome: OnboardingOutcome }
+  | { type: 'SET_RESOLVING_OUTCOME'; resolving: boolean }
   | { type: 'SET_TERMS_OF_SERVICE_TOKEN'; token: string | null }
   | { type: 'SET_EXISTING_ACCOUNT_HAS_TOS'; value: boolean }
   // Prefill (used by 8g prefetch — only writes fields the user hasn't touched)
@@ -183,6 +189,7 @@ export type OnboardingAction =
   | { type: 'SET_SSN_LAST4'; value: string }
   | { type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID'; verified: boolean; inquiryId: string | null }
   | { type: 'SET_IDENTITY_DOCUMENT_REQUIRED'; required: boolean }
+  | { type: 'SET_CORRECTED_KYC_DETAILS_REQUIRED'; required: boolean }
   | { type: 'SET_ADDRESS_FIELD'; field: keyof OnboardingAddress; value: string }
   | { type: 'APPLY_ADDRESS'; address: Partial<OnboardingAddress> }
   // Payment method
@@ -243,6 +250,8 @@ export function initialOnboardingState(
     subStep: null,
     accountId,
     accountLoaded: false,
+    finalOutcome: null,
+    isResolvingOutcome: false,
     termsOfServiceToken: null,
     existingAccountHasTOS: false,
     phoneCountry: DEFAULT_PHONE_COUNTRY,
@@ -260,6 +269,7 @@ export function initialOnboardingState(
     ssnLast4: '',
     identityVerifiedViaGovId: false,
     identityDocumentRequired: false,
+    correctedKycDetailsRequired: false,
     govIdInquiryId: null,
     address: { ...DEFAULT_ADDRESS },
     savedPaymentMethods: [],
@@ -300,6 +310,10 @@ export function onboardingReducer(state: OnboardingState, action: OnboardingActi
       return { ...state, accountId: action.id };
     case 'SET_ACCOUNT_LOADED':
       return { ...state, accountLoaded: action.loaded };
+    case 'SET_FINAL_OUTCOME':
+      return { ...state, finalOutcome: action.outcome };
+    case 'SET_RESOLVING_OUTCOME':
+      return { ...state, isResolvingOutcome: action.resolving };
     case 'SET_TERMS_OF_SERVICE_TOKEN':
       return { ...state, termsOfServiceToken: action.token };
     case 'SET_EXISTING_ACCOUNT_HAS_TOS':
@@ -367,6 +381,8 @@ export function onboardingReducer(state: OnboardingState, action: OnboardingActi
         identityDocumentRequired: action.required,
         fieldErrors: action.required ? clearError(state.fieldErrors, 'ssnLast4') : state.fieldErrors,
       };
+    case 'SET_CORRECTED_KYC_DETAILS_REQUIRED':
+      return { ...state, correctedKycDetailsRequired: action.required };
     case 'SET_IDENTITY_VERIFIED_VIA_GOV_ID':
       return {
         ...state,

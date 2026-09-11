@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { BottomSheet } from '../../primitives/BottomSheet';
 import { showToast } from '../../primitives/toastCenter';
 import { toToastMessage } from '../../../api-errors';
-import { beginOnboardingSession, endOnboardingSession } from '../../../auth';
 import { useOnboardingViewModel } from './useOnboardingViewModel';
 import { AddPaymentMethodScreen } from './confirmPaymentMethod/AddPaymentMethodScreen';
 import { AddPayoutMethodScreen } from './confirmBankAccount/AddPayoutMethodScreen';
@@ -31,14 +30,6 @@ export function StandaloneMethodRoot({
   onComplete,
   onCancel,
 }: StandaloneMethodRootProps) {
-  useEffect(() => {
-    if (!clientSecret) return;
-    beginOnboardingSession(clientSecret);
-    return () => {
-      endOnboardingSession(clientSecret);
-    };
-  }, [clientSecret]);
-
   const didFinish = useRef(false);
 
   const [showAddPayout, setShowAddPayout] = useState(false);
@@ -51,6 +42,14 @@ export function StandaloneMethodRoot({
     onComplete: () => {},
     onCancel,
   });
+
+  useEffect(() => {
+    if (clientSecret) vm.beginOnboardingSessionOwned(clientSecret);
+    return () => {
+      vm.endOnboardingSessionIfOwned();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientSecret]);
 
   const finish = useCallback(
     (paymentMethodId: string) => {

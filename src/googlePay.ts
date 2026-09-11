@@ -1,8 +1,8 @@
 import { NativeModules, Platform } from 'react-native';
-import { sessionIdForPayment } from './sonarSession';
+import { currentSessionId, sessionIdForPayment } from './sonarSession';
 import { client, requireSecretKeyFor } from './client';
 import { ErrorCodes, frameError } from './errors';
-import { getDebugMode, getGooglePayMerchantId } from './config';
+import { getDebugMode, getGooglePayMerchantId, getIpAddress } from './config';
 import type { PresentGooglePayOptions, WalletOwner } from './types';
 
 const LINKING_ERROR =
@@ -116,13 +116,16 @@ async function createPaymentMethodAndCharge(
       { type: 'card', customer: owner.id, _wallet: wallet },
       { usePublishableKey: true },
     );
+    const sonarSessionId = await currentSessionId(null);
     const intent = await client.sdk.chargeIntents.create({
       amount: options.amountCents,
       currency: currency.toLowerCase(),
       customer: owner.id,
       payment_method: pm.id,
       confirm: true,
-    });
+      ...(sonarSessionId ? { sonar_session_id: sonarSessionId } : {}),
+      ...(getIpAddress() ? { fraud_signals: { client_ip: getIpAddress() } } : {}),
+    } as unknown as Parameters<typeof client.sdk.chargeIntents.create>[0]);
     if (!intent || typeof intent.id !== 'string') {
       throw frameError(ErrorCodes.PAYMENT_FAILED, 'Frame returned no ChargeIntent id.');
     }

@@ -6,6 +6,7 @@ import { frameRequestHeaders } from '../bespokeRequest';
 import { setConfig, resetConfig } from '../config';
 import { beginOnboardingSession, __resetOnboardingSessionForTests } from '../auth';
 import { __resetWarnOnceForTests } from '../warn';
+import { SDK_VERSION } from '../client';
 
 beforeEach(() => {
   resetConfig();
@@ -43,5 +44,9 @@ describe('frameRequestHeaders', () => {
     expect(headers['Content-Type']).toBe('application/json');
     expect(headers.Accept).toBe('application/json');
     expect(headers['X-Custom']).toBe('1');
+  });
+
+  it('always sends X-Frame-SDK-Version', () => {
+    expect(frameRequestHeaders()['X-Frame-SDK-Version']).toBe(SDK_VERSION);
   });
 });
