@@ -5,14 +5,22 @@ import { __internal as configInternal, getIpAddress } from '../../../config';
 import { ErrorCodes, frameError } from '../../../errors';
 import { addApplePayToOwnerFlow } from '../../../applePay';
 import { openPlaidLink as runPlaidLink, type PlaidConnectResult } from '../../../plaid';
-import { launchPersonaInquiry } from '../../../persona';
-import { createIdvSession, completeIdvSession } from '../../../idv';
+import { launchPersonaInquiry, isPersonaAvailable } from '../../../persona';
+import {
+  createIdvSession,
+  completeIdvSession,
+  completeIdvSessionDetailed,
+  idvFailureMessage,
+} from '../../../idv';
+import { electPayoutMethod } from '../../../payoutMethod';
+import { normalizeSubregion } from '../../../addressSubregions';
 import { ensureOnboardingSession } from '../../../onboardingSession';
 import { isNotFoundError } from '../../../api-errors';
 import { endOnboardingSession } from '../../../auth';
 import { warnOnce } from '../../../warn';
+import { showToast } from '../../primitives/toastCenter';
 import { PaymentAccountType, PaymentMethodType, type PaymentMethod as FramePaymentMethod } from 'framepayments';
-import type { OnboardingCapability, OnboardingResult } from '../../../types';
+import type { OnboardingCapability, OnboardingOutcome, OnboardingResult } from '../../../types';
 import {
   initialOnboardingState,
   onboardingReducer,
@@ -35,7 +43,15 @@ import {
   validateOtp,
   validatePhoneAuth,
   isCapabilitySatisfied,
+  governmentIdRequired,
+  skipsSsnEntry,
 } from './onboardingSelectors';
+import {
+  readAccountCapabilities,
+  requiresIdentityDocument,
+  resolveOnboardingOutcome,
+  trimCompletedCapabilities,
+} from './capabilities';
 
 // Hook owning the onboarding state machine + side effects. Screens drive it
 // through the returned callables; the Prove + Plaid + camera + 3DS-poll
@@ -77,6 +93,7 @@ export interface OnboardingViewModelResult {
   setCustomerEmail: (value: string) => void;
   setSsnLast4: (value: string) => void;
   setAddressField: (field: keyof OnboardingAddress, value: string) => void;
+  applyAddress: (address: Partial<OnboardingAddress>) => void;
   setVerifyPhoneUi: (ui: VerifyPhoneUi | null) => void;
   setAchField: (field: 'routingNumber' | 'accountNumber', value: string) => void;
   setAchAccountType: (value: AchAccountType) => void;
@@ -91,6 +108,7 @@ export interface OnboardingViewModelResult {
    *  Twilio). Mirrors iOS OnboardingContainerViewModel.checkExistingAccount()
    *  called from sendOTPVerification / confirmTwilioOTP. */
   refreshAccountAfterPhoneVerify: () => Promise<void>;
+  confirmProveVerification: () => Promise<void>;
   submitCustomerInformation: () => Promise<void>;
   /** No-SSN path: create an IDV session, launch Persona against the pre-created
    *  inquiry, then confirm with the Frame backend. On a verified backend
@@ -111,6 +129,7 @@ export interface OnboardingViewModelResult {
   resend3DS: () => Promise<void>;
   // Payout-method actions
   loadSavedPayoutMethods: () => Promise<void>;
+  electSelectedPayoutMethod: (paymentMethodId?: string) => Promise<void>;
   submitManualAch: () => Promise<string>;
   connectPlaidAccount: (params: { publicToken: string; accountId: string; institutionName?: string; subtype?: string }) => Promise<string>;
   /** End-to-end Plaid Link: fetches token, opens Link, calls
@@ -147,7 +166,7 @@ export function useOnboardingViewModel({
       type: 'SET_FLOW',
       flow,
       currentStep: firstStep,
-      subStep: entrySubStep(firstStep, capabilities),
+      subStep: entrySubStep(firstStep),
     });
     if (!initialAccountId) {
       // No accountId → nothing to prefetch. The Verify-Welcome continue
@@ -222,6 +241,14 @@ export function useOnboardingViewModel({
           if (trimmed.length !== capabilities.length) {
             dispatch({ type: 'SET_REQUIRED_CAPABILITIES', capabilities: trimmed });
           }
+          dispatch({
+            type: 'SET_IDENTITY_DOCUMENT_REQUIRED',
+            required: requiresIdentityDocument(account),
+          });
+          const payoutId = (account as { payout_payment_method_id?: unknown }).payout_payment_method_id;
+          if (typeof payoutId === 'string') {
+            dispatch({ type: 'SET_PRIMARY_PAYOUT_METHOD_ID', id: payoutId });
+          }
         }
         // Split saved methods by kind: cards on the payment list, ACHs on
         // the payout list. The reducer's selectors filter again on render
@@ -257,7 +284,7 @@ export function useOnboardingViewModel({
       : (flow[0] ?? 'verification_welcome');
     const subStep = currentStep === stateRef.current.currentStep
       ? stateRef.current.subStep
-      : entrySubStep(currentStep, state.requiredCapabilities);
+      : entrySubStep(currentStep);
     dispatch({ type: 'SET_FLOW', flow, currentStep, subStep });
     // We deliberately read currentStep/subStep via stateRef rather than as
     // deps — using them as deps would loop on every step transition.
@@ -278,7 +305,15 @@ export function useOnboardingViewModel({
   const complete = useCallback(() => {
     if (completedRef.current) return;
     completedRef.current = true;
-    onComplete({ status: 'completed', accountId: stateRef.current.accountId ?? undefined });
+    const accountId = stateRef.current.accountId ?? undefined;
+    const required = stateRef.current.requiredCapabilities;
+    void (async () => {
+      const account = accountId ? await client.sdk.accounts.get(accountId).catch(() => null) : null;
+      const outcome: OnboardingOutcome = account
+        ? resolveOnboardingOutcome(account, required)
+        : { status: 'pending_review' };
+      onComplete({ status: 'completed', accountId, outcome });
+    })();
   }, [onComplete]);
 
   const advance = useCallback(() => {
@@ -289,14 +324,14 @@ export function useOnboardingViewModel({
       complete();
       return;
     }
-    dispatch({ type: 'GO_TO_STEP', step: target, subStep: entrySubStep(target, current.requiredCapabilities) });
+    dispatch({ type: 'GO_TO_STEP', step: target, subStep: entrySubStep(target) });
   }, [complete]);
 
   const back = useCallback(() => {
     const current = stateRef.current;
     const target = selectorPreviousStep(current);
     if (!target) return;
-    dispatch({ type: 'GO_TO_STEP', step: target, subStep: entrySubStep(target, current.requiredCapabilities) });
+    dispatch({ type: 'GO_TO_STEP', step: target, subStep: entrySubStep(target) });
   }, []);
 
   const goTo = useCallback((step: OnboardingStep, subStep: OnboardingSubStep | null) => {
@@ -329,7 +364,7 @@ export function useOnboardingViewModel({
       const errors = validatePhoneAuth(current);
       if (Object.keys(errors).length > 0) {
         dispatch({ type: 'SET_FIELD_ERRORS', errors });
-        throw frameError(ErrorCodes.PAYMENT_FAILED, 'Resolve the highlighted fields and try again.');
+        throw frameError(ErrorCodes.VALIDATION_FAILED, 'Resolve the highlighted fields and try again.');
       }
       const forceFrameOtp = opts?.forceFrameOtp === true;
 
@@ -340,10 +375,7 @@ export function useOnboardingViewModel({
       let accountId = current.accountId;
       if (!accountId) {
         const e164 = `+${current.phoneCountry.callingCode}${current.phoneNumber.replace(/\D+/g, '')}`;
-        const dob =
-          current.dobYear && current.dobMonth && current.dobDay
-            ? `${current.dobYear}-${current.dobMonth.padStart(2, '0')}-${current.dobDay.padStart(2, '0')}`
-            : undefined;
+        const dob = dobIso(current);
         const createParams = {
           type: 'individual',
           terms_of_service: buildTosPayload(current.termsOfServiceToken),
@@ -370,12 +402,21 @@ export function useOnboardingViewModel({
         // authenticate with an `onb_sess_...` bearer instead of the raw pk_/sk_.
         // Mirrors iOS beginOnboardingSessionIfNeeded.
         await ensureOnboardingSession(accountId);
+
+        dispatch({
+          type: 'SET_IDENTITY_DOCUMENT_REQUIRED',
+          required: requiresIdentityDocument(account),
+        });
       }
 
       const e164 = `+${current.phoneCountry.callingCode}${current.phoneNumber.replace(/\D+/g, '')}`;
+      const dateOfBirth = dobIso(current);
       const verification = await client.sdk.phoneVerifications.create(
         accountId,
-        { phone_number: e164 },
+        {
+          phone_number: e164,
+          ...(dateOfBirth ? { date_of_birth: dateOfBirth } : {}),
+        } as unknown as Parameters<typeof client.sdk.phoneVerifications.create>[1],
       );
 
       // When the Prove branch has already failed, force the Frame OTP path
@@ -415,7 +456,7 @@ export function useOnboardingViewModel({
       const errors = validateOtp(current);
       if (Object.keys(errors).length > 0) {
         dispatch({ type: 'SET_FIELD_ERRORS', errors });
-        throw frameError(ErrorCodes.PAYMENT_FAILED, 'Enter the 6-digit code.');
+        throw frameError(ErrorCodes.VALIDATION_FAILED, 'Enter the 6-digit code.');
       }
       if (!current.accountId || !current.pendingVerificationId) {
         throw frameError(ErrorCodes.PAYMENT_FAILED, 'Phone verification session expired. Restart the step.');
@@ -430,13 +471,56 @@ export function useOnboardingViewModel({
     });
   }, [guardedAction, refreshAccountAfterPhoneVerify]);
 
+  const confirmProveVerification = useCallback(async () => {
+    const current = stateRef.current;
+    if (!current.accountId || !current.pendingVerificationId) {
+      throw frameError(ErrorCodes.PAYMENT_FAILED, 'Phone verification session expired. Restart the step.');
+    }
+    await client.sdk.phoneVerifications.confirm(
+      current.accountId,
+      current.pendingVerificationId,
+      {} as unknown as Parameters<typeof client.sdk.phoneVerifications.confirm>[2],
+    );
+  }, []);
+
+  const runGovernmentIdVerification = useCallback(async (opts?: { mandatory?: boolean }) => {
+    const { inquiryId } = await createIdvSession();
+    const preCheck = await completeIdvSession(inquiryId);
+    if (preCheck === 'verified') {
+      dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId });
+      return;
+    }
+    try {
+      await launchPersonaInquiry({ inquiryId });
+    } catch (err) {
+      if ((err as { code?: string }).code === ErrorCodes.USER_CANCELED) {
+        showToast('Identity verification was cancelled.');
+      }
+      throw err;
+    }
+    const completion = await completeIdvSessionDetailed(inquiryId);
+    if (completion.status === 'pending') {
+      throw frameError(
+        ErrorCodes.PAYMENT_FAILED,
+        'We could not reach our verification service just now. Please try again in a moment.',
+      );
+    }
+    if (completion.status === 'not_verified') {
+      throw frameError(
+        ErrorCodes.PAYMENT_FAILED,
+        idvFailureMessage(completion, opts?.mandatory === true),
+      );
+    }
+    dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId });
+  }, []);
+
   const submitCustomerInformation = useCallback(async () => {
     return guardedAction(async () => {
       const current = stateRef.current;
       const errors = validateCustomerInformation(current);
       if (Object.keys(errors).length > 0) {
         dispatch({ type: 'SET_FIELD_ERRORS', errors });
-        throw frameError(ErrorCodes.PAYMENT_FAILED, 'Resolve the highlighted fields and try again.');
+        throw frameError(ErrorCodes.VALIDATION_FAILED, 'Resolve the highlighted fields and try again.');
       }
       if (!current.accountId) {
         throw frameError(ErrorCodes.PAYMENT_FAILED, 'No account id present. Restart onboarding.');
@@ -455,15 +539,13 @@ export function useOnboardingViewModel({
         },
         email: current.customerEmail,
         phone: { number: phoneE164, country_code: current.phoneCountry.callingCode },
-        birthdate: `${current.dobYear}-${current.dobMonth.padStart(2, '0')}-${current.dobDay.padStart(2, '0')}`,
-        // Omit SSN entirely when the user verified via government ID — the
-        // no-SSN path means we never collected it.
-        ssn_last_four: current.identityVerifiedViaGovId ? undefined : current.ssnLast4 || undefined,
+        birthdate: dobIso(current),
+        ssn_last_four: skipsSsnEntry(current) ? undefined : current.ssnLast4 || undefined,
         address: {
           line_1: current.address.line1,
           line_2: current.address.line2 || undefined,
           city: current.address.city,
-          state: current.address.state,
+          state: normalizedSubregion(current.address),
           country: current.address.country,
           postal_code: current.address.postalCode,
         },
@@ -485,6 +567,17 @@ export function useOnboardingViewModel({
         dispatch({ type: 'SET_EXISTING_ACCOUNT_HAS_TOS', value: true });
       }
 
+      if (governmentIdRequired(current) && !current.identityVerifiedViaGovId) {
+        if (!isPersonaAvailable()) {
+          throw frameError(
+            ErrorCodes.PERSONA_UNAVAILABLE,
+            'This account requires government-ID verification, which needs the ' +
+              'react-native-persona package. Install it and rebuild the app.',
+          );
+        }
+        await runGovernmentIdVerification({ mandatory: true });
+      }
+
       // Per the flow chart, customer-information is the last sub-step of
       // PersonalInformation unless geo_compliance is requested.
       if (current.requiredCapabilities.includes('geo_compliance')) {
@@ -493,43 +586,11 @@ export function useOnboardingViewModel({
         advance();
       }
     });
-  }, [guardedAction, advance]);
+  }, [guardedAction, advance, runGovernmentIdVerification]);
 
-  // No-SSN government-ID path. The backend's /idv/complete response is the
-  // authoritative verified flag — Persona's client-side status is not trusted.
   const verifyIdentityWithoutSsn = useCallback(async () => {
-    return guardedAction(async () => {
-      const { inquiryId } = await createIdvSession();
-      // A pre-existing account may already have an approved (terminal) inquiry,
-      // which the Persona SDK can't launch. The backend reads inquiry status
-      // server-side, so if it reports verified up front we skip Persona. Any
-      // non-verified status (including 'pending') just means "launch Persona".
-      const preCheck = await completeIdvSession(inquiryId);
-      if (preCheck === 'verified') {
-        dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId });
-        return;
-      }
-      await launchPersonaInquiry({ inquiryId });
-      const status = await completeIdvSession(inquiryId);
-      if (status === 'pending') {
-        // The user finished Persona but the confirm request couldn't reach an
-        // authoritative answer (network blip / transient 5xx). Don't push them
-        // to the SSN fallback — the verification likely succeeded and just
-        // needs a moment to settle.
-        throw frameError(
-          ErrorCodes.PAYMENT_FAILED,
-          'We could not reach our verification service just now. Please try again in a moment.',
-        );
-      }
-      if (status === 'not_verified') {
-        throw frameError(
-          ErrorCodes.PAYMENT_FAILED,
-          'We could not confirm your identity yet. Please try again or enter your SSN.',
-        );
-      }
-      dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId });
-    });
-  }, [guardedAction]);
+    return guardedAction(() => runGovernmentIdVerification());
+  }, [guardedAction, runGovernmentIdVerification]);
 
   // ─── Payment methods ───
 
@@ -558,7 +619,7 @@ export function useOnboardingViewModel({
         const addressErrors = validateAddress(current.address, true);
         if (Object.keys(addressErrors).length > 0) {
           dispatch({ type: 'SET_FIELD_ERRORS', errors: addressErrors });
-          throw frameError(ErrorCodes.PAYMENT_FAILED, 'Resolve the highlighted fields and try again.');
+          throw frameError(ErrorCodes.VALIDATION_FAILED, 'Resolve the highlighted fields and try again.');
         }
         await ensureEvervaultConfigured();
         const [encryptedPan, encryptedCvc] = await Promise.all([
@@ -570,7 +631,7 @@ export function useOnboardingViewModel({
           line_1: current.address.line1,
           line_2: current.address.line2 || undefined,
           city: current.address.city,
-          state: current.address.state,
+          state: normalizedSubregion(current.address),
           country: current.address.country,
           postal_code: current.address.postalCode,
         };
@@ -616,14 +677,14 @@ export function useOnboardingViewModel({
         const addressErrors = validateAddress(current.address, true);
         if (Object.keys(addressErrors).length > 0) {
           dispatch({ type: 'SET_FIELD_ERRORS', errors: addressErrors });
-          throw frameError(ErrorCodes.PAYMENT_FAILED, 'Resolve the highlighted fields and try again.');
+          throw frameError(ErrorCodes.VALIDATION_FAILED, 'Resolve the highlighted fields and try again.');
         }
         await client.sdk.paymentMethods.update(paymentMethodId, {
           billing: {
             line_1: current.address.line1,
             line_2: current.address.line2 || undefined,
             city: current.address.city,
-            state: current.address.state,
+            state: normalizedSubregion(current.address),
             country: current.address.country,
             postal_code: current.address.postalCode,
           },
@@ -636,11 +697,20 @@ export function useOnboardingViewModel({
   const start3DS = useCallback(
     async (paymentMethodId: string) => {
       return guardedAction(async () => {
-        const verification = await client.sdk.threeDS.create({ payment_method_id: paymentMethodId });
-        if (!verification?.id) {
+        let verificationId: string | null = null;
+        try {
+          const verification = await client.sdk.threeDS.create({ payment_method_id: paymentMethodId });
+          verificationId = verification?.id ?? null;
+        } catch (err) {
+          const existingId = existingIntentIdFrom(err);
+          if (!existingId) throw err;
+          const existing = await client.sdk.threeDS.get(existingId);
+          verificationId = existing?.id ?? existingId;
+        }
+        if (!verificationId) {
           throw frameError(ErrorCodes.PAYMENT_FAILED, 'Failed to initialize card verification. Please try again.');
         }
-        dispatch({ type: 'SET_THREE_DS_VERIFICATION_ID', id: verification.id });
+        dispatch({ type: 'SET_THREE_DS_VERIFICATION_ID', id: verificationId });
         dispatch({ type: 'SET_SUB_STEP', subStep: 'secure_3ds' });
       });
     },
@@ -714,6 +784,16 @@ export function useOnboardingViewModel({
     });
   }, [guardedAction]);
 
+  const electSelectedPayoutMethod = useCallback(async (paymentMethodId?: string): Promise<void> => {
+    const current = stateRef.current;
+    const target = paymentMethodId ?? current.selectedPayoutMethodId;
+    if (!current.accountId || !target) {
+      throw frameError(ErrorCodes.PAYMENT_FAILED, 'Select a payout method first.');
+    }
+    const elected = await electPayoutMethod(current.accountId, target);
+    dispatch({ type: 'SET_PRIMARY_PAYOUT_METHOD_ID', id: elected });
+  }, []);
+
   const submitManualAch = useCallback(async (): Promise<string> => {
     return guardedAction(async () => {
       const current = stateRef.current;
@@ -723,14 +803,14 @@ export function useOnboardingViewModel({
       const errors = validateAch(current.ach, current.address);
       if (Object.keys(errors).length > 0) {
         dispatch({ type: 'SET_FIELD_ERRORS', errors });
-        throw frameError(ErrorCodes.PAYMENT_FAILED, 'Resolve the highlighted fields and try again.');
+        throw frameError(ErrorCodes.VALIDATION_FAILED, 'Resolve the highlighted fields and try again.');
       }
 
       const billing = {
         line_1: current.address.line1,
         line_2: current.address.line2 || undefined,
         city: current.address.city,
-        state: current.address.state,
+        state: normalizedSubregion(current.address),
         country: 'US',
         postal_code: current.address.postalCode,
       };
@@ -818,10 +898,7 @@ export function useOnboardingViewModel({
       // the full params from reducer state. Missing fields here mean the
       // user skipped CustomerInformation — surface a clear error.
       const e164 = `+${current.phoneCountry.callingCode}${current.phoneNumber.replace(/\D+/g, '')}`;
-      const dob =
-        current.dobYear && current.dobMonth && current.dobDay
-          ? `${current.dobYear}-${current.dobMonth.padStart(2, '0')}-${current.dobDay.padStart(2, '0')}`
-          : '';
+      const dob = dobIso(current) ?? '';
       const params = {
         first_name: current.customerFirstName,
         last_name: current.customerLastName,
@@ -833,7 +910,7 @@ export function useOnboardingViewModel({
           line_1: current.address.line1,
           line_2: current.address.line2 || undefined,
           city: current.address.city,
-          state: current.address.state,
+          state: normalizedSubregion(current.address),
           country: current.address.country,
           postal_code: current.address.postalCode,
         },
@@ -844,7 +921,7 @@ export function useOnboardingViewModel({
         !params.date_of_birth ||
         !params.email ||
         !params.phone_number ||
-        (!current.identityVerifiedViaGovId && !params.ssn) ||
+        (!skipsSsnEntry(current) && !params.ssn) ||
         !params.address.line_1
       ) {
         throw frameError(
@@ -857,7 +934,7 @@ export function useOnboardingViewModel({
       // required string, but the backend accepts an SSN-less identity on this
       // path — drop the key at runtime rather than send an empty string.
       let createParams: typeof params = params;
-      if (current.identityVerifiedViaGovId) {
+      if (skipsSsnEntry(current)) {
         const { ssn: _omitSsn, ...rest } = params;
         void _omitSsn;
         createParams = rest as typeof params;
@@ -965,6 +1042,9 @@ export function useOnboardingViewModel({
     },
     [],
   );
+  const applyAddress = useCallback((address: Partial<OnboardingAddress>) => {
+    dispatch({ type: 'APPLY_ADDRESS', address });
+  }, []);
   const setVerifyPhoneUi = useCallback((ui: VerifyPhoneUi | null) => {
     dispatch({ type: 'SET_VERIFY_PHONE_UI', ui });
   }, []);
@@ -999,6 +1079,7 @@ export function useOnboardingViewModel({
     setCustomerEmail,
     setSsnLast4,
     setAddressField,
+    applyAddress,
     setVerifyPhoneUi,
     setAchField,
     setAchAccountType,
@@ -1006,6 +1087,7 @@ export function useOnboardingViewModel({
     sendOtp,
     confirmFrameOtp,
     refreshAccountAfterPhoneVerify,
+    confirmProveVerification,
     submitCustomerInformation,
     verifyIdentityWithoutSsn,
     loadSavedPaymentMethods,
@@ -1016,6 +1098,7 @@ export function useOnboardingViewModel({
     poll3DS,
     resend3DS,
     loadSavedPayoutMethods,
+    electSelectedPayoutMethod,
     submitManualAch,
     connectPlaidAccount,
     openPlaidLink,
@@ -1029,22 +1112,27 @@ export { isCapabilitySatisfied };
 
 // ─── Evervault helper (mirrors useCheckoutViewModel) ───
 
-// Shape of one entry in `account.capabilities` as returned by the framepayments
-// API. The JS SDK types it as `unknown[]`; iOS uses `name` + `currently_due`.
-// We rely on the same fields here.
-interface AccountCapabilityRow {
-  name: string;
-  currently_due?: ReadonlyArray<string> | null;
+function normalizedSubregion(address: OnboardingAddress): string {
+  return normalizeSubregion(address.state, address.country);
 }
 
-function readAccountCapabilities(
-  account: { capabilities?: unknown[] } | null | undefined,
-): ReadonlyArray<AccountCapabilityRow> {
-  const raw = account?.capabilities;
-  if (!Array.isArray(raw)) return [];
-  return raw.filter((c): c is AccountCapabilityRow => {
-    return typeof c === 'object' && c !== null && typeof (c as { name?: unknown }).name === 'string';
-  });
+function existingIntentIdFrom(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null) return null;
+  const raw = (error as { raw?: unknown }).raw;
+  if (typeof raw !== 'object' || raw === null) return null;
+  const details = (raw as { error?: unknown; error_details?: unknown });
+  for (const candidate of [details.error, details.error_details]) {
+    if (typeof candidate === 'object' && candidate !== null) {
+      const id = (candidate as { existing_intent_id?: unknown }).existing_intent_id;
+      if (typeof id === 'string' && id.length > 0) return id;
+    }
+  }
+  return null;
+}
+
+function dobIso(state: Pick<OnboardingState, 'dobYear' | 'dobMonth' | 'dobDay'>): string | undefined {
+  if (!state.dobYear || !state.dobMonth || !state.dobDay) return undefined;
+  return `${state.dobYear}-${state.dobMonth.padStart(2, '0')}-${state.dobDay.padStart(2, '0')}`;
 }
 
 // Mirrors iOS OnboardingContainerViewModel.checkExistingAccount(updateCapabilies:
@@ -1070,22 +1158,6 @@ async function reconcileCapabilities(
     // attempt the flow. Server-side validation will catch any unmet caps.
     return account;
   }
-}
-
-// For each required capability the account already has with an empty
-// `currently_due`, remove it from the merchant's requested list so the flow
-// skips that step.
-function trimCompletedCapabilities(
-  required: ReadonlyArray<OnboardingCapability>,
-  account: { capabilities?: unknown[] } | null | undefined,
-): ReadonlyArray<OnboardingCapability> {
-  const rows = readAccountCapabilities(account);
-  const completed = new Set(
-    rows
-      .filter((c) => Array.isArray(c.currently_due) && c.currently_due.length === 0)
-      .map((c) => c.name),
-  );
-  return required.filter((r) => !completed.has(r));
 }
 
 // Map Frame's Account.profile (a Record<string, unknown>) into the reducer's

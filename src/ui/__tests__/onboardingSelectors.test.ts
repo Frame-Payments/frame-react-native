@@ -21,6 +21,9 @@ import {
   validateOtp,
   validatePhoneAuth,
   areDocsComplete,
+  requiresKyc,
+  governmentIdRequired,
+  skipsSsnEntry,
 } from '../screens/onboarding/onboardingSelectors';
 import type { OnboardingCapability } from '../../types';
 
@@ -89,7 +92,7 @@ describe('computeFlow — capability → step mapping', () => {
 
   it('creator_shield routes to personal_information (mirrors native SDK behavior; no dedicated screen)', () => {
     expect(computeFlow(['creator_shield'])).toContain('personal_information');
-    expect(entrySubStep('personal_information', ['creator_shield'])).toBe('phone_auth');
+    expect(entrySubStep('personal_information')).toBe('phone_auth');
   });
 
   it('full-stack: kyc + card_verification + bank_account_send', () => {
@@ -129,33 +132,27 @@ describe('computeFlow — capability → step mapping', () => {
 
 describe('entrySubStep', () => {
   it('verification_welcome has null sub-step', () => {
-    expect(entrySubStep('verification_welcome', [])).toBeNull();
+    expect(entrySubStep('verification_welcome')).toBeNull();
   });
 
-  it('personal_information defaults to phone_auth when any phone-touching capability present', () => {
-    expect(entrySubStep('personal_information', ['kyc'])).toBe('phone_auth');
-    expect(entrySubStep('personal_information', ['kyc_prefill'])).toBe('phone_auth');
-    expect(entrySubStep('personal_information', ['geo_compliance'])).toBe('phone_auth');
-  });
-
-  it('personal_information for age_verification-only skips straight to customer_information', () => {
-    expect(entrySubStep('personal_information', ['age_verification'])).toBe('customer_information');
+  it('personal_information always enters at phone_auth', () => {
+    expect(entrySubStep('personal_information')).toBe('phone_auth');
   });
 
   it('confirm_payment_method enters at select', () => {
-    expect(entrySubStep('confirm_payment_method', ['card_send'])).toBe('select');
+    expect(entrySubStep('confirm_payment_method')).toBe('select');
   });
 
   it('confirm_bank_account enters at select', () => {
-    expect(entrySubStep('confirm_bank_account', ['bank_account_send'])).toBe('select');
+    expect(entrySubStep('confirm_bank_account')).toBe('select');
   });
 
   it('upload_documents enters at list', () => {
-    expect(entrySubStep('upload_documents', ['kyc'])).toBe('list');
+    expect(entrySubStep('upload_documents')).toBe('list');
   });
 
   it('verification_submitted has null sub-step', () => {
-    expect(entrySubStep('verification_submitted', [])).toBeNull();
+    expect(entrySubStep('verification_submitted')).toBeNull();
   });
 });
 
@@ -167,7 +164,7 @@ describe('nextStep / previousStep', () => {
       type: 'SET_FLOW',
       flow,
       currentStep: flow[0]!,
-      subStep: entrySubStep(flow[0]!, caps),
+      subStep: entrySubStep(flow[0]!),
     });
     return s;
   }
@@ -452,5 +449,66 @@ describe('areDocsComplete', () => {
     expect(areDocsComplete(s)).toBe(false);
     s = onboardingReducer(s, withPhoto('back'));
     expect(areDocsComplete(s)).toBe(true);
+  });
+});
+
+
+describe('government-ID gating', () => {
+  function stateWith(caps: ReadonlyArray<OnboardingCapability>): OnboardingState {
+    return initialOnboardingState(caps, null);
+  }
+
+  it('requiresKyc is true for kyc and kyc_prefill only', () => {
+    expect(requiresKyc(['kyc'])).toBe(true);
+    expect(requiresKyc(['kyc_prefill'])).toBe(true);
+    expect(requiresKyc(['idv'])).toBe(false);
+    expect(requiresKyc(['age_verification'])).toBe(false);
+  });
+
+  it('governmentIdRequired is true when the merchant requested idv', () => {
+    expect(governmentIdRequired(stateWith(['idv']))).toBe(true);
+  });
+
+  it('governmentIdRequired is true on a backend step-up, whatever the capabilities', () => {
+    const stepped = onboardingReducer(stateWith(['bank_account_receive']), {
+      type: 'SET_IDENTITY_DOCUMENT_REQUIRED',
+      required: true,
+    });
+    expect(governmentIdRequired(stepped)).toBe(true);
+  });
+
+  it('governmentIdRequired is false for a plain kyc flow', () => {
+    expect(governmentIdRequired(stateWith(['kyc']))).toBe(false);
+  });
+
+  it('skipsSsnEntry once already verified via government ID', () => {
+    const verified = onboardingReducer(stateWith(['kyc']), {
+      type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID',
+      verified: true,
+      inquiryId: 'inq_1',
+    });
+    expect(skipsSsnEntry(verified)).toBe(true);
+  });
+
+  it('skipsSsnEntry when a government ID is required but not yet supplied', () => {
+    expect(skipsSsnEntry(stateWith(['idv']))).toBe(true);
+  });
+
+  it('SSN is validated on a plain kyc flow', () => {
+    const errors = validateCustomerInformation(fillUS(stateWith(['kyc'])));
+    expect(errors.ssnLast4).toBeDefined();
+  });
+
+  it('SSN validation is skipped when a government ID is required', () => {
+    const errors = validateCustomerInformation(fillUS(stateWith(['idv', 'kyc'])));
+    expect(errors.ssnLast4).toBeUndefined();
+  });
+
+  it('SSN validation is skipped after a backend step-up', () => {
+    const stepped = onboardingReducer(fillUS(stateWith(['kyc'])), {
+      type: 'SET_IDENTITY_DOCUMENT_REQUIRED',
+      required: true,
+    });
+    expect(validateCustomerInformation(stepped).ssnLast4).toBeUndefined();
   });
 });

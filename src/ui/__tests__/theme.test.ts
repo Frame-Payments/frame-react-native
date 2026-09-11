@@ -8,43 +8,67 @@ import {
   resolveTheme,
 } from '../theme/defaults';
 
-describe('color tokens (mirror Android values{,-night}/colors.xml)', () => {
-  it('light primaryButton matches Android frame_primary_button', () => {
-    expect(lightColors.primaryButton).toBe('#324D52');
-    expect(darkColors.primaryButton).toBe('#506F8A');
+describe('color tokens (mirror Frame-iOS Colors.xcassets + system colors)', () => {
+  it('primaryButton matches MainButtonColor.colorset', () => {
+    expect(lightColors.primaryButton).toBe('#2B4146');
+    expect(darkColors.primaryButton).toBe('#50787F');
   });
 
-  it('light surface is white, dark surface is system dark', () => {
+  it('surface matches SurfaceColor.colorset', () => {
     expect(lightColors.surface).toBe('#FFFFFF');
     expect(darkColors.surface).toBe('#1C1C1E');
   });
 
-  it('strokes carry alpha (RRGGBBAA) — light ~20% black, dark ~20% white', () => {
-    expect(lightColors.surfaceStroke).toBe('#00000033');
-    expect(darkColors.surfaceStroke).toBe('#FFFFFF33');
-    expect(lightColors.disabledButtonStroke).toBe('#00000033');
-    expect(darkColors.disabledButtonStroke).toBe('#FFFFFF33');
+  it('surfaceStroke matches SurfaceStrokeColor.colorset', () => {
+    expect(lightColors.surfaceStroke).toBe('#C7C7C7');
+    expect(darkColors.surfaceStroke).toBe('#575759');
   });
 
-  it('error / toast match Material 3 dark error palette', () => {
-    expect(lightColors.error).toBe('#B00020');
-    expect(darkColors.error).toBe('#CF6679');
-    expect(lightColors.toastBackground).toBe('#B00020');
-    expect(darkColors.toastBackground).toBe('#CF6679');
-    expect(darkColors.toastText).toBe('#000000');
+  it('disabled-button trio matches UnfilledButton*.colorset', () => {
+    expect(lightColors.disabledButton).toBe('#F7F7F7');
+    expect(darkColors.disabledButton).toBe('#2E2E2E');
+    expect(lightColors.disabledButtonStroke).toBe('#D9D9D9');
+    expect(darkColors.disabledButtonStroke).toBe('#545454');
+    expect(lightColors.disabledButtonText).toBe('#6F6F6F');
+    expect(darkColors.disabledButtonText).toBe('#AEAEAE');
+  });
+
+  it('text colors match PrimaryTextColor / TextColorSecondary colorsets', () => {
+    expect(lightColors.textPrimary).toBe('#000000');
+    expect(darkColors.textPrimary).toBe('#FFFFFF');
+    expect(lightColors.textSecondary).toBe('#2A2E2E99');
+    expect(darkColors.textSecondary).toBe('#EBEBEBB2');
+  });
+
+  it('error / toastBackground match SwiftUI .red (Apple systemRed)', () => {
+    expect(lightColors.error).toBe('#FF3B30');
+    expect(darkColors.error).toBe('#FF453A');
+    expect(lightColors.toastBackground).toBe('#FF3B30');
+    expect(darkColors.toastBackground).toBe('#FF453A');
     expect(lightColors.toastText).toBe('#FFFFFF');
+    expect(darkColors.toastText).toBe('#FFFFFF');
   });
 
-  it('secondary button background is transparent on both schemes', () => {
-    expect(lightColors.secondaryButton).toBe('#00000000');
-    expect(darkColors.secondaryButton).toBe('#00000000');
+  it('secondaryButton matches Color(.systemBackground) — opaque, not transparent', () => {
+    expect(lightColors.secondaryButton).toBe('#FFFFFF');
+    expect(darkColors.secondaryButton).toBe('#000000');
   });
 
-  it('onboarding progress is white-on-brand on both schemes', () => {
+  it('secondaryButtonText reuses primaryButton\'s color, matching iOS', () => {
+    expect(lightColors.secondaryButtonText).toBe(lightColors.primaryButton);
+    expect(darkColors.secondaryButtonText).toBe(darkColors.primaryButton);
+  });
+
+  it('onboardingHeaderBackground matches OnboardingHeaderBackground.colorset', () => {
+    expect(lightColors.onboardingHeaderBackground).toBe('#FCFBF8');
+    expect(darkColors.onboardingHeaderBackground).toBe('#1F2D33');
+  });
+
+  it('onboarding progress indicator matches .white / .white.opacity(0.25) on both schemes', () => {
     expect(lightColors.onboardingProgressFilledOnBrand).toBe('#FFFFFF');
     expect(darkColors.onboardingProgressFilledOnBrand).toBe('#FFFFFF');
-    expect(lightColors.onboardingProgressEmptyOnBrand).toBe('#FFFFFF66');
-    expect(darkColors.onboardingProgressEmptyOnBrand).toBe('#FFFFFF66');
+    expect(lightColors.onboardingProgressEmptyOnBrand).toBe('#FFFFFF40');
+    expect(darkColors.onboardingProgressEmptyOnBrand).toBe('#FFFFFF40');
   });
 
   it('every public token is set on both schemes', () => {
@@ -75,42 +99,39 @@ describe('color tokens (mirror Android values{,-night}/colors.xml)', () => {
   });
 });
 
-describe('font tokens (Material 3 sizes + Frame weight overrides)', () => {
-  it('title/heading/headline get explicit weights to match iOS SwiftUI defaults', () => {
-    expect(fontWeights.title).toBe('700');
-    expect(fontWeights.heading).toBe('600');
+describe('font tokens (mirror Frame-iOS Fonts.init Dynamic Type defaults)', () => {
+  it('headline / button / heading get semibold weight, matching iOS', () => {
     expect(fontWeights.headline).toBe('600');
-    expect(fontWeights.label).toBe('600');
     expect(fontWeights.button).toBe('600');
+    expect(fontWeights.heading).toBe('600');
   });
 
-  it('body / bodySmall / caption stay at regular weight', () => {
+  it('title / body / bodySmall / label / caption stay at regular weight', () => {
+    expect(fontWeights.title).toBe('400');
     expect(fontWeights.body).toBe('400');
     expect(fontWeights.bodySmall).toBe('400');
+    expect(fontWeights.label).toBe('400');
     expect(fontWeights.caption).toBe('400');
   });
 
-  it('sizes match the shipping defaults', () => {
-    // Frame iOS uses dynamic system tokens (.title, .headline, etc.); RN
-    // ships concrete pt sizes that visually align with those defaults on
-    // the iPhone reference size class. Keep these in sync with
-    // src/ui/theme/defaults.ts.
-    expect(defaultFonts.title.size).toBe(24);
-    expect(defaultFonts.heading.size).toBe(24);
-    expect(defaultFonts.headline.size).toBe(18);
-    expect(defaultFonts.body.size).toBe(14);
-    expect(defaultFonts.bodySmall.size).toBe(12);
-    expect(defaultFonts.label.size).toBe(14);
-    expect(defaultFonts.caption.size).toBe(11);
-    expect(defaultFonts.button.size).toBe(14);
+  it('sizes match iOS Dynamic Type point sizes at the default content-size category', () => {
+    expect(defaultFonts.title.size).toBe(28);
+    expect(defaultFonts.heading.size).toBe(18);
+    expect(defaultFonts.headline.size).toBe(17);
+    expect(defaultFonts.body.size).toBe(17);
+    expect(defaultFonts.bodySmall.size).toBe(14);
+    expect(defaultFonts.label.size).toBe(15);
+    expect(defaultFonts.caption.size).toBe(12);
+    expect(defaultFonts.button.size).toBe(17);
   });
 
   it('line heights pair with sizes', () => {
-    expect(fontLineHeights.title).toBe(40);
-    expect(fontLineHeights.heading).toBe(36);
-    expect(fontLineHeights.headline).toBe(28);
-    expect(fontLineHeights.body).toBe(24);
+    expect(fontLineHeights.title).toBe(34);
+    expect(fontLineHeights.headline).toBe(22);
+    expect(fontLineHeights.body).toBe(22);
+    expect(fontLineHeights.label).toBe(20);
     expect(fontLineHeights.caption).toBe(16);
+    expect(fontLineHeights.button).toBe(22);
   });
 
   it('all font tokens default to "system"', () => {
@@ -121,7 +142,7 @@ describe('font tokens (Material 3 sizes + Frame weight overrides)', () => {
 });
 
 describe('radii', () => {
-  it('matches FrameRadii defaults (8 / 10 / 16)', () => {
+  it('matches FrameTheme.Radii defaults (8 / 10 / 16)', () => {
     expect(defaultRadii.small).toBe(8);
     expect(defaultRadii.medium).toBe(10);
     expect(defaultRadii.large).toBe(16);

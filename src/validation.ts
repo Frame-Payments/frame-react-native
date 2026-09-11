@@ -1,3 +1,5 @@
+import { addressFormatForCountry } from './addressFormat';
+import { subregionCodesForCountry } from './addressSubregions';
 import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -355,19 +357,55 @@ export function getSupportedPostalCodeCountries(): ReadonlyArray<PostalCountryCo
 }
 
 /**
- * Checks the phone number is *possible* for the given region — i.e. correct
- * digit count and a valid country-code prefix. Mirrors iOS PhoneNumberKit's
- * `parse(_:withRegion:ignoreType:)` which performs the same lenient check.
- * Returns null on a number that's "possible" even if not assigned in the
- * national plan (e.g. a UK-formatted number with `+44` still passes when the
- * region is 'US').
+ * Validates a state / province / region against the subregions the country
+ * accepts. Countries whose subregion is free text (everything but US and CA)
+ * pass any non-empty value.
+ *
+ * Mirrors iOS `Validators.validateSubregion`
+ * (`Sources/Frame/Validation/Validators.swift:208-216`), including the
+ * per-country label — "State is required" for the US, "Province is required"
+ * for Canada, "County is required" for the UK.
+ */
+export function validateSubregion(value: string, countryCode: string): string | null {
+  const label = addressFormatForCountry(countryCode).stateLabel;
+  const trimmed = value.trim();
+  if (trimmed === '') return `${label} is required`;
+  const codes = subregionCodesForCountry(countryCode);
+  if (!codes) return null;
+  return codes.has(trimmed.toUpperCase())
+    ? null
+    : `Enter a valid 2-letter ${label.toLowerCase()}`;
+}
+
+const TEST_AREA_CODES: ReadonlySet<string> = new Set(['200']);
+
+/**
+ * Checks the phone number is *valid* for the given region — i.e. it is actually
+ * assigned in the national numbering plan, not merely the right length.
+ *
+ * Mirrors iOS `Validators.validatePhoneE164`
+ * (`Sources/Frame/Validation/Validators.swift:226-235`), which treats a
+ * successful `PhoneNumberKit.parse(_:withRegion:ignoreType:)` as valid.
+ * PhoneNumberKit's `parse` corresponds to libphonenumber's `isValidNumber`;
+ * `ignoreType` only relaxes the line-type constraint (mobile vs fixed), not
+ * validity. Using `isPossible()` here instead — which corresponds to
+ * `isPossibleNumber` — accepted numbers iOS rejects, e.g. `+1 555 555 5555`:
+ * correct NANP length, unassigned exchange.
  */
 export function validatePhoneE164(raw: string, regionCode: string): string | null {
   const trimmed = raw.trim();
   if (trimmed === '') return 'Phone number is required';
   try {
     const parsed = parsePhoneNumberFromString(trimmed, regionCode as CountryCode);
-    if (!parsed || !parsed.isPossible()) return 'Enter a valid phone number';
+    if (!parsed) return 'Enter a valid phone number';
+    if (
+      (regionCode === 'US' || regionCode === 'CA') &&
+      parsed.nationalNumber.length === 10 &&
+      TEST_AREA_CODES.has(parsed.nationalNumber.slice(0, 3))
+    ) {
+      return null;
+    }
+    if (!parsed.isValid()) return 'Enter a valid phone number';
     return null;
   } catch {
     return 'Enter a valid phone number';

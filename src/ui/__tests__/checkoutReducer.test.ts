@@ -49,6 +49,79 @@ describe('checkoutReducer', () => {
     s = checkoutReducer(s, { type: 'SET_ADDRESS_FIELD', field: 'line2', value: 'a' });
     expect(s.fieldErrors.addressLine1).toBe('X');
   });
+
+  describe('APPLY_ADDRESS', () => {
+
+    it('fills every field an autocomplete result carries', () => {
+      let s = initialCheckoutState();
+      s = checkoutReducer(s, {
+        type: 'APPLY_ADDRESS',
+        address: { line1: '1 Main St', city: 'Austin', state: 'TX', postalCode: '78701' },
+      });
+      expect(s.address).toMatchObject({
+        line1: '1 Main St',
+        city: 'Austin',
+        state: 'TX',
+        postalCode: '78701',
+      });
+    });
+
+    it('leaves line2 alone — Mapbox does not reliably return apartment/unit', () => {
+      let s = initialCheckoutState();
+      s = checkoutReducer(s, { type: 'SET_ADDRESS_FIELD', field: 'line2', value: 'Apt 4B' });
+      s = checkoutReducer(s, {
+        type: 'APPLY_ADDRESS',
+        address: { line1: '1 Main St', postalCode: '78701' },
+      });
+      expect(s.address.line2).toBe('Apt 4B');
+    });
+
+    it('leaves country alone when the caller omits it (no picker match)', () => {
+      let s = initialCheckoutState();
+      const before = s.address.country;
+      s = checkoutReducer(s, {
+        type: 'APPLY_ADDRESS',
+        address: { line1: '1 Main St', postalCode: '78701' },
+      });
+      expect(s.address.country).toBe(before);
+    });
+
+    it('applies country when the caller includes it', () => {
+      let s = initialCheckoutState();
+      s = checkoutReducer(s, {
+        type: 'APPLY_ADDRESS',
+        address: { line1: '1 Main St', postalCode: '78701', country: 'CA' },
+      });
+      expect(s.address.country).toBe('CA');
+    });
+
+    it('clears errors only on the fields it actually filled', () => {
+      let s = initialCheckoutState();
+      s = checkoutReducer(s, {
+        type: 'SET_FIELD_ERRORS',
+        errors: { addressLine1: 'X', addressCity: 'Y', addressState: 'Z', addressPostalCode: 'W' },
+      });
+      s = checkoutReducer(s, {
+        type: 'APPLY_ADDRESS',
+        address: { line1: '1 Main St', postalCode: '78701' },
+      });
+      expect(s.fieldErrors.addressLine1).toBeUndefined();
+      expect(s.fieldErrors.addressPostalCode).toBeUndefined();
+      expect(s.fieldErrors.addressCity).toBe('Y');
+      expect(s.fieldErrors.addressState).toBe('Z');
+    });
+
+    it('is a single state transition — no field can be read mid-fill in an inconsistent state', () => {
+      let s = initialCheckoutState();
+      const before = s;
+      const after = checkoutReducer(before, {
+        type: 'APPLY_ADDRESS',
+        address: { line1: 'A', city: 'B', state: 'C', postalCode: 'D' },
+      });
+      expect(after).not.toBe(before);
+      expect(after.address).toEqual({ ...before.address, line1: 'A', city: 'B', state: 'C', postalCode: 'D' });
+    });
+  });
 });
 
 describe('selectors', () => {
@@ -76,9 +149,20 @@ describe('selectors', () => {
     expect(shouldValidateAddress(s)).toBe(true);
   });
 
-  it('hasUsablePaymentInput: saved card always passes', () => {
+  it('hasUsablePaymentInput: saved card still needs name + email', () => {
     let s = initialCheckoutState();
     s = checkoutReducer(s, { type: 'SELECT_SAVED_OPTION', id: 'pm_1' });
+    expect(hasUsablePaymentInput(s)).toBe(false);
+    s = checkoutReducer(s, { type: 'SET_CUSTOMER_NAME', value: 'Eric Townsend' });
+    s = checkoutReducer(s, { type: 'SET_CUSTOMER_EMAIL', value: 'eric@example.com' });
+    expect(hasUsablePaymentInput(s)).toBe(true);
+  });
+
+  it('hasUsablePaymentInput: saved card skips the card and address fields', () => {
+    let s = initialCheckoutState('required');
+    s = checkoutReducer(s, { type: 'SELECT_SAVED_OPTION', id: 'pm_1' });
+    s = checkoutReducer(s, { type: 'SET_CUSTOMER_NAME', value: 'Eric Townsend' });
+    s = checkoutReducer(s, { type: 'SET_CUSTOMER_EMAIL', value: 'eric@example.com' });
     expect(hasUsablePaymentInput(s)).toBe(true);
   });
 
@@ -121,9 +205,17 @@ describe('selectors', () => {
 });
 
 describe('validateForSubmit', () => {
-  it('saved card path is always valid', () => {
+  it('saved card path still validates name and email', () => {
     let s = initialCheckoutState();
     s = checkoutReducer(s, { type: 'SELECT_SAVED_OPTION', id: 'pm_1' });
+    const empty = validateForSubmit(s);
+    expect(empty.isValid).toBe(false);
+    expect(empty.fieldErrors.customerName).toBeDefined();
+    expect(empty.fieldErrors.customerEmail).toBeDefined();
+    expect(empty.fieldErrors.addressLine1).toBeUndefined();
+
+    s = checkoutReducer(s, { type: 'SET_CUSTOMER_NAME', value: 'Eric Townsend' });
+    s = checkoutReducer(s, { type: 'SET_CUSTOMER_EMAIL', value: 'eric@example.com' });
     expect(validateForSubmit(s)).toEqual({ fieldErrors: {}, isValid: true });
   });
 
@@ -150,15 +242,79 @@ describe('validateForSubmit', () => {
     expect(validateForSubmit(s).fieldErrors.addressPostalCode).toBeUndefined();
   });
 
-  it('non-US country uses non-empty validator (any non-empty postal passes)', () => {
-    let s = initialCheckoutState();
-    s = checkoutReducer(s, { type: 'SET_CUSTOMER_NAME', value: 'Eric Townsend' });
-    s = checkoutReducer(s, { type: 'SET_CUSTOMER_EMAIL', value: 'a@b.co' });
-    s = checkoutReducer(s, { type: 'SET_ADDRESS_FIELD', field: 'country', value: 'CA' });
-    s = checkoutReducer(s, { type: 'SET_ADDRESS_FIELD', field: 'line1', value: '1' });
-    s = checkoutReducer(s, { type: 'SET_ADDRESS_FIELD', field: 'city', value: 'a' });
-    s = checkoutReducer(s, { type: 'SET_ADDRESS_FIELD', field: 'state', value: 'ON' });
-    s = checkoutReducer(s, { type: 'SET_ADDRESS_FIELD', field: 'postalCode', value: 'K1A' });
-    expect(validateForSubmit(s).fieldErrors.addressPostalCode).toBeUndefined();
+  it('non-US country validates the postal code against that country format', () => {
+    function caStateWith(postalCode: string) {
+      let s = initialCheckoutState();
+      s = checkoutReducer(s, { type: 'SET_CUSTOMER_NAME', value: 'Eric Townsend' });
+      s = checkoutReducer(s, { type: 'SET_CUSTOMER_EMAIL', value: 'a@b.co' });
+      s = checkoutReducer(s, { type: 'SET_ADDRESS_FIELD', field: 'country', value: 'CA' });
+      s = checkoutReducer(s, { type: 'SET_ADDRESS_FIELD', field: 'line1', value: '1' });
+      s = checkoutReducer(s, { type: 'SET_ADDRESS_FIELD', field: 'city', value: 'a' });
+      s = checkoutReducer(s, { type: 'SET_ADDRESS_FIELD', field: 'state', value: 'ON' });
+      return checkoutReducer(s, { type: 'SET_ADDRESS_FIELD', field: 'postalCode', value: postalCode });
+    }
+    expect(validateForSubmit(caStateWith('K1A 0B1')).fieldErrors.addressPostalCode).toBeUndefined();
+    expect(validateForSubmit(caStateWith('K1A')).fieldErrors.addressPostalCode).toBeDefined();
+  });
+
+  it('a country with no known postal format falls back to a presence check', () => {
+    function stateWith(postalCode: string) {
+      let s = initialCheckoutState();
+      s = checkoutReducer(s, { type: 'SET_CUSTOMER_NAME', value: 'Eric Townsend' });
+      s = checkoutReducer(s, { type: 'SET_CUSTOMER_EMAIL', value: 'a@b.co' });
+      s = checkoutReducer(s, { type: 'SET_ADDRESS_FIELD', field: 'country', value: 'ZA' });
+      s = checkoutReducer(s, { type: 'SET_ADDRESS_FIELD', field: 'line1', value: '1' });
+      s = checkoutReducer(s, { type: 'SET_ADDRESS_FIELD', field: 'city', value: 'a' });
+      s = checkoutReducer(s, { type: 'SET_ADDRESS_FIELD', field: 'state', value: 'GP' });
+      return checkoutReducer(s, { type: 'SET_ADDRESS_FIELD', field: 'postalCode', value: postalCode });
+    }
+    expect(validateForSubmit(stateWith('anything')).fieldErrors.addressPostalCode).toBeUndefined();
+    expect(validateForSubmit(stateWith('')).fieldErrors.addressPostalCode).toBeDefined();
+  });
+});
+
+describe('saved-method loading', () => {
+  const savedCard = { id: 'pm_1' } as never;
+  const otherCard = { id: 'pm_2' } as never;
+
+  it('holds didLoadPaymentOptions false until the fetch settles', () => {
+    expect(initialCheckoutState().didLoadPaymentOptions).toBe(false);
+    const loaded = checkoutReducer(initialCheckoutState(), {
+      type: 'SET_PAYMENT_OPTIONS',
+      options: [],
+    });
+    expect(loaded.didLoadPaymentOptions).toBe(true);
+  });
+
+  it('auto-selects the first saved method', () => {
+    const s = checkoutReducer(initialCheckoutState(), {
+      type: 'SET_PAYMENT_OPTIONS',
+      options: [savedCard, otherCard],
+    });
+    expect(s.selectedAccountPaymentOptionId).toBe('pm_1');
+  });
+
+  it('does not auto-select when the user has started typing a card', () => {
+    let s = checkoutReducer(initialCheckoutState(), { type: 'SET_CARD_COMPLETE', value: true });
+    s = checkoutReducer(s, { type: 'SET_PAYMENT_OPTIONS', options: [savedCard] });
+    expect(s.selectedAccountPaymentOptionId).toBeNull();
+  });
+
+  it('does not auto-select over a deliberate "Enter New Payment Method" choice', () => {
+    let s = checkoutReducer(initialCheckoutState(), { type: 'SELECT_SAVED_OPTION', id: null });
+    s = checkoutReducer(s, { type: 'SET_PAYMENT_OPTIONS', options: [savedCard] });
+    expect(s.selectedAccountPaymentOptionId).toBeNull();
+  });
+
+  it('leaves an existing selection alone', () => {
+    let s = checkoutReducer(initialCheckoutState(), { type: 'SELECT_SAVED_OPTION', id: 'pm_2' });
+    s = checkoutReducer(s, { type: 'SET_PAYMENT_OPTIONS', options: [savedCard, otherCard] });
+    expect(s.selectedAccountPaymentOptionId).toBe('pm_2');
+  });
+
+  it('selects nothing when the account has no saved methods', () => {
+    const s = checkoutReducer(initialCheckoutState(), { type: 'SET_PAYMENT_OPTIONS', options: [] });
+    expect(s.selectedAccountPaymentOptionId).toBeNull();
+    expect(s.didLoadPaymentOptions).toBe(true);
   });
 });

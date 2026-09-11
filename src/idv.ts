@@ -1,28 +1,9 @@
 import { getActiveOnboardingSession } from './auth';
-import { getIpAddress } from './config';
-import { FRAME_API_BASE_URL, frameUserAgent } from './client';
+import { FRAME_API_BASE_URL } from './client';
+import { frameRequestHeaders as idvHeaders } from './bespokeRequest';
 import { ErrorCodes, frameError } from './errors';
 
 // The framepayments SDK has no API surface for the `/v1/idv/*` endpoints and
-// exposes no generic request hook, so these calls are hand-rolled. They must
-// still route identically to every SDK request: same base URL, same User-Agent
-// (which the backend uses to select its native-SDK code path) and same
-// `ip_address` header. Those values are imported from client.ts rather than
-// duplicated so the two never drift.
-function idvHeaders(extra?: Record<string, string>): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-    ...extra,
-  };
-  const session = getActiveOnboardingSession();
-  if (session) headers.Authorization = `Bearer ${session}`;
-  const ip = getIpAddress();
-  if (ip) headers.ip_address = ip;
-  const userAgent = frameUserAgent();
-  if (userAgent) headers['User-Agent'] = userAgent;
-  return headers;
-}
 
 /**
  * Create a Persona inquiry server-side and return its id. The backend pre-
@@ -80,7 +61,44 @@ export async function createIdvSession(): Promise<{ inquiryId: string }> {
  */
 export type IdvCompletionStatus = 'verified' | 'not_verified' | 'pending';
 
-export async function completeIdvSession(inquiryId: string): Promise<IdvCompletionStatus> {
+export interface IdvCompletion {
+  status: IdvCompletionStatus;
+  category?: string;
+  rawStatus?: string;
+  failureType?: string;
+  retriable?: boolean;
+}
+
+export function idvFailureMessage(completion: IdvCompletion, mandatory = false): string {
+  switch (completion.category) {
+    case 'terminal':
+      return "We couldn't verify your identity. Please contact support if you think this is a mistake.";
+    case 'review':
+      return "Your verification is in review. We'll be in touch once it's complete.";
+    case 'retriable_with_new_data':
+      return "Some of your details didn't match. Please check them and try again.";
+    case 'step_up':
+      return 'We need a government ID to finish verifying your identity.';
+    case 'transient':
+      return "We couldn't complete the check just now. Please try again.";
+    default:
+      break;
+  }
+
+  switch (completion.rawStatus) {
+    case 'declined':
+    case 'failed':
+      return "We couldn't verify your identity. Please contact support if you think this is a mistake.";
+    case 'needs_review':
+      return "Your verification is in review. We'll be in touch once it's complete.";
+    default:
+      return mandatory
+        ? "We couldn't verify your identity. Please try again."
+        : "We couldn't verify your identity. Please try again or enter your Social Security Number.";
+  }
+}
+
+export async function completeIdvSessionDetailed(inquiryId: string): Promise<IdvCompletion> {
   let response: Response;
   try {
     response = await fetch(`${FRAME_API_BASE_URL}/v1/idv/complete`, {
@@ -90,18 +108,35 @@ export async function completeIdvSession(inquiryId: string): Promise<IdvCompleti
     });
   } catch {
     // Network hiccup → unknown, not an authoritative "not verified".
-    return 'pending';
+    return { status: 'pending' };
   }
   if (!response.ok) {
     // Endpoint not live yet / transient server error → unknown.
-    return 'pending';
+    return { status: 'pending' };
   }
-  let body: { verified?: unknown };
+  let body: {
+    verified?: unknown;
+    category?: unknown;
+    status?: unknown;
+    failure_type?: unknown;
+    retriable?: unknown;
+  };
   try {
-    body = (await response.json()) as { verified?: unknown };
+    body = (await response.json()) as typeof body;
   } catch {
     // Non-JSON (e.g. the JSON variant hasn't shipped) → unknown.
-    return 'pending';
+    return { status: 'pending' };
   }
-  return body.verified === true ? 'verified' : 'not_verified';
+  const str = (v: unknown) => (typeof v === 'string' && v.length > 0 ? v : undefined);
+  return {
+    status: body.verified === true ? 'verified' : 'not_verified',
+    category: str(body.category),
+    rawStatus: str(body.status),
+    failureType: str(body.failure_type),
+    retriable: typeof body.retriable === 'boolean' ? body.retriable : undefined,
+  };
+}
+
+export async function completeIdvSession(inquiryId: string): Promise<IdvCompletionStatus> {
+  return (await completeIdvSessionDetailed(inquiryId)).status;
 }

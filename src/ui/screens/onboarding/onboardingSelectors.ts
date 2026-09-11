@@ -7,6 +7,7 @@ import {
   validatePostalCode,
   validateRoutingNumberUS,
   validateSSNLast4,
+  validateSubregion,
   validateZipUS,
 } from '../../../validation';
 import type { OnboardingCapability } from '../../../types';
@@ -82,12 +83,12 @@ export interface FlowEntry {
 }
 
 // Default sub-step when entering a step from forward navigation.
-export function entrySubStep(step: OnboardingStep, capabilities: ReadonlyArray<OnboardingCapability>): OnboardingSubStep | null {
+export function entrySubStep(step: OnboardingStep): OnboardingSubStep | null {
   switch (step) {
     case 'verification_welcome':
       return null;
     case 'personal_information':
-      return firstPersonalInfoSubStep(capabilities);
+      return firstPersonalInfoSubStep();
     case 'confirm_payment_method':
       return 'select';
     case 'confirm_bank_account':
@@ -99,21 +100,8 @@ export function entrySubStep(step: OnboardingStep, capabilities: ReadonlyArray<O
   }
 }
 
-function firstPersonalInfoSubStep(capabilities: ReadonlyArray<OnboardingCapability>): PersonalInfoSubStep {
-  // Phone-auth always runs first if any phone-touching capability is requested.
-  // Per iOS source: phone_verification, kyc, kyc_prefill, creator_shield, geo_compliance
-  // all gate on phone auth before customer information.
-  if (
-    capabilities.includes('phone_verification') ||
-    capabilities.includes('kyc') ||
-    capabilities.includes('kyc_prefill') ||
-    capabilities.includes('creator_shield') ||
-    capabilities.includes('geo_compliance')
-  ) {
-    return 'phone_auth';
-  }
-  // age_verification-only path skips straight to customer information.
-  return 'customer_information';
+function firstPersonalInfoSubStep(): PersonalInfoSubStep {
+  return 'phone_auth';
 }
 
 // Next step in the linear flow. Returns null at the end.
@@ -153,6 +141,18 @@ export function validatePhoneAuth(state: OnboardingState): Record<string, string
   return errors;
 }
 
+export function requiresKyc(capabilities: ReadonlyArray<OnboardingCapability>): boolean {
+  return capabilities.includes('kyc') || capabilities.includes('kyc_prefill');
+}
+
+export function governmentIdRequired(state: OnboardingState): boolean {
+  return state.requiredCapabilities.includes('idv') || state.identityDocumentRequired;
+}
+
+export function skipsSsnEntry(state: OnboardingState): boolean {
+  return state.identityVerifiedViaGovId || governmentIdRequired(state);
+}
+
 export function requiresDobInPhoneAuth(capabilities: ReadonlyArray<OnboardingCapability>): boolean {
   return capabilities.includes('kyc_prefill');
 }
@@ -188,13 +188,7 @@ export function validateCustomerInformation(state: OnboardingState): Record<stri
     if (dobError) errors.dob = dobError;
   }
 
-  // SSN is required for the kyc / kyc_prefill capabilities UNLESS the user
-  // verified identity with a government ID (no-SSN path) — in which case the
-  // backend has confirmed identity via Persona and SSN is optional.
-  if (
-    !state.identityVerifiedViaGovId &&
-    (state.requiredCapabilities.includes('kyc') || state.requiredCapabilities.includes('kyc_prefill'))
-  ) {
+  if (!skipsSsnEntry(state) && requiresKyc(state.requiredCapabilities)) {
     const ssnError = validateSSNLast4(state.ssnLast4);
     if (ssnError) errors.ssnLast4 = ssnError;
   }
@@ -216,7 +210,7 @@ export function validateAddress(address: OnboardingAddress, required: boolean): 
   const cityError = validateNonEmpty(address.city, 'City');
   if (cityError) errors['address.city'] = cityError;
 
-  const stateError = validateNonEmpty(address.state, 'State');
+  const stateError = validateSubregion(address.state, address.country);
   if (stateError) errors['address.state'] = stateError;
 
   const countryError = validateNonEmpty(address.country, 'Country');

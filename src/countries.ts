@@ -404,7 +404,9 @@ const NAME_BY_ALPHA2: Record<string, string> = Object.fromEntries(COUNTRIES);
  */
 export function getPhoneCountries(): PhoneCountry[] {
   if (phoneCountriesCache) return phoneCountriesCache;
+  const blocked = new Set<string>(RESTRICTED_ALPHA2_CODES);
   phoneCountriesCache = getCountries()
+    .filter((alpha2: CountryCode) => !blocked.has(alpha2))
     .map(
       (alpha2: CountryCode): PhoneCountry => ({
         alpha2Code: alpha2,
@@ -415,4 +417,28 @@ export function getPhoneCountries(): PhoneCountry[] {
     )
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
   return phoneCountriesCache;
+}
+
+export function findPhoneCountry(alpha2: string): PhoneCountry | null {
+  const needle = alpha2.trim().toUpperCase();
+  return getPhoneCountries().find((c) => c.alpha2Code === needle) ?? null;
+}
+
+export function getDefaultPhoneCountry(): PhoneCountry {
+  const region = deviceRegionCode();
+  const fromRegion = region ? findPhoneCountry(region) : null;
+  const fallback = findPhoneCountry('US');
+  const resolved = fromRegion ?? fallback;
+  if (!resolved) throw new Error('No phone countries available.');
+  return resolved;
+}
+
+function deviceRegionCode(): string | undefined {
+  try {
+    const locale = Intl.DateTimeFormat().resolvedOptions().locale;
+    const region = locale?.split('-').find((part) => /^[A-Z]{2}$/.test(part));
+    return region;
+  } catch {
+    return undefined;
+  }
 }

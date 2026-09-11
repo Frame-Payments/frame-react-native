@@ -1,10 +1,14 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFrameTheme } from '../../../theme/ThemeContext';
 import { Button } from '../../../primitives/Button';
 import { ValidatedTextField } from '../../../primitives/ValidatedTextField';
 import { DropDown } from '../../../primitives/DropDown';
 import { BillingAddressDetailView } from '../../../primitives/BillingAddressDetailView';
+import {
+  AddressAutocompleteOverlay,
+  type AddressAutocompleteOverlayState,
+} from '../../../primitives/AddressAutocompleteField';
 import { isPlaidAvailable } from '../../../../plaid';
 import { showToast } from '../../../primitives/toastCenter';
 import { FORM_SPACING } from '../formSpacing';
@@ -34,6 +38,7 @@ export interface AddPayoutMethodScreenProps {
   onChangeAchAccountType: (value: AchAccountType) => void;
   onChangeManualMode: (value: boolean) => void;
   onChangeAddressField: (field: keyof OnboardingAddress, value: string) => void;
+  onApplyAddress: (address: Partial<OnboardingAddress>) => void;
   onOpenPlaidLink: () => Promise<string>;
   onSubmitManualAch: () => Promise<string>;
 }
@@ -44,6 +49,7 @@ export function AddPayoutMethodScreen({
   onChangeAchAccountType,
   onChangeManualMode,
   onChangeAddressField,
+  onApplyAddress,
   onOpenPlaidLink,
   onSubmitManualAch,
 }: AddPayoutMethodScreenProps) {
@@ -51,6 +57,7 @@ export function AddPayoutMethodScreen({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const plaidAvailable = isPlaidAvailable();
   const manual = state.achManualMode;
+  const [addressOverlay, setAddressOverlay] = useState<AddressAutocompleteOverlayState | null>(null);
 
   async function handlePlaid() {
     try {
@@ -175,12 +182,15 @@ export function AddPayoutMethodScreen({
                 address={state.address}
                 errors={state.fieldErrors}
                 onChangeField={onChangeAddressField}
+                onApplyAddress={onApplyAddress}
+                onOverlayChange={setAddressOverlay}
                 international={false}
               />
             </View>
           </>
         )}
       </ScrollView>
+      {addressOverlay ? <AddressAutocompleteOverlay state={addressOverlay} /> : null}
       {manual ? (
         <View style={styles.footer}>
           <Button

@@ -106,6 +106,7 @@ export interface PaymentMethod {
 export type OnboardingCapability =
   | 'kyc'
   | 'kyc_prefill'
+  | 'idv'
   | 'phone_verification'
   | 'creator_shield'
   | 'card_verification'
@@ -119,15 +120,27 @@ export type OnboardingCapability =
   | 'age_verification';
 
 /**
- * Terminal outcome of the onboarding flow returned by {@link presentOnboarding}.
+ * Whether the user reached the end of the onboarding flow or dismissed it.
+ *
+ * This says nothing about whether verification passed — read
+ * {@link OnboardingResult.outcome} for that.
  */
 export type OnboardingResultStatus = 'completed' | 'cancelled';
+
+export type OnboardingOutcome =
+  | { status: 'approved' }
+  | { status: 'pending_review' }
+  | { status: 'declined'; message?: string }
+  | { status: 'action_required'; message?: string };
+
+export function isOnboardingApproved(outcome: OnboardingOutcome | undefined): boolean {
+  return outcome?.status === 'approved';
+}
 
 /**
  * Result returned when the {@link presentOnboarding} promise resolves.
  */
 export interface OnboardingResult {
-  /** Whether the user completed or cancelled the flow. */
   status: OnboardingResultStatus;
   /**
    * The account the user onboarded against. Populated on `status: 'completed'`
@@ -136,6 +149,7 @@ export interface OnboardingResult {
    * profile data server-side after onboarding.
    */
   accountId?: string;
+  outcome?: OnboardingOutcome;
 }
 
 /**

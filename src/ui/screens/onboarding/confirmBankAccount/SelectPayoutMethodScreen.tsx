@@ -79,7 +79,9 @@ export function SelectPayoutMethodScreen({
               {state.savedPayoutMethods.map((pm) => (
                 <PaymentMethodRow
                   key={pm.id}
-                  title={achTitle(pm)}
+                  title={
+                    state.primaryPayoutMethodId === pm.id ? `${achTitle(pm)} · Primary` : achTitle(pm)
+                  }
                   subtitle={achSubtitle(pm) ?? undefined}
                   selected={state.selectedPayoutMethodId === pm.id}
                   onPress={() => onSelectMethod(pm.id)}

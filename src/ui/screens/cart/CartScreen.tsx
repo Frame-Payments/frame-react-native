@@ -19,12 +19,13 @@ export interface CartScreenProps {
   title?: string;
   subtitle?: string;
   checkoutButtonTitle?: string;
+  cartItemHeight?: number;
   isCheckingOut?: boolean;
   onCheckout: () => void;
   onClose: () => void;
 }
 
-const ITEM_ROW_HEIGHT = 65;
+const DEFAULT_ITEM_ROW_HEIGHT = 65;
 const ITEM_IMAGE_SIZE = 40;
 
 export function CartScreen({
@@ -34,13 +35,14 @@ export function CartScreen({
   title = 'Frame Payments',
   subtitle = 'Cart',
   checkoutButtonTitle = 'Checkout',
+  cartItemHeight = DEFAULT_ITEM_ROW_HEIGHT,
   isCheckingOut = false,
   onCheckout,
   onClose,
 }: CartScreenProps) {
   const theme = useFrameTheme();
   const vm = useCartViewModel(items, shippingAmountInCents);
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const styles = useMemo(() => createStyles(theme, cartItemHeight), [theme, cartItemHeight]);
 
   return (
     <BottomSheet title="" showCloseButton onClose={onClose}>
@@ -203,7 +205,7 @@ const summaryRowStyles = StyleSheet.create({
   },
 });
 
-function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
+function createStyles(_theme: ReturnType<typeof useFrameTheme>, itemRowHeight: number) {
   return StyleSheet.create({
     title: {
       paddingHorizontal: 16,
@@ -223,7 +225,7 @@ function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
     itemRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      minHeight: ITEM_ROW_HEIGHT,
+      minHeight: itemRowHeight,
       marginHorizontal: 16,
       marginBottom: 8,
       paddingHorizontal: 16,

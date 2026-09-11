@@ -1,6 +1,7 @@
 import { FrameAPIError } from 'framepayments';
 import {
   ErrorCodes,
+  isFrameError,
   normalizeToFrameError,
   type FrameErrorShape,
 } from './errors';
@@ -30,6 +31,42 @@ export function toToastMessage(error: unknown, fallback: string = DEFAULT_TOAST_
     return `Error: ${fallback}`;
   }
   return `Error: ${fallback}`;
+}
+
+export function isAssertionRejection(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const { status, raw, message: rawMessage } = error as {
+    status?: unknown;
+    raw?: unknown;
+    message?: unknown;
+  };
+  if (status !== 422) return false;
+  const message = (
+    extractFromEnvelope(raw) ?? (typeof rawMessage === 'string' ? rawMessage : '')
+  ).toLowerCase();
+  return (
+    message.includes('assertion') ||
+    message.includes('device not attested') ||
+    message.includes('attestation')
+  );
+}
+
+const UNRECOVERABLE_CHECKOUT_CODES: ReadonlySet<string> = new Set([
+  ErrorCodes.MISSING_SECRET_KEY,
+  ErrorCodes.NOT_INITIALIZED,
+  ErrorCodes.INVALID_ACCOUNT,
+  ErrorCodes.INVALID_AMOUNT,
+  ErrorCodes.INVALID_MERCHANT_ID,
+]);
+
+export function isUnrecoverableCheckoutError(error: unknown): boolean {
+  const code = isFrameError(error) ? error.code : normalizeToFrameError(error).code;
+  return UNRECOVERABLE_CHECKOUT_CODES.has(code);
+}
+
+export function isValidationError(error: unknown): boolean {
+  const code = isFrameError(error) ? error.code : normalizeToFrameError(error).code;
+  return code === ErrorCodes.VALIDATION_FAILED;
 }
 
 // A 404 from the API means the resource genuinely does not exist, as opposed to

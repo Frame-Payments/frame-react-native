@@ -1,11 +1,20 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFrameTheme } from '../../../theme/ThemeContext';
 import { Button } from '../../../primitives/Button';
 import { ValidatedTextField } from '../../../primitives/ValidatedTextField';
 import { DobInputField } from '../../../primitives/DobInputField';
 import { BillingAddressDetailView } from '../../../primitives/BillingAddressDetailView';
-import { requiresDobInPhoneAuth } from '../onboardingSelectors';
+import {
+  AddressAutocompleteOverlay,
+  type AddressAutocompleteOverlayState,
+} from '../../../primitives/AddressAutocompleteField';
+import {
+  requiresDobInPhoneAuth,
+  requiresKyc,
+  governmentIdRequired,
+  skipsSsnEntry,
+} from '../onboardingSelectors';
 import { isPersonaAvailable } from '../../../../persona';
 import { FORM_SPACING } from '../formSpacing';
 import type { OnboardingCapability } from '../../../../types';
@@ -28,6 +37,7 @@ export interface CustomerInformationScreenProps {
   onChangeDob: (next: { month: string; day: string; year: string }) => void;
   onChangeSsn: (value: string) => void;
   onChangeAddressField: (field: keyof OnboardingAddress, value: string) => void;
+  onApplyAddress: (address: Partial<OnboardingAddress>) => void;
   onSubmit: () => void;
   /** No-SSN path: launch government-ID identity verification via Persona. */
   onVerifyIdentity: () => void;
@@ -42,19 +52,17 @@ export function CustomerInformationScreen({
   onChangeDob,
   onChangeSsn,
   onChangeAddressField,
+  onApplyAddress,
   onSubmit,
   onVerifyIdentity,
 }: CustomerInformationScreenProps) {
   const theme = useFrameTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const [addressOverlay, setAddressOverlay] = useState<AddressAutocompleteOverlayState | null>(null);
   const showDob = !requiresDobInPhoneAuth(capabilities);
-  const ssnCapabilityRequested = capabilities.includes('kyc') || capabilities.includes('kyc_prefill');
-  // The SSN section shows whenever an SSN-collecting capability is requested AND
-  // the user hasn't already verified with a government ID.
-  const showSsn = ssnCapabilityRequested && !state.identityVerifiedViaGovId;
-  // The no-SSN button shows alongside the SSN section, but only when Persona is
-  // actually installed in the host app — otherwise the flow can't launch.
-  const showNoSsnButton = showSsn && isPersonaAvailable();
+  const ssnCapabilityRequested = requiresKyc(state.requiredCapabilities);
+  const showSsn = ssnCapabilityRequested && !skipsSsnEntry(state);
+  const showNoSsnButton = showSsn && !governmentIdRequired(state) && isPersonaAvailable();
   // Once verified, replace the whole SSN block with a confirmation line.
   const showVerifiedNotice = ssnCapabilityRequested && state.identityVerifiedViaGovId;
 
@@ -75,6 +83,7 @@ export function CustomerInformationScreen({
   };
 
   return (
+    <View style={styles.root}>
     <ScrollView
       style={styles.scroll}
       contentContainerStyle={styles.content}
@@ -105,6 +114,9 @@ export function CustomerInformationScreen({
               onChangeText={onChangeFirstName}
               error={state.fieldErrors.customerFirstName}
               autoCapitalize="words"
+              textContentType="givenName"
+              autoComplete="given-name"
+              inputRestriction="textOnly"
               borderless
               inlineError
             />
@@ -117,6 +129,9 @@ export function CustomerInformationScreen({
               onChangeText={onChangeLastName}
               error={state.fieldErrors.customerLastName}
               autoCapitalize="words"
+              textContentType="familyName"
+              autoComplete="family-name"
+              inputRestriction="textOnly"
               borderless
               inlineError
             />
@@ -130,6 +145,8 @@ export function CustomerInformationScreen({
           error={state.fieldErrors.customerEmail}
           keyboardType="email-address"
           autoCapitalize="none"
+          textContentType="emailAddress"
+          autoComplete="email"
           borderless
           inlineError
         />
@@ -231,6 +248,8 @@ export function CustomerInformationScreen({
         address={state.address}
         errors={state.fieldErrors}
         onChangeField={onChangeAddressField}
+        onApplyAddress={onApplyAddress}
+        onOverlayChange={setAddressOverlay}
         international
       />
 
@@ -243,11 +262,16 @@ export function CustomerInformationScreen({
         />
       </View>
     </ScrollView>
+    {addressOverlay ? <AddressAutocompleteOverlay state={addressOverlay} /> : null}
+    </View>
   );
 }
 
 function createStyles(_theme: ReturnType<typeof useFrameTheme>) {
   return StyleSheet.create({
+    root: {
+      flex: 1,
+    },
     scroll: {
       flex: 1,
     },

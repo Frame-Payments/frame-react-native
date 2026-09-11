@@ -12,6 +12,12 @@ const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unkno
 
 const mockPlatform = { OS: 'ios' as 'ios' | 'android' };
 
+beforeAll(() => {
+  global.fetch = jest.fn(() =>
+    Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) } as Response),
+  ) as unknown as typeof fetch;
+});
+
 // native.tsx now transitively imports the Cart/Checkout screens, which pull in
 // StyleSheet, Animated, Appearance, etc. Provide enough of the RN surface for
 // the modules to load without rendering.
@@ -74,16 +80,8 @@ jest.mock('@evervault/evervault-react-native', () => ({
   encrypt: evervaultEncryptMock,
 }));
 
-// initialize() kicks off a background prefetch via framepayments. Without
-// mocking it, axios would open real sockets and hang the suite.
-const getEvervaultConfigMock = jest.fn(() => Promise.resolve({ team_id: 'team_x', app_id: 'app_x' }));
-const getSiftConfigMock = jest.fn(() => Promise.resolve({ account_id: 'sift_a', beacon_key: 'beacon_b' }));
 jest.mock('framepayments', () => {
   class MockFrameSDK {
-    configuration = {
-      getEvervaultConfiguration: getEvervaultConfigMock,
-      getSiftConfiguration: getSiftConfigMock,
-    };
     setOnboardingSession = jest.fn();
     clearOnboardingSession = jest.fn(() => true);
     constructor(_config: unknown) {}
@@ -113,8 +111,7 @@ beforeEach(() => {
   mockPresentOnboarding.mockClear();
   evervaultInitMock.mockClear().mockResolvedValue(undefined as never);
   evervaultEncryptMock.mockClear();
-  getEvervaultConfigMock.mockClear().mockResolvedValue({ team_id: 'team_x', app_id: 'app_x' });
-  getSiftConfigMock.mockClear().mockResolvedValue({ account_id: 'sift_a', beacon_key: 'beacon_b' });
+  (global.fetch as jest.Mock).mockClear();
   mockPlatform.OS = 'ios';
   const native = require('../native');
   initialize = native.initialize;
@@ -442,33 +439,44 @@ describe('presentOnboarding', () => {
   });
 });
 
-describe('initialize prefetch — Evervault + Sift', () => {
+describe('initialize prefetch — /v1/config/all', () => {
   // Flushes microtasks so the background `void prefetchServiceConfigs()` runs.
   const settlePrefetch = () => new Promise<void>((resolve) => setImmediate(resolve));
 
+  function mockConfigAllOnce(body: Record<string, unknown>) {
+    (global.fetch as jest.Mock).mockImplementationOnce(() =>
+      Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response),
+    );
+  }
+
+  const FULL_CONFIG = {
+    evervault: { team_id: 'team_x', app_id: 'app_x' },
+    sift: { account_id: 'sift_a', beacon_key: 'beacon_b' },
+  };
+
   it('fetches Evervault config + calls configureEvervault with the returned ids', async () => {
+    mockConfigAllOnce(FULL_CONFIG);
     await initialize({ secretKey: 'sk_1', publishableKey: 'pk_1' });
     await settlePrefetch();
-    expect(getEvervaultConfigMock).toHaveBeenCalledWith();
     expect(evervaultInitMock).toHaveBeenCalledWith('team_x', 'app_x');
   });
 
-  it('fetches Sift config in parallel with Evervault', async () => {
+  it('reads Sift config from the same aggregate fetch as Evervault', async () => {
+    mockConfigAllOnce(FULL_CONFIG);
     await initialize({ secretKey: 'sk_1', publishableKey: 'pk_1' });
     await settlePrefetch();
-    expect(getSiftConfigMock).toHaveBeenCalledWith();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
   it('does not call configureEvervault when backend returns null team_id', async () => {
-    getEvervaultConfigMock.mockResolvedValueOnce({ team_id: null as never, app_id: 'app_x' });
+    mockConfigAllOnce({ evervault: { team_id: null, app_id: 'app_x' } });
     await initialize({ secretKey: 'sk_1', publishableKey: 'pk_1' });
     await settlePrefetch();
     expect(evervaultInitMock).not.toHaveBeenCalled();
   });
 
   it('does not throw from initialize when prefetch fails', async () => {
-    getEvervaultConfigMock.mockRejectedValueOnce(new Error('network down'));
-    getSiftConfigMock.mockRejectedValueOnce(new Error('network down'));
+    (global.fetch as jest.Mock).mockImplementationOnce(() => Promise.reject(new Error('network down')));
     await expect(initialize({ secretKey: 'sk_1', publishableKey: 'pk_1' })).resolves.toBeUndefined();
     await settlePrefetch();
     expect(evervaultInitMock).not.toHaveBeenCalled();
@@ -476,17 +484,16 @@ describe('initialize prefetch — Evervault + Sift', () => {
 
   it('debugMode true → prefetch failures emit console.warn', async () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    getEvervaultConfigMock.mockRejectedValueOnce(new Error('boom'));
+    (global.fetch as jest.Mock).mockImplementationOnce(() => Promise.reject(new Error('boom')));
     await initialize({ secretKey: 'sk_1', publishableKey: 'pk_1', debugMode: true });
     await settlePrefetch();
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Evervault'));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Configuration prefetch failed'));
     warnSpy.mockRestore();
   });
 
   it('debugMode false → prefetch failures are silent', async () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    getEvervaultConfigMock.mockRejectedValueOnce(new Error('boom'));
-    getSiftConfigMock.mockRejectedValueOnce(new Error('boom'));
+    (global.fetch as jest.Mock).mockImplementationOnce(() => Promise.reject(new Error('boom')));
     // Publishable-key only so we isolate prefetch-warning behavior from the
     // init-time secretKey-configured warning.
     await initialize({ publishableKey: 'pk_1' });

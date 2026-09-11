@@ -1,0 +1,149 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { BottomSheet } from '../../primitives/BottomSheet';
+import { showToast } from '../../primitives/toastCenter';
+import { toToastMessage } from '../../../api-errors';
+import { beginOnboardingSession, endOnboardingSession } from '../../../auth';
+import { useOnboardingViewModel } from './useOnboardingViewModel';
+import { AddPaymentMethodScreen } from './confirmPaymentMethod/AddPaymentMethodScreen';
+import { AddPayoutMethodScreen } from './confirmBankAccount/AddPayoutMethodScreen';
+import { SelectPayoutMethodScreen } from './confirmBankAccount/SelectPayoutMethodScreen';
+
+export type StandaloneMethodMode = 'add_payment' | 'add_payout' | 'select_payout';
+
+export interface StandaloneMethodRootProps {
+  mode: StandaloneMethodMode;
+  accountId: string;
+  clientSecret?: string | null;
+  onComplete: (paymentMethodId: string) => void;
+  onCancel: () => void;
+}
+
+const TITLES: Record<StandaloneMethodMode, string> = {
+  add_payment: 'Add Payment Method',
+  add_payout: 'Add Payout Method',
+  select_payout: 'Payout Method',
+};
+
+export function StandaloneMethodRoot({
+  mode,
+  accountId,
+  clientSecret,
+  onComplete,
+  onCancel,
+}: StandaloneMethodRootProps) {
+  useEffect(() => {
+    if (!clientSecret) return;
+    beginOnboardingSession(clientSecret);
+    return () => {
+      endOnboardingSession(clientSecret);
+    };
+  }, [clientSecret]);
+
+  const didFinish = useRef(false);
+
+  const [showAddPayout, setShowAddPayout] = useState(false);
+
+  const vm = useOnboardingViewModel({
+    accountId,
+    capabilities: [],
+    showIntroScreen: false,
+    showCompletionScreen: false,
+    onComplete: () => {},
+    onCancel,
+  });
+
+  const finish = useCallback(
+    (paymentMethodId: string) => {
+      if (didFinish.current) return;
+      didFinish.current = true;
+      onComplete(paymentMethodId);
+    },
+    [onComplete],
+  );
+
+  const surfaceError = useCallback((err: unknown) => {
+    if ((err as { code?: string }).code === 'USER_CANCELED') return;
+    showToast(toToastMessage(err));
+  }, []);
+
+  function renderAddPayout() {
+    return (
+      <AddPayoutMethodScreen
+        state={vm.state}
+        onChangeAchField={vm.setAchField}
+        onChangeAchAccountType={vm.setAchAccountType}
+        onChangeManualMode={(value) => vm.dispatch({ type: 'SET_ACH_MANUAL_MODE', value })}
+        onChangeAddressField={vm.setAddressField}
+        onApplyAddress={vm.applyAddress}
+        onOpenPlaidLink={async () => {
+          const id = await vm.openPlaidLink();
+          await vm.electSelectedPayoutMethod(id);
+          finish(id);
+          return id;
+        }}
+        onSubmitManualAch={async () => {
+          const id = await vm.submitManualAch();
+          vm.dispatch({ type: 'SET_ACH_MANUAL_MODE', value: false });
+          await vm.electSelectedPayoutMethod(id);
+          finish(id);
+          return id;
+        }}
+      />
+    );
+  }
+
+  function renderScreen() {
+    switch (mode) {
+      case 'add_payment':
+        return (
+          <AddPaymentMethodScreen
+            state={vm.state}
+            onChangeAddressField={vm.setAddressField}
+            onApplyAddress={vm.applyAddress}
+            onSubmitNewCard={async (card) => {
+              const id = await vm.submitNewCard(card);
+              finish(id);
+              return id;
+            }}
+            onSubmitAddressOnly={async (paymentMethodId) => {
+              await vm.updateSavedPaymentMethodBilling(paymentMethodId);
+              finish(paymentMethodId);
+            }}
+            onAddApplePay={async () => {
+              const id = await vm.addApplePayToOwner();
+              finish(id);
+              return id;
+            }}
+          />
+        );
+      case 'add_payout':
+        return renderAddPayout();
+      case 'select_payout':
+        if (showAddPayout) return renderAddPayout();
+        return (
+          <SelectPayoutMethodScreen
+            state={vm.state}
+            onLoadMethods={vm.loadSavedPayoutMethods}
+            onSelectMethod={(id) => vm.dispatch({ type: 'SELECT_PAYOUT_METHOD', id })}
+            onContinue={() => {
+              const selected = vm.state.selectedPayoutMethodId;
+              if (selected === null) {
+                setShowAddPayout(true);
+                return;
+              }
+              void vm
+                .electSelectedPayoutMethod(selected)
+                .then(() => finish(selected))
+                .catch(surfaceError);
+            }}
+          />
+        );
+    }
+  }
+
+  return (
+    <BottomSheet title={TITLES[mode]} onClose={onCancel}>
+      {renderScreen()}
+    </BottomSheet>
+  );
+}

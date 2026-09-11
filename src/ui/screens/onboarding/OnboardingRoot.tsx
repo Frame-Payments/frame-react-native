@@ -1,7 +1,8 @@
 import { useCallback, useEffect } from 'react';
 import type { OnboardingCapability, OnboardingResult } from '../../../types';
 import { showToast } from '../../primitives/toastCenter';
-import { toToastMessage } from '../../../api-errors';
+import { consumeProveCancelledByUser } from '../../../prove';
+import { toToastMessage, isValidationError } from '../../../api-errors';
 import { beginOnboardingSession, endOnboardingSession } from '../../../auth';
 import { useOnboardingViewModel } from './useOnboardingViewModel';
 import { OnboardingChrome } from './OnboardingChrome';
@@ -75,6 +76,16 @@ export function OnboardingRoot({
   const vm = useOnboardingViewModel({ accountId, capabilities, showIntroScreen, showCompletionScreen, onComplete, onCancel });
 
   // ─── Routing helpers ───
+
+  const surfaceError = useCallback(
+    (err: unknown) => {
+      const code = (err as { code?: string }).code;
+      if (code === 'USER_CANCELED') return;
+      if (isValidationError(err)) return;
+      showToast(toToastMessage(err));
+    },
+    [],
+  );
 
   // Continue handler for SelectPaymentMethod. Mirrors iOS
   // SelectPaymentMethodView.selectPaymentView's ContinueButton action:
@@ -156,11 +167,15 @@ export function OnboardingRoot({
       vm.goTo('confirm_bank_account', 'add');
       return;
     }
-    vm.advance();
-  }, [vm]);
+    void vm
+      .electSelectedPayoutMethod()
+      .then(() => vm.advance())
+      .catch(surfaceError);
+  }, [vm, surfaceError]);
 
   const onAddPayoutPlaid = useCallback(async () => {
     const pmId = await vm.openPlaidLink();
+    await vm.electSelectedPayoutMethod(pmId);
     vm.advance();
     return pmId;
   }, [vm]);
@@ -168,22 +183,10 @@ export function OnboardingRoot({
   const onAddPayoutManual = useCallback(async () => {
     const pmId = await vm.submitManualAch();
     vm.dispatch({ type: 'SET_ACH_MANUAL_MODE', value: false });
+    await vm.electSelectedPayoutMethod(pmId);
     vm.advance();
     return pmId;
   }, [vm]);
-
-  const surfaceError = useCallback(
-    (err: unknown) => {
-      const code = (err as { code?: string }).code;
-      if (code === 'USER_CANCELED') return;
-      // Use toToastMessage so we surface the server's `error_details.message`
-      // from FrameAPIError.raw instead of the top-level generic message
-      // (framepayments returns a useless "An error occured" / "An error
-      // occurred" envelope; the details below it carry the real reason).
-      showToast(toToastMessage(err));
-    },
-    [],
-  );
 
   // Upload documents routing — substeps are list / capture_* / review_*.
   const onCaptureDone = useCallback(
@@ -257,17 +260,16 @@ export function OnboardingRoot({
               onConfirmFrameOtp={() => vm.confirmFrameOtp().catch(surfaceError)}
               onProveResult={(result) => {
                 if (result.status === 'success') {
-                  // Re-fetch account so Prove's server-side identity prefill
-                  // lands in the customer-information screen. Mirrors iOS
-                  // OnboardingContainerViewModel.sendOTPVerification.
                   void vm
-                    .refreshAccountAfterPhoneVerify()
+                    .confirmProveVerification()
+                    .then(() => vm.refreshAccountAfterPhoneVerify())
                     .catch(() => {})
                     .finally(() => {
                       vm.goTo('personal_information', 'customer_information');
                     });
                   return;
                 }
+                if (consumeProveCancelledByUser()) return;
                 // Prove failed → re-issue a Frame phone verification so the
                 // OTP confirm endpoint accepts the new id, then surface the
                 // failure message. Without re-issuing, confirmFrameOtp would
@@ -290,6 +292,7 @@ export function OnboardingRoot({
               onChangeDob={vm.setDob}
               onChangeSsn={vm.setSsnLast4}
               onChangeAddressField={vm.setAddressField}
+              onApplyAddress={vm.applyAddress}
               onSubmit={() => vm.submitCustomerInformation().catch(surfaceError)}
               onVerifyIdentity={() => vm.verifyIdentityWithoutSsn().catch(surfaceError)}
             />
@@ -317,6 +320,7 @@ export function OnboardingRoot({
             <AddPaymentMethodScreen
               state={vm.state}
               onChangeAddressField={vm.setAddressField}
+              onApplyAddress={vm.applyAddress}
               onSubmitNewCard={onAddPaymentMethodSubmit}
               onSubmitAddressOnly={onAddPaymentMethodAddressOnly}
               onAddApplePay={onAddApplePayInOnboarding}
@@ -356,6 +360,7 @@ export function OnboardingRoot({
               onChangeAchAccountType={vm.setAchAccountType}
               onChangeManualMode={vm.setAchManualMode}
               onChangeAddressField={vm.setAddressField}
+              onApplyAddress={vm.applyAddress}
               onOpenPlaidLink={onAddPayoutPlaid}
               onSubmitManualAch={onAddPayoutManual}
             />

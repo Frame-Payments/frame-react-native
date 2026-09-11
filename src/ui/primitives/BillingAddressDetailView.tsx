@@ -3,7 +3,15 @@ import { StyleSheet, View } from 'react-native';
 import { useFrameTheme } from '../theme/ThemeContext';
 import { ValidatedTextField } from './ValidatedTextField';
 import { CountryPicker } from './CountryPicker';
+import {
+  AddressAutocompleteField,
+  type AddressAutocompleteOverlayState,
+} from './AddressAutocompleteField';
+import { addressFormatForCountry } from '../../addressFormat';
+import { subregionsForCountry } from '../../addressSubregions';
+import { getAvailableCountries } from '../../countries';
 import type { OnboardingAddress } from '../screens/onboarding/onboardingReducer';
+import type { BillingAddress } from '../../types';
 
 // Reusable billing-address form block. Renders 5–6 ValidatedTextFields plus
 // (in international mode) a CountryPicker. The view model owns the address
@@ -14,6 +22,8 @@ export interface BillingAddressDetailViewProps {
   /** Per-field error map keyed as `address.<field>`. */
   errors: Readonly<Record<string, string>>;
   onChangeField: (field: keyof OnboardingAddress, value: string) => void;
+  onApplyAddress?: (address: Partial<OnboardingAddress>) => void;
+  onOverlayChange?: (state: AddressAutocompleteOverlayState | null) => void;
   /** When true, shows the country picker and uses the dynamic postal/zip label.
    *  When false, country is hidden + locked to US (used by ACH billing). */
   international: boolean;
@@ -24,6 +34,8 @@ export function BillingAddressDetailView({
   address,
   errors,
   onChangeField,
+  onApplyAddress,
+  onOverlayChange,
   international,
   testID,
 }: BillingAddressDetailViewProps) {
@@ -46,24 +58,53 @@ export function BillingAddressDetailView({
     }
   }, [international, address.country, onChangeField]);
 
-  const isUS = address.country === 'US';
-  const postalLabel = !international || isUS ? 'Zip code' : 'Postal code';
-  const stateLabel = !international || isUS ? 'State' : 'State / province / region';
+  const format = addressFormatForCountry(international ? address.country : 'US');
+  const hasSubregionCodes = subregionsForCountry(address.country) !== null;
+
+  function handleSelectSuggestion(suggestion: BillingAddress) {
+    const countryMatch =
+      international && suggestion.country
+        ? getAvailableCountries().find((c) => c.alpha2Code === suggestion.country)
+        : undefined;
+    onApplyAddress?.({
+      ...(suggestion.addressLine1 !== undefined ? { line1: suggestion.addressLine1 } : {}),
+      ...(suggestion.city !== undefined ? { city: suggestion.city } : {}),
+      ...(suggestion.state !== undefined ? { state: suggestion.state } : {}),
+      postalCode: suggestion.postalCode,
+      ...(countryMatch ? { country: countryMatch.alpha2Code } : {}),
+    });
+  }
 
   return (
     <View testID={testID} style={styles.stack}>
+      {onApplyAddress && onOverlayChange ? (
+        <AddressAutocompleteField
+          prompt="Address line 1"
+          value={address.line1}
+          onChangeText={(v) => onChangeField('line1', v)}
+          error={errors['address.line1']}
+          countryCode={international ? address.country : 'US'}
+          onSelect={handleSelectSuggestion}
+          onOverlayChange={onOverlayChange}
+        />
+      ) : (
       <ValidatedTextField
         prompt="Address line 1"
         value={address.line1}
         onChangeText={(v) => onChangeField('line1', v)}
         error={errors['address.line1']}
         autoCapitalize="words"
+        textContentType="streetAddressLine1"
+        autoComplete="address-line1"
       />
+      )}
       <ValidatedTextField
         prompt="Address line 2 (optional)"
         value={address.line2}
         onChangeText={(v) => onChangeField('line2', v)}
         autoCapitalize="words"
+        textContentType="streetAddressLine2"
+        autoComplete="address-line2"
       />
       <View style={styles.row}>
         <View style={styles.cell}>
@@ -73,25 +114,33 @@ export function BillingAddressDetailView({
             onChangeText={(v) => onChangeField('city', v)}
             error={errors['address.city']}
             autoCapitalize="words"
+            textContentType="addressCity"
+            autoComplete="postal-address-locality"
+            inputRestriction="textOnly"
           />
         </View>
         <View style={styles.cell}>
           <ValidatedTextField
-            prompt={stateLabel}
+            prompt={format.stateLabel}
             value={address.state}
             onChangeText={(v) => onChangeField('state', v)}
             error={errors['address.state']}
-            autoCapitalize={!international || isUS ? 'characters' : 'words'}
-            characterLimit={!international || isUS ? 2 : undefined}
+            autoCapitalize={hasSubregionCodes ? 'characters' : 'words'}
+            textContentType="addressState"
+            autoComplete="postal-address-region"
+            inputRestriction="textOnly"
+            characterLimit={format.stateMaxLength}
           />
         </View>
       </View>
       <ValidatedTextField
-        prompt={postalLabel}
+        prompt={format.postalLabel}
         value={address.postalCode}
         onChangeText={(v) => onChangeField('postalCode', v)}
         error={errors['address.postalCode']}
-        keyboardType={!international || isUS ? 'number-pad' : 'default'}
+        keyboardType={format.postalKeyboard}
+        textContentType="postalCode"
+        autoComplete="postal-code"
       />
       {international ? (
         <CountryPicker

@@ -12,8 +12,9 @@ import {
 import { useFrameTheme } from '../theme/ThemeContext';
 import {
   alpha2ToFlag,
+  findPhoneCountry,
+  getDefaultPhoneCountry,
   getPhoneCountries,
-  RESTRICTED_ALPHA2_CODES,
   type PhoneCountry,
 } from '../../countries';
 
@@ -34,13 +35,10 @@ export function PhoneCountryPicker({ selectedAlpha2, onSelect, testID }: PhoneCo
   const [open, setOpen] = useState(false);
   const theme = useFrameTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const countries = useMemo(() => {
-    const blocked = new Set(RESTRICTED_ALPHA2_CODES);
-    return getPhoneCountries().filter((c) => !blocked.has(c.alpha2Code));
-  }, []);
+  const countries = useMemo(() => getPhoneCountries(), []);
   const selected = useMemo(
-    () => countries.find((c) => c.alpha2Code === selectedAlpha2) ?? countries[0]!,
-    [countries, selectedAlpha2],
+    () => findPhoneCountry(selectedAlpha2) ?? getDefaultPhoneCountry(),
+    [selectedAlpha2],
   );
 
   return (

@@ -2,8 +2,16 @@ import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { PaymentMethodType } from 'framepayments';
 import { client, hasSecretKey, requireSecretKeyFor } from '../../../client';
 import { configureEvervault, encryptWithEvervault } from '../../../evervault';
+import { sessionIdForPayment } from '../../../sonarSession';
+import { normalizeSubregion } from '../../../addressSubregions';
 import { __internal as configInternal } from '../../../config';
 import { ErrorCodes, frameError } from '../../../errors';
+import {
+  confirmCharge,
+  requiresConfirmation,
+  type ConfirmableCharge,
+  type ThreeDSecureChallengePresenter,
+} from '../../../threeDSecure';
 import {
   checkoutReducer,
   hasUsablePaymentInput,
@@ -21,7 +29,6 @@ import type { PaymentCardFieldHandle } from '../../primitives/PaymentCardField';
 //   - resolves Evervault config from JS cache or fetches it (one-shot)
 //   - validates + encrypts the card on submit
 //   - creates the card payment method (publishable-key route)
-//   - creates the transfer (publishable-key route)
 
 export interface UseCheckoutViewModelArgs {
   accountId: string;
@@ -29,6 +36,7 @@ export interface UseCheckoutViewModelArgs {
   currency?: string;
   addressMode?: AddressMode;
   cardFieldRef: React.RefObject<PaymentCardFieldHandle | null>;
+  presentChallenge?: ThreeDSecureChallengePresenter;
 }
 
 export interface UseCheckoutViewModelResult {
@@ -46,6 +54,7 @@ export function useCheckoutViewModel({
   currency = 'USD',
   addressMode = 'required',
   cardFieldRef,
+  presentChallenge,
 }: UseCheckoutViewModelArgs): UseCheckoutViewModelResult {
   const [state, dispatch] = useReducer(checkoutReducer, initialCheckoutState(addressMode));
   const accountIdRef = useRef(accountId);
@@ -60,10 +69,6 @@ export function useCheckoutViewModel({
   // The ref flips synchronously inside the callback so the second tap bails.
   const performingRef = useRef(false);
 
-  // Load saved payment methods for the account. This is a secret-keyed call, so
-  // a publishable-key-only client skips it rather than firing an unauthorized
-  // request — the user can still enter a new card. (Checkout submit is likewise
-  // gated by requireSecretKeyFor below.)
   useEffect(() => {
     if (!hasSecretKey()) {
       dispatch({ type: 'SET_PAYMENT_OPTIONS', options: [] });
@@ -71,6 +76,26 @@ export function useCheckoutViewModel({
     }
     let cancelled = false;
     (async () => {
+      try {
+        const account = await client.sdk.accounts.get(accountId);
+        if (cancelled) return;
+        const individual = (account?.profile as { individual?: unknown } | null | undefined)
+          ?.individual as
+          | { name?: { first_name?: unknown; last_name?: unknown }; email?: unknown }
+          | undefined;
+        if (individual) {
+          const first = typeof individual.name?.first_name === 'string' ? individual.name.first_name : '';
+          const last = typeof individual.name?.last_name === 'string' ? individual.name.last_name : '';
+          const full = `${first} ${last}`.trim();
+          if (full) dispatch({ type: 'SET_CUSTOMER_NAME', value: full });
+          if (typeof individual.email === 'string' && individual.email) {
+            dispatch({ type: 'SET_CUSTOMER_EMAIL', value: individual.email });
+          }
+        }
+      } catch {
+        void 0;
+      }
+
       try {
         const resp = await client.sdk.accounts.getPaymentMethods(accountId);
         if (cancelled) return;
@@ -105,7 +130,7 @@ export function useCheckoutViewModel({
       const validation = validateForSubmit(current);
       if (!validation.isValid) {
         dispatch({ type: 'SET_FIELD_ERRORS', errors: validation.fieldErrors });
-        throw frameError(ErrorCodes.PAYMENT_FAILED, 'Resolve the highlighted fields and try again.');
+        throw frameError(ErrorCodes.VALIDATION_FAILED, 'Resolve the highlighted fields and try again.');
       }
 
       const usingSaved = isUsingSavedCard(current);
@@ -114,7 +139,7 @@ export function useCheckoutViewModel({
         if (cardErrors) {
           const firstError =
             cardErrors.pan ?? cardErrors.expiry ?? cardErrors.cvc ?? 'Enter valid card details';
-          throw frameError(ErrorCodes.PAYMENT_FAILED, firstError);
+          throw frameError(ErrorCodes.VALIDATION_FAILED, firstError);
         }
       }
 
@@ -136,7 +161,7 @@ export function useCheckoutViewModel({
               line_1: current.address.line1 || undefined,
               line_2: current.address.line2 || undefined,
               city: current.address.city || undefined,
-              state: current.address.state || undefined,
+              state: normalizeSubregion(current.address.state, current.address.country) || undefined,
               country: current.address.country || undefined,
               postal_code: current.address.postalCode || undefined,
             }
@@ -157,22 +182,50 @@ export function useCheckoutViewModel({
         paymentMethodId = pm.id;
       }
 
+      const sonarSessionId = await sessionIdForPayment(accountIdRef.current);
+
       const transfer = await client.sdk.transfers.create({
         amount,
         account_id: accountIdRef.current,
         currency: currency.toLowerCase(),
         source_payment_method_id: paymentMethodId,
-      });
+        ...(sonarSessionId ? { sonar_session_id: sonarSessionId } : {}),
+        confirm: false,
+      } as unknown as Parameters<typeof client.sdk.transfers.create>[0]);
       if (!transfer || typeof transfer.id !== 'string') {
         throw frameError(ErrorCodes.PAYMENT_FAILED, 'Frame returned no transfer id.');
       }
+
+      const charge = transfer as unknown as ConfirmableCharge;
+      if (requiresConfirmation(charge.status)) {
+        const outcome = await confirmCharge(charge, {
+          confirm: async (id) =>
+            (await client.sdk.transfers.confirm(id)) as unknown as ConfirmableCharge,
+          reload: async (id) =>
+            (await client.sdk.transfers.retrieve(id)) as unknown as ConfirmableCharge,
+          presentChallenge,
+        });
+        if (outcome.status === 'failed') {
+          throw frameError(
+            ErrorCodes.PAYMENT_FAILED,
+            outcome.message ?? 'Your card was declined. Try another payment method.',
+          );
+        }
+        if (outcome.status === 'timed_out') {
+          throw frameError(
+            ErrorCodes.PAYMENT_FAILED,
+            'We could not confirm this payment. Check your bank before trying again.',
+          );
+        }
+      }
+
       cardFieldRef.current?.reset();
       return transfer.id;
     } finally {
       performingRef.current = false;
       dispatch({ type: 'SET_PERFORMING_ACTION', value: false });
     }
-  }, [amount, currency, cardFieldRef]);
+  }, [amount, currency, cardFieldRef, presentChallenge]);
 
   return {
     state,

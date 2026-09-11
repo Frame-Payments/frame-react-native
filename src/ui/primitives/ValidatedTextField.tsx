@@ -1,8 +1,21 @@
-import { StyleSheet, Text, TextInput, View, type KeyboardTypeOptions, type ViewStyle } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type KeyboardTypeOptions,
+  type TextInputProps,
+  type ViewStyle,
+} from 'react-native';
 import { useFrameTheme } from '../theme/ThemeContext';
-import { truncateToLimit } from './textFieldUtils';
+import {
+  applyInputRestriction,
+  truncateToLimit,
+  type TextFieldInputRestriction,
+} from './textFieldUtils';
 
-export { truncateToLimit };
+export { truncateToLimit, applyInputRestriction };
+export type { TextFieldInputRestriction };
 
 /**
  * Props for the {@link ValidatedTextField} component.
@@ -22,6 +35,9 @@ export interface ValidatedTextFieldProps {
    */
   onErrorChange?: (next: string | null) => void;
   keyboardType?: KeyboardTypeOptions;
+  textContentType?: TextInputProps['textContentType'];
+  autoComplete?: TextInputProps['autoComplete'];
+  inputRestriction?: TextFieldInputRestriction;
   /** Positive integer; non-positive / non-integer values are ignored. */
   characterLimit?: number;
   /**
@@ -47,6 +63,8 @@ export interface ValidatedTextFieldProps {
   style?: ViewStyle;
   /** Override the screen-reader label. Defaults to `prompt`. */
   accessibilityLabel?: string;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
 const HEIGHT = 49;
@@ -79,6 +97,9 @@ export function ValidatedTextField({
   error = null,
   onErrorChange,
   keyboardType = 'default',
+  textContentType,
+  autoComplete,
+  inputRestriction,
   characterLimit,
   compactError = false,
   inlineError = false,
@@ -91,11 +112,13 @@ export function ValidatedTextField({
   testID,
   style,
   accessibilityLabel,
+  onFocus,
+  onBlur,
 }: ValidatedTextFieldProps) {
   const theme = useFrameTheme();
 
   const handleChange = (next: string) => {
-    const truncated = truncateToLimit(next, characterLimit);
+    const truncated = truncateToLimit(applyInputRestriction(next, inputRestriction), characterLimit);
     if (error && onErrorChange) onErrorChange(null);
     onChangeText(truncated);
   };
@@ -113,11 +136,15 @@ export function ValidatedTextField({
       placeholder={prompt}
       placeholderTextColor={theme.colors.textSecondary}
       keyboardType={keyboardType}
+      textContentType={textContentType}
+      autoComplete={autoComplete}
       secureTextEntry={secureTextEntry}
       autoCapitalize={autoCapitalize}
       autoCorrect={autoCorrect}
       spellCheck={spellCheck}
       maxLength={effectiveMaxLength}
+      onFocus={onFocus}
+      onBlur={onBlur}
       accessibilityLabel={accessibilityLabel ?? prompt}
       accessibilityHint={error ?? undefined}
       testID={testID}

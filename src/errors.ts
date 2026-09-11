@@ -74,6 +74,7 @@ export const ErrorCodes = {
   MISSING_PUBLISHABLE_KEY: 'MISSING_PUBLISHABLE_KEY',
   /** A secret key was expected but not found in the SDK config. */
   MISSING_SECRET_KEY: 'MISSING_SECRET_KEY',
+  VALIDATION_FAILED: 'VALIDATION_FAILED',
 } as const;
 
 /**

@@ -42,11 +42,21 @@ export async function submitProveOtp(code: string): Promise<void> {
   await FrameProveAuth.submitOtp(code);
 }
 
+let cancelledByUser = false;
+
 /** Cancel the pending OTP request. Used by the OTP UI's Cancel button. The
- * underlying authenticate() promise resolves with status=failed afterwards. */
+ * underlying authenticate() promise resolves with status=failed afterwards;
+ * {@link consumeProveCancelledByUser} distinguishes that from a real failure. */
 export async function cancelProveOtp(): Promise<void> {
+  cancelledByUser = true;
   if (!FrameProveAuth) return;
   await FrameProveAuth.cancelOtp();
+}
+
+export function consumeProveCancelledByUser(): boolean {
+  const was = cancelledByUser;
+  cancelledByUser = false;
+  return was;
 }
 
 /** Forcibly cancel the in-flight Prove authentication. Resolves authenticate()
@@ -58,15 +68,21 @@ export async function cancelProveAuth(): Promise<void> {
 
 /**
  * Launch the Prove auth flow with the auth token returned from
- * phoneVerifications.create. Resolves with `success` when Prove + the backend
- * confirm step have both completed, or `failed` (with optional message) when
- * the SDK gave up, the user canceled, or Prove isn't linked.
+ * phoneVerifications.create. Resolves with `success` when the Prove SDK
+ * completes, or `failed` (with optional message) when the SDK gave up, the
+ * user canceled, or Prove isn't linked.
+ *
+ * Prove's success is NOT the verification: the caller must still confirm it
+ * server-side via `phoneVerifications.confirm` (see
+ * `useOnboardingViewModel.confirmProveVerification`), matching iOS's
+ * `ProveConfirmHandler`.
  *
  * Behavior is consistent across platforms: if Prove falls back to OTP,
  * subscribers to the OTP-needed event are notified and the promise stays
  * pending until JS calls submitProveOtp(code) or cancelProveOtp().
  */
 export async function authenticateProve(authToken: string): Promise<ProveAuthResult> {
+  cancelledByUser = false;
   if (!FrameProveAuth) {
     return { status: 'failed', message: 'Prove SDK is not linked.' };
   }
