@@ -74,14 +74,6 @@ export const ErrorCodes = {
   MISSING_PUBLISHABLE_KEY: 'MISSING_PUBLISHABLE_KEY',
   /** A secret key was expected but not found in the SDK config. */
   MISSING_SECRET_KEY: 'MISSING_SECRET_KEY',
-  /**
-   * A client-side field validation check failed on submit. The view model has
-   * already dispatched `SET_FIELD_ERRORS` with the specific per-field
-   * messages, so a screen catching this should not ALSO show a generic toast
-   * — the inline errors already say what's wrong. Distinguishing this from
-   * every other rejection (a real API failure, a network error) is the whole
-   * reason this code exists separately from {@link PAYMENT_FAILED}.
-   */
   VALIDATION_FAILED: 'VALIDATION_FAILED',
 } as const;
 

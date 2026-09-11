@@ -4,18 +4,11 @@ import { getLegalUrls } from '../../legal';
 
 // Reusable terms-of-service paragraph with tappable Privacy / Terms links.
 // Shown above the Continue button on PhoneAuthScreen when geo_compliance is
-// requested. Mirrors Frame iOS' TermsOfServiceView
-// (`Sources/FrameOnboarding/Reusable/TermsOfService.swift:24-44`) — same copy,
-// same Privacy-then-Terms order, and the same primaryButton link color.
 
 export interface TermsOfServiceViewProps {
-  /** Overrides the configured Privacy Policy URL. */
   privacyUrl?: string;
-  /** Overrides the configured Terms of Service URL. */
   termsUrl?: string;
-  /** Horizontal alignment for the consent text. Defaults to `'center'`. */
   alignment?: 'left' | 'center' | 'right';
-  /** Wraps the text in a themed rounded-rectangle surface. Defaults to `false`. */
   padded?: boolean;
 }
 
@@ -26,8 +19,6 @@ export function TermsOfServiceView({
   padded = false,
 }: TermsOfServiceViewProps) {
   const theme = useFrameTheme();
-  // Sourced from the configuration API (with bundled fallbacks) rather than
-  // hardcoded, so a legal-URL change ships without an SDK release.
   const legal = getLegalUrls();
   const privacy = privacyUrl ?? legal.privacyUrl;
   const terms = termsUrl ?? legal.termsUrl;

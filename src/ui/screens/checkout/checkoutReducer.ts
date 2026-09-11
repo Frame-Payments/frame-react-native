@@ -46,14 +46,7 @@ export interface CheckoutFieldErrors {
 export interface CheckoutState {
   // Loaded saved payment methods. null = not loaded yet; [] = loaded empty.
   accountPaymentOptions: ReadonlyArray<FramePaymentMethod> | null;
-  /**
-   * Whether the saved-methods fetch has settled. The card / billing / save-card
-   * block is held back until it flips, so a returning user doesn't see that form
-   * flash before their saved card is auto-selected. iOS
-   * `didLoadAccountPaymentMethods` (FrameCheckoutViewModel.swift:40).
-   */
   didLoadPaymentOptions: boolean;
-  /** The user explicitly picked "Enter New Payment Method". */
   userChoseNewCard: boolean;
   selectedAccountPaymentOptionId: string | null;
   customerName: string;
@@ -110,10 +103,6 @@ export function initialCheckoutState(addressMode: AddressMode = 'required'): Che
 export function checkoutReducer(state: CheckoutState, action: CheckoutAction): CheckoutState {
   switch (action.type) {
     case 'SET_PAYMENT_OPTIONS': {
-      // Auto-select the first saved method, matching iOS
-      // (FrameCheckoutViewModel.swift:122-126). Only when nothing is selected
-      // and the card field is untouched, so a user who has started typing a new
-      // card isn't switched out from under them.
       const shouldAutoSelect =
         state.selectedAccountPaymentOptionId === null &&
         !state.cardComplete &&
@@ -132,8 +121,6 @@ export function checkoutReducer(state: CheckoutState, action: CheckoutAction): C
       return {
         ...state,
         selectedAccountPaymentOptionId: action.id,
-        // Picking "Enter New Payment Method" is a deliberate choice; remember it
-        // so a late-arriving options list doesn't auto-select over it.
         userChoseNewCard: action.id === null,
       };
     case 'SET_CUSTOMER_NAME':
@@ -158,25 +145,6 @@ export function checkoutReducer(state: CheckoutState, action: CheckoutAction): C
       };
     }
     case 'APPLY_ADDRESS': {
-      // Fills the billing address fields from a picked autocomplete
-      // suggestion. Ports iOS FrameCheckoutViewModel.apply(_:)
-      // (FrameCheckoutViewModel.swift:183-201).
-      //
-      // One dispatch, not one SET_ADDRESS_FIELD per field: iOS's own comment
-      // on the equivalent onboarding path explains why this matters
-      // (BillingAddressDetailView.swift:54-57) — writing fields one at a time
-      // publishes a change per field, and any field still rendering mid-fill
-      // can write its pre-fill value back before the next field lands, so
-      // only the last field applied would actually stick. A single object
-      // spread is one state transition; React can't interleave a render
-      // between two properties of the same object.
-      //
-      // Line 2 is deliberately excluded — Mapbox doesn't reliably return
-      // apartment/unit, so whatever the user typed there stands (same iOS
-      // comment). Country is applied by the caller only when it matches one
-      // the picker offers, matching iOS's `AvailableCountry.allCountries.first(where:)`
-      // guard — a result must not move the form to a country the merchant
-      // hasn't enabled.
       const nextAddress: AddressForm = { ...state.address, ...action.address };
       let errors = state.fieldErrors;
       for (const field of ['line1', 'city', 'state', 'postalCode'] as const) {
@@ -249,12 +217,8 @@ export function shouldValidateAddress(state: CheckoutState): boolean {
 }
 
 export function hasUsablePaymentInput(state: CheckoutState): boolean {
-  // Name and email gate both paths, matching validateForSubmit — enabling Pay
-  // for a saved card without them would hand the user a button that fails
-  // validation on tap with no visible reason.
   if (validateFullName(state.customerName) !== null) return false;
   if (validateEmail(state.customerEmail) !== null) return false;
-  // A saved card needs nothing further; a new card needs its own fields.
   if (isUsingSavedCard(state)) return true;
   if (!state.cardComplete) return false;
   if (shouldValidateAddress(state)) {
@@ -277,11 +241,6 @@ export function validateForSubmit(state: CheckoutState): ValidationResult {
   const errors: CheckoutFieldErrors = {};
   const usingSaved = isUsingSavedCard(state);
 
-  // Name and email are validated on BOTH paths. iOS runs them unconditionally
-  // and only skips the card and address blocks for a saved card
-  // (`FrameCheckoutViewModel.swift:213-224`). Short-circuiting the whole
-  // validator for a saved card meant the transfer went out with whatever the
-  // customer-information fields happened to hold, including nothing.
   const nameError = validateFullName(state.customerName);
   if (nameError) errors.customerName = nameError;
 
@@ -295,14 +254,9 @@ export function validateForSubmit(state: CheckoutState): ValidationResult {
     const cityError = validateNonEmpty(state.address.city, 'City');
     if (cityError) errors.addressCity = cityError;
 
-    // Country-aware: a US state must be one of the 56 accepted codes, not any
-    // non-empty string. iOS uses Validators.validateSubregion here.
     const stateError = validateSubregion(state.address.state, state.address.country);
     if (stateError) errors.addressState = stateError;
 
-    // Country-aware, matching iOS's Validators.validatePostalCode(_:countryCode:).
-    // validatePostalCode returns null for a country with no known format, so
-    // fall back to a presence check rather than accepting an empty value.
     const postalError =
       validatePostalCode(state.address.postalCode, state.address.country) ??
       validateNonEmpty(state.address.postalCode, 'Postal code');

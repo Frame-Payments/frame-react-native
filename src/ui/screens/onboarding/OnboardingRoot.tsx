@@ -81,21 +81,11 @@ export function OnboardingRoot({
     (err: unknown) => {
       const code = (err as { code?: string }).code;
       if (code === 'USER_CANCELED') return;
-      // The view model already dispatched SET_FIELD_ERRORS with the specific
-      // per-field messages before throwing this — the inline errors already
-      // say what's wrong, so a generic "Something went wrong" toast on top
-      // would be redundant and confusing (e.g. a plain bad-phone-number
-      // rejection reading like a server error).
       if (isValidationError(err)) return;
-      // Use toToastMessage so we surface the server's `error_details.message`
-      // from FrameAPIError.raw instead of the top-level generic message
-      // (framepayments returns a useless "An error occured" / "An error
-      // occurred" envelope; the details below it carry the real reason).
       showToast(toToastMessage(err));
     },
     [],
   );
-
 
   // Continue handler for SelectPaymentMethod. Mirrors iOS
   // SelectPaymentMethodView.selectPaymentView's ContinueButton action:
@@ -172,12 +162,6 @@ export function OnboardingRoot({
     [vm],
   );
 
-  // Electing the payout method is what actually makes the bank the account's
-  // payout destination; adding it only attaches it. iOS elects from every path
-  // that lands on a payout method and gates advancing on the election
-  // succeeding (`SelectPayoutMethodView.swift:57`), so a failure keeps the user
-  // on this step with a toast rather than moving them past a step that did not
-  // take effect.
   const onSelectPayoutContinue = useCallback(() => {
     if (vm.state.selectedPayoutMethodId === null) {
       vm.goTo('confirm_bank_account', 'add');
@@ -276,14 +260,6 @@ export function OnboardingRoot({
               onConfirmFrameOtp={() => vm.confirmFrameOtp().catch(surfaceError)}
               onProveResult={(result) => {
                 if (result.status === 'success') {
-                  // Prove's own success is not the verification. iOS passes a
-                  // confirmHandler that POSTs confirmVerification(accountId:
-                  // verificationId:) once the Prove SDK succeeds
-                  // (OnboardingContainerViewModel.swift:472-475); without it the
-                  // account's phone stays unverified. Confirm first, then
-                  // re-fetch the account so Prove's server-side identity prefill
-                  // lands in the customer-information screen (iOS
-                  // sendOTPVerification does the same refresh).
                   void vm
                     .confirmProveVerification()
                     .then(() => vm.refreshAccountAfterPhoneVerify())
@@ -293,11 +269,6 @@ export function OnboardingRoot({
                     });
                   return;
                 }
-                // A cancel is not a failure to recover from: the applicant
-                // dismissed the sheet and is back on the phone form, where
-                // tapping Continue starts this over. Re-sending and toasting
-                // would tell them something went wrong when nothing did. iOS
-                // guards the same way (OnboardingContainerViewModel.swift:493).
                 if (consumeProveCancelledByUser()) return;
                 // Prove failed → re-issue a Frame phone verification so the
                 // OTP confirm endpoint accepts the new id, then surface the

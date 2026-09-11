@@ -10,9 +10,6 @@ const FALLBACKS = {
   cbcTermsUrl: 'https://framepayments.com/legal/cbc-terms-and-conditions',
 };
 
-// prefetchLegalConfiguration now reads the `legal` block off the aggregate
-// /v1/config/all response (remoteConfig.ts), matching iOS's FRA-6251
-// consolidation, so the mocked body must be shaped { legal: { ... } }.
 function mockJson(body: unknown, ok = true) {
   global.fetch = jest.fn(async () => ({ ok, status: ok ? 200 : 503, json: async () => body }) as Response) as
     unknown as typeof fetch;
@@ -20,8 +17,6 @@ function mockJson(body: unknown, ok = true) {
 
 beforeEach(() => {
   __resetLegalConfiguration();
-  // fetchRemoteConfig caches its result for the process; without resetting it
-  // here a fetch made by one test would leak into the next.
   __resetRemoteConfig();
 });
 

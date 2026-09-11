@@ -38,30 +38,9 @@ export interface CheckoutScreenProps {
   title?: string;
   onSuccess: (transferId: string) => void;
   onClose: () => void;
-  /**
-   * Reserved for unrecoverable host-level failures — a missing secret key on a
-   * server-only operation, the SDK not initialized, a missing/invalid account
-   * or merchant ID. Errors the user can act on (a declined card, a validation
-   * error, a transient network blip) are toasted internally and the sheet stays
-   * open instead; this fires only when the flow can never succeed, so the host
-   * app's `await Frame.presentCheckout(...)` doesn't hang forever on a Pay
-   * button that no retry can fix.
-   */
   onFail: (error: unknown) => void;
-  /**
-   * Render the Apple Pay button. Checkout runs the wallet charge itself against
-   * `accountId` / `amount` / `currency`, matching iOS's embedded
-   * `FrameApplePayButton(mode: .charge(...), owner: .account(...))`
-   * (`Sources/Frame/Views/FrameCheckoutView.swift:164-167`) — the host does not
-   * wire a callback.
-   */
   showApplePay?: boolean;
-  /** Render the Google Pay button. See {@link CheckoutScreenProps.showApplePay}. */
   showGooglePay?: boolean;
-  /**
-   * Overrides the built-in wallet charge. Only used by tests; production
-   * callers leave these unset so checkout drives the wallet flow in-modal.
-   */
   onApplePay?: () => void;
   onGooglePay?: () => void;
 }
@@ -84,15 +63,8 @@ export function CheckoutScreen({
   const cardFieldRef = useRef<PaymentCardFieldHandle | null>(null);
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [walletBusy, setWalletBusy] = useState(false);
-  // Address-autocomplete's suggestion dropdown must render outside the
-  // ScrollView/rounded-container it would otherwise be clipped by (see
-  // AddressAutocompleteField.tsx's header comment) — this screen owns that
-  // render layer and draws whatever the field last reported.
   const [addressOverlay, setAddressOverlay] = useState<AddressAutocompleteOverlayState | null>(null);
 
-  // The 3DS challenge is a modal this screen owns, but it is awaited from inside
-  // the view model's submit. Park the resolver here so the WebView's outcome
-  // settles the promise the confirm loop is waiting on.
   const [challengeUrl, setChallengeUrl] = useState<string | null>(null);
   const challengeResolver = useRef<((r: ThreeDSecureChallengeResult) => void) | null>(null);
 
@@ -112,11 +84,6 @@ export function CheckoutScreen({
     resolve?.(result);
   }, []);
 
-  // Settle any open challenge on unmount. Without this, dismissing the sheet
-  // mid-challenge leaves the promise submit() is awaiting unresolved forever,
-  // wedging the in-flight guard. 'failed' rather than 'unavailable': the
-  // challenge did run, and the charge may still settle — the confirm loop then
-  // polls for the real answer rather than treating it as a decline.
   useEffect(() => {
     return () => {
       const resolve = challengeResolver.current;
@@ -135,18 +102,9 @@ export function CheckoutScreen({
   });
 
   const showWalletRow = showApplePay || showGooglePay;
-  // Per-country field labels, keyboard and length caps. Previously a US/non-US
-  // binary, so a UK county or Japanese prefecture was labelled "State" and
-  // truncated to two characters as the user typed.
   const addressFormat = addressFormatForCountry(vm.state.address.country);
 
-  // Fills the billing address fields from a picked autocomplete suggestion.
-  // Ports iOS FrameCheckoutViewModel.apply(_:) (FrameCheckoutViewModel.swift:183-201).
   function onApplyAddress(address: BillingAddress) {
-    // The country is only taken when the suggestion names one the picker
-    // offers, so a result cannot move the form to a country the merchant has
-    // not enabled — matches iOS's
-    // `AvailableCountry.allCountries.first(where: { $0.alpha2Code == code })` guard.
     const countryMatch = address.country
       ? getAvailableCountries().find((c) => c.alpha2Code === address.country)
       : undefined;
@@ -167,32 +125,15 @@ export function CheckoutScreen({
       const transferId = await vm.submit();
       onSuccess(transferId);
     } catch (err) {
-      // A merchant-integration misconfiguration (no secret key, SDK never
-      // initialized, missing account/merchant id) can never be fixed by
-      // retrying in this UI — report it so the host's presentCheckout promise
-      // rejects instead of leaving a Pay button that will toast forever.
       if (isUnrecoverableCheckoutError(err)) {
         onFail(err);
         return;
       }
-      // vm.submit() already dispatched SET_FIELD_ERRORS with the specific
-      // per-field messages before throwing this — the inline errors already
-      // say what's wrong, so a generic toast on top would be redundant (and
-      // read like a real API failure when it's really just an unfilled field).
       if (isValidationError(err)) return;
-      // Everything else — card declined, transient transport — surfaces as a
-      // toast and leaves the sheet open so the user can correct the input and
-      // retry. Tearing the modal down here would discard the entered card and
-      // address for what is often a transient failure. Mirrors iOS
-      // `FrameCheckoutView.swift:428-436`.
       showToast(toToastMessage(err));
     }
   }
 
-  // Runs the wallet charge in-modal, exactly as iOS's embedded
-  // FrameApplePayButton does. A cancel is silent; any other failure toasts and
-  // keeps checkout open so the user can retry or fall through to card entry
-  // (`FrameCheckoutView.swift:176-191`).
   async function runWallet(charge: () => Promise<string>, fallback: string) {
     if (walletBusy) return;
     setWalletBusy(true);
@@ -529,9 +470,6 @@ function isAch(pm: SavedMethod): boolean {
 }
 
 function savedMethodTitle(pm: SavedMethod): string {
-  // ACH rows used to fall through to 'Saved card' with a credit-card icon,
-  // because only the card branch existed. iOS branches on the type
-  // (FramePaymentMethodRow.swift:73-80).
   if (isAch(pm)) {
     return pm.ach?.last_four ? `Bank •••• ${pm.ach.last_four}` : 'Bank account';
   }

@@ -12,11 +12,6 @@ const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unkno
 
 const mockPlatform = { OS: 'ios' as 'ios' | 'android' };
 
-// initialize() starts a Sonar session, and sonarSession/fingerprint/idv call
-// `fetch` directly (those endpoints have no framepayments surface). Under
-// jest's node environment an unmocked fetch is a REAL request to
-// api.framepayments.com, whose undici connection pool then holds the run open.
-// Stub it so nothing in this suite touches the network.
 beforeAll(() => {
   global.fetch = jest.fn(() =>
     Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) } as Response),
@@ -85,10 +80,6 @@ jest.mock('@evervault/evervault-react-native', () => ({
   encrypt: evervaultEncryptMock,
 }));
 
-// initialize() kicks off a background prefetch of /v1/config/all via `fetch`
-// directly (see remoteConfig.ts) rather than through the framepayments SDK, so
-// the mock SDK needs no configuration namespace — the top-level `global.fetch`
-// stub covers it, overridden per-test in the "initialize prefetch" block below.
 jest.mock('framepayments', () => {
   class MockFrameSDK {
     setOnboardingSession = jest.fn();
@@ -452,9 +443,6 @@ describe('initialize prefetch — /v1/config/all', () => {
   // Flushes microtasks so the background `void prefetchServiceConfigs()` runs.
   const settlePrefetch = () => new Promise<void>((resolve) => setImmediate(resolve));
 
-  // Evervault + Sift now ride the single /v1/config/all fetch (matching iOS's
-  // FRA-6251 consolidation) rather than the framepayments SDK's per-service
-  // getters, so these tests mock `fetch` directly instead of the SDK mock.
   function mockConfigAllOnce(body: Record<string, unknown>) {
     (global.fetch as jest.Mock).mockImplementationOnce(() =>
       Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response),
@@ -477,7 +465,6 @@ describe('initialize prefetch — /v1/config/all', () => {
     mockConfigAllOnce(FULL_CONFIG);
     await initialize({ secretKey: 'sk_1', publishableKey: 'pk_1' });
     await settlePrefetch();
-    // Only one network call for both — the point of the consolidation.
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 

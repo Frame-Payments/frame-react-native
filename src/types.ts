@@ -127,28 +127,12 @@ export type OnboardingCapability =
  */
 export type OnboardingResultStatus = 'completed' | 'cancelled';
 
-/**
- * How onboarding actually ended for the applicant. Reaching the last step is
- * not the same as passing verification. Mirrors iOS `OnboardingOutcome`.
- */
 export type OnboardingOutcome =
-  /** Every required capability is granted. */
   | { status: 'approved' }
-  /**
-   * Outstanding, but no decision has been reached — a run under manual review
-   * counts here. Also the safe default when the final account fetch fails: the
-   * flow must not claim success it cannot confirm.
-   */
   | { status: 'pending_review' }
-  /** Verification did not pass and retrying cannot change that. */
   | { status: 'declined'; message?: string }
-  /** Verification did not pass, but the applicant can still act on it. */
   | { status: 'action_required'; message?: string };
 
-/**
- * Whether this outcome should be treated as a successful onboarding.
- * Mirrors iOS `OnboardingOutcome.isSuccess`.
- */
 export function isOnboardingApproved(outcome: OnboardingOutcome | undefined): boolean {
   return outcome?.status === 'approved';
 }
@@ -157,11 +141,6 @@ export function isOnboardingApproved(outcome: OnboardingOutcome | undefined): bo
  * Result returned when the {@link presentOnboarding} promise resolves.
  */
 export interface OnboardingResult {
-  /**
-   * Whether the user completed or cancelled the flow. A `'completed'` status
-   * means the user reached the end — not that they passed. Check
-   * {@link OnboardingResult.outcome} before granting access.
-   */
   status: OnboardingResultStatus;
   /**
    * The account the user onboarded against. Populated on `status: 'completed'`
@@ -170,13 +149,6 @@ export interface OnboardingResult {
    * profile data server-side after onboarding.
    */
   accountId?: string;
-  /**
-   * The verification verdict, resolved from the account's capabilities at the
-   * end of the flow. Present on `status: 'completed'` only.
-   *
-   * Defaults to `pending_review` when the closing account fetch fails, so a
-   * transport error is never reported as an approval.
-   */
   outcome?: OnboardingOutcome;
 }
 

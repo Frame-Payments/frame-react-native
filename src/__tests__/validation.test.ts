@@ -342,9 +342,6 @@ describe('validatePhoneE164', () => {
     expect(validatePhoneE164('+1 415 555 1212', 'US')).toBeNull();
   });
 
-  // iOS's PhoneNumberKit `parse` is a full validity check, not a length check,
-  // so a correctly-sized number on an unassigned NANP exchange is rejected.
-  // RN used isPossible() here and accepted numbers iOS refused.
   it('rejects a correctly-sized number on an unassigned exchange (iOS parity)', () => {
     expect(validatePhoneE164('555 555 5555', 'US')).toBe('Enter a valid phone number');
   });
@@ -370,12 +367,6 @@ describe('validatePhoneE164', () => {
     expect(validatePhoneE164('+44 20 7946 0958', 'US')).toBeNull();
   });
 
-  // Deliberate RN-only divergence from iOS (Validators.swift has no
-  // equivalent): 200 is an unassigned NANP area code reserved for internal
-  // test/seed data, so it fails the real assigned-number check below and
-  // needs an explicit carve-out. 226 and 774 do NOT need one — they're real,
-  // currently-assigned area codes (Ontario / Massachusetts) that already pass
-  // with any properly-formed exchange.
   it('accepts a correctly-sized number on the reserved 200 test area code', () => {
     expect(validatePhoneE164('(200) 100-1695', 'US')).toBeNull();
     expect(validatePhoneE164('(200) 555-0147', 'US')).toBeNull();
@@ -386,8 +377,6 @@ describe('validatePhoneE164', () => {
   });
 
   it('does not extend the 200 carve-out to real, already-valid area codes', () => {
-    // 226 (Ontario) and 774 (Massachusetts) are real assigned area codes —
-    // they pass through the normal isValid() check, not the test bypass.
     expect(validatePhoneE164('(226) 555-0147', 'CA')).toBeNull();
     expect(validatePhoneE164('(774) 555-0147', 'US')).toBeNull();
   });

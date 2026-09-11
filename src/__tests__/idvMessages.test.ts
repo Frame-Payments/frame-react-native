@@ -8,8 +8,6 @@ function completion(over: Partial<IdvCompletion> = {}): IdvCompletion {
 
 describe('idvFailureMessage', () => {
   it('points a terminal decline at support, not at a retry', () => {
-    // Telling a terminally-declined applicant to try again is the loop iOS's
-    // own comment says must be avoided.
     expect(idvFailureMessage(completion({ category: 'terminal' }))).toBe(
       "We couldn't verify your identity. Please contact support if you think this is a mistake.",
     );
@@ -52,7 +50,6 @@ describe('idvFailureMessage', () => {
   });
 
   it('does not offer an SSN fallback when a government ID is mandatory', () => {
-    // There is no SSN path to send them to in that case.
     expect(idvFailureMessage(completion(), true)).toBe(
       "We couldn't verify your identity. Please try again.",
     );

@@ -1,24 +1,9 @@
-/**
- * Unit tests for the address-autocomplete debounce/query-ordering state
- * machine. Timers and network are injected — no real time, no real
- * suggestAddresses/retrieveAddress — so out-of-order responses and debounce
- * cancellation can be driven deterministically.
- */
 
-// addressAutocompleteController.ts imports addressSearch.ts, which transitively
-// imports client.ts for the (unused, since search/retrieve are injected below)
-// default network path — that chain reaches `react-native` unmocked. Every
-// test here injects its own search/retrieve, so a minimal Platform stub is all
-// that's needed to let the module load.
 jest.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
 
 import { AddressAutocompleteController } from '../addressAutocompleteController';
 import type { AddressSuggestion } from '../addressSearch';
 
-// A controllable fake for setTimeout/clearTimeout: `flush()` runs every timer
-// currently scheduled, in the order they were set, without advancing real
-// time or requiring jest's fake-timer machinery (which fights with the
-// controller's real `void (async () => {...})()` microtask chains).
 function fakeTimers() {
   let nextHandle = 1;
   const pending = new Map<number, () => void>();
@@ -32,9 +17,6 @@ function fakeTimers() {
       pending.delete(handle as number);
     },
     pendingCount: () => pending.size,
-    // Fires every timer currently pending. Timers a fired callback schedules
-    // are NOT run by this call — the test drives those with another flush(),
-    // mirroring how a real debounce settles one tick at a time.
     flush: () => {
       const fns = [...pending.values()];
       pending.clear();
@@ -80,8 +62,6 @@ describe('AddressAutocompleteController.queryChanged', () => {
     controller.queryChanged('1 Main S', 'US');
     controller.queryChanged('1 Main St', 'US');
 
-    // Only one timer should still be pending — each new keystroke cancels the
-    // previous wait rather than stacking another one.
     expect(timers.pendingCount()).toBe(1);
 
     timers.flush();
@@ -92,9 +72,6 @@ describe('AddressAutocompleteController.queryChanged', () => {
   });
 
   it('a request already in flight is never cancelled by a new keystroke', async () => {
-    // Only the WAIT is cancellable. A search that already reached "the
-    // network" must be allowed to finish — killing it is what would force the
-    // user to stop typing before any list could ever appear.
     const timers = fakeTimers();
     const onChange = jest.fn();
     let resolveFirst!: (v: AddressSuggestion[]) => void;
@@ -117,8 +94,6 @@ describe('AddressAutocompleteController.queryChanged', () => {
 
     expect(search).toHaveBeenCalledTimes(2);
 
-    // The stale first search finally resolves. Its own query id is no longer
-    // the latest, so it must not overwrite the list with stale results.
     resolveFirst([suggestion('first')]);
     await flushMicrotasks();
     expect(onChange).not.toHaveBeenCalledWith([suggestion('first')]);
@@ -145,12 +120,8 @@ describe('AddressAutocompleteController.queryChanged', () => {
     timers.flush();
     await flushMicrotasks();
 
-    // "b query"'s response landed (search #2 resolves synchronously via
-    // async), so the list should show b's result.
     expect(onChange).toHaveBeenLastCalledWith([suggestion('b')]);
 
-    // Now the slow first response finally arrives — it must be discarded,
-    // not overwrite b's result.
     resolveFirst([suggestion('a')]);
     await flushMicrotasks();
     expect(onChange).toHaveBeenLastCalledWith([suggestion('b')]);
@@ -264,11 +235,9 @@ describe('AddressAutocompleteController.select', () => {
     void controller.select(suggestion('picked'));
     expect(onChange).toHaveBeenLastCalledWith([]);
 
-    // The in-flight search from before the pick finally resolves.
     resolveSearch([suggestion('late')]);
     await flushMicrotasks();
 
-    // Must not have repopulated the list the user already dismissed by picking.
     expect(onChange).not.toHaveBeenCalledWith([suggestion('late')]);
   });
 });

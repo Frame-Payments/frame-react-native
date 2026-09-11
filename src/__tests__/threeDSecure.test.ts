@@ -33,8 +33,6 @@ describe('confirmCharge', () => {
   });
 
   it('treats requires_capture as succeeded', async () => {
-    // Authorized and awaiting a merchant-initiated capture is a success for the
-    // cardholder, matching iOS's terminalOutcome.
     const outcome = await confirmCharge(charge(), {
       confirm: async () => charge({ status: 'requires_capture' }),
       reload: async () => null,
@@ -93,8 +91,6 @@ describe('confirmCharge', () => {
   });
 
   it('polls after a failed challenge too — the sheet closing is not the verdict', async () => {
-    // iOS: 'completed' and 'failed' both just mean the sheet closed; only the
-    // API decides whether the cardholder was charged.
     const outcome = await confirmCharge(charge(), {
       confirm: async () =>
         charge({
@@ -149,8 +145,6 @@ describe('confirmCharge', () => {
   });
 
   it('refuses a non-https challenge URL', async () => {
-    // Defence in depth: a javascript:/file:/http: URL must never reach a WebView
-    // that is about to handle card authentication.
     for (const url of ['javascript:alert(1)', 'http://issuer.test/3ds', 'file:///etc/passwd', 'nonsense']) {
       await expect(
         confirmCharge(charge(), {
@@ -177,8 +171,6 @@ describe('confirmCharge', () => {
   });
 
   it('times out rather than declining when no status ever settles', async () => {
-    // The charge may still settle, so a timeout must never be reported as a
-    // decline — telling the user to retry could double-charge them.
     let reloads = 0;
     const outcome = await confirmCharge(charge(), {
       confirm: async () => charge({ status: 'processing' }),

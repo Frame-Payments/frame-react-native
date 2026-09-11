@@ -29,8 +29,6 @@ import type { PaymentCardFieldHandle } from '../../primitives/PaymentCardField';
 //   - resolves Evervault config from JS cache or fetches it (one-shot)
 //   - validates + encrypts the card on submit
 //   - creates the card payment method (publishable-key route)
-//   - creates the transfer with a deferred confirm, then confirms it, running a
-//     3D Secure challenge when the issuer asks for one
 
 export interface UseCheckoutViewModelArgs {
   accountId: string;
@@ -38,12 +36,6 @@ export interface UseCheckoutViewModelArgs {
   currency?: string;
   addressMode?: AddressMode;
   cardFieldRef: React.RefObject<PaymentCardFieldHandle | null>;
-  /**
-   * Presents a 3D Secure challenge and resolves once the cardholder is done.
-   * Supplied by the screen, which owns the modal. Omitting it makes a required
-   * challenge fail with "Card verification could not be started" rather than
-   * hang — matching iOS's `challengePresenter: nil` contract.
-   */
   presentChallenge?: ThreeDSecureChallengePresenter;
 }
 
@@ -77,10 +69,6 @@ export function useCheckoutViewModel({
   // The ref flips synchronously inside the callback so the second tap bails.
   const performingRef = useRef(false);
 
-  // Prefill the customer fields from the account, then load its saved payment
-  // methods. Both are secret-keyed calls, so a publishable-key-only client skips
-  // them rather than firing unauthorized requests — the user can still enter a
-  // new card. (Checkout submit is likewise gated by requireSecretKeyFor below.)
   useEffect(() => {
     if (!hasSecretKey()) {
       dispatch({ type: 'SET_PAYMENT_OPTIONS', options: [] });
@@ -88,10 +76,6 @@ export function useCheckoutViewModel({
     }
     let cancelled = false;
     (async () => {
-      // Name and email come off the account so a returning customer doesn't
-      // retype them. Mirrors iOS loadAccountDetails
-      // (FrameCheckoutViewModel.swift:88-108), which reads
-      // profile.individual.name / .email. Non-fatal — the fields stay editable.
       try {
         const account = await client.sdk.accounts.get(accountId);
         if (cancelled) return;
@@ -109,7 +93,7 @@ export function useCheckoutViewModel({
           }
         }
       } catch {
-        // Prefill is a convenience; the user types the fields instead.
+        void 0;
       }
 
       try {
@@ -177,9 +161,6 @@ export function useCheckoutViewModel({
               line_1: current.address.line1 || undefined,
               line_2: current.address.line2 || undefined,
               city: current.address.city || undefined,
-              // Normalized so "california" goes to the API as "CA", matching
-              // iOS's AddressSubregions.normalize at
-              // FrameCheckoutViewModel.swift:346.
               state: normalizeSubregion(current.address.state, current.address.country) || undefined,
               country: current.address.country || undefined,
               postal_code: current.address.postalCode || undefined,
@@ -201,17 +182,6 @@ export function useCheckoutViewModel({
         paymentMethodId = pm.id;
       }
 
-      // `confirm: false` is deliberate, matching iOS
-      // (FrameCheckoutViewModel.swift:278-288): an inline confirm rejects any
-      // charge that is not already settled, so a card the issuer wants to
-      // challenge fails before the challenge can run. The confirm below is what
-      // decides whether a challenge is needed at all.
-      //
-      // The npm SDK's CreateTransferParams doesn't declare `confirm`, hence the
-      // cast — the same pattern used elsewhere for wire fields it omits.
-      // The server rejects the transfer outright without a live session for this
-      // account, so wait for one rather than racing SDK start-up
-      // (FrameCheckoutViewModel.swift:275-276).
       const sonarSessionId = await sessionIdForPayment(accountIdRef.current);
 
       const transfer = await client.sdk.transfers.create({
@@ -227,8 +197,6 @@ export function useCheckoutViewModel({
       }
 
       const charge = transfer as unknown as ConfirmableCharge;
-      // Anything already terminal needs no confirm — only a held-back transfer
-      // does. `requires_confirmation` is the normal answer to a deferred confirm.
       if (requiresConfirmation(charge.status)) {
         const outcome = await confirmCharge(charge, {
           confirm: async (id) =>
@@ -244,8 +212,6 @@ export function useCheckoutViewModel({
           );
         }
         if (outcome.status === 'timed_out') {
-          // The charge may still settle, so this is NOT reported as a decline —
-          // telling the user to retry could double-charge them.
           throw frameError(
             ErrorCodes.PAYMENT_FAILED,
             'We could not confirm this payment. Check your bank before trying again.',

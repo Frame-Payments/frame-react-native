@@ -8,14 +8,6 @@ import {
   resolveTheme,
 } from '../theme/defaults';
 
-// Every assertion here mirrors frame-ios's actual default theme
-// (Sources/Frame/Theming/FrameTheme.swift's Colors.init/Fonts.init defaults),
-// converted from the SwiftUI/asset-catalog values those defaults resolve to
-// (Sources/Frame/Resources/Colors.xcassets/*.colorset/Contents.json for the
-// named-asset colors; Apple's documented Dynamic Type / system-color values
-// for the plain SwiftUI tokens like .headline, .red, Color(.systemBackground)).
-// A host that never overrides the theme should render visually identically on
-// iOS and RN.
 describe('color tokens (mirror Frame-iOS Colors.xcassets + system colors)', () => {
   it('primaryButton matches MainButtonColor.colorset', () => {
     expect(lightColors.primaryButton).toBe('#2B4146');
@@ -44,7 +36,6 @@ describe('color tokens (mirror Frame-iOS Colors.xcassets + system colors)', () =
   it('text colors match PrimaryTextColor / TextColorSecondary colorsets', () => {
     expect(lightColors.textPrimary).toBe('#000000');
     expect(darkColors.textPrimary).toBe('#FFFFFF');
-    // TextColorSecondary carries alpha: 60% light, 70% dark.
     expect(lightColors.textSecondary).toBe('#2A2E2E99');
     expect(darkColors.textSecondary).toBe('#EBEBEBB2');
   });
@@ -54,16 +45,11 @@ describe('color tokens (mirror Frame-iOS Colors.xcassets + system colors)', () =
     expect(darkColors.error).toBe('#FF453A');
     expect(lightColors.toastBackground).toBe('#FF3B30');
     expect(darkColors.toastBackground).toBe('#FF453A');
-    // toastText is .white on both schemes in iOS — NOT scheme-dependent, unlike
-    // the previous RN default which flipped to black in dark mode.
     expect(lightColors.toastText).toBe('#FFFFFF');
     expect(darkColors.toastText).toBe('#FFFFFF');
   });
 
   it('secondaryButton matches Color(.systemBackground) — opaque, not transparent', () => {
-    // iOS's default is Apple's semantic window background: opaque white in
-    // light mode, opaque black in dark mode. The previous RN default
-    // (#00000000, fully transparent on both schemes) did not match this.
     expect(lightColors.secondaryButton).toBe('#FFFFFF');
     expect(darkColors.secondaryButton).toBe('#000000');
   });
@@ -81,7 +67,6 @@ describe('color tokens (mirror Frame-iOS Colors.xcassets + system colors)', () =
   it('onboarding progress indicator matches .white / .white.opacity(0.25) on both schemes', () => {
     expect(lightColors.onboardingProgressFilledOnBrand).toBe('#FFFFFF');
     expect(darkColors.onboardingProgressFilledOnBrand).toBe('#FFFFFF');
-    // 0.25 alpha -> 0x40 (64/255, rounded).
     expect(lightColors.onboardingProgressEmptyOnBrand).toBe('#FFFFFF40');
     expect(darkColors.onboardingProgressEmptyOnBrand).toBe('#FFFFFF40');
   });
@@ -116,17 +101,12 @@ describe('color tokens (mirror Frame-iOS Colors.xcassets + system colors)', () =
 
 describe('font tokens (mirror Frame-iOS Fonts.init Dynamic Type defaults)', () => {
   it('headline / button / heading get semibold weight, matching iOS', () => {
-    // iOS: headline = .headline (semibold); button = .headline (semibold);
-    // heading = .system(size: 18, weight: .semibold) — an explicit override.
     expect(fontWeights.headline).toBe('600');
     expect(fontWeights.button).toBe('600');
     expect(fontWeights.heading).toBe('600');
   });
 
   it('title / body / bodySmall / label / caption stay at regular weight', () => {
-    // iOS: title = .title (regular); body = .body (regular);
-    // bodySmall = .system(size: 14) (regular, no weight given);
-    // label = .subheadline (regular); caption = .caption (regular).
     expect(fontWeights.title).toBe('400');
     expect(fontWeights.body).toBe('400');
     expect(fontWeights.bodySmall).toBe('400');
@@ -135,21 +115,13 @@ describe('font tokens (mirror Frame-iOS Fonts.init Dynamic Type defaults)', () =
   });
 
   it('sizes match iOS Dynamic Type point sizes at the default content-size category', () => {
-    // title = .title (title1) = 28pt.
     expect(defaultFonts.title.size).toBe(28);
-    // heading = iOS's explicit .system(size: 18, weight: .semibold) override.
     expect(defaultFonts.heading.size).toBe(18);
-    // headline = .headline = 17pt.
     expect(defaultFonts.headline.size).toBe(17);
-    // body = .body = 17pt.
     expect(defaultFonts.body.size).toBe(17);
-    // bodySmall = iOS's explicit .system(size: 14) override.
     expect(defaultFonts.bodySmall.size).toBe(14);
-    // label = .subheadline = 15pt.
     expect(defaultFonts.label.size).toBe(15);
-    // caption = .caption (caption1) = 12pt.
     expect(defaultFonts.caption.size).toBe(12);
-    // button = .headline = 17pt (same style as headline, hence same size).
     expect(defaultFonts.button.size).toBe(17);
   });
 

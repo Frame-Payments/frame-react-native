@@ -1,16 +1,9 @@
-// US states and Canadian provinces, the two countries whose subregion Frame
-// validates as a code rather than accepting as free text. Ports iOS
-// AddressSubregions (`Sources/Frame/Validation/AddressSubregions.swift`).
 
-/** One accepted state / province / territory. */
 export interface AddressSubregion {
-  /** The two-letter code the API expects (e.g. `'CA'`). */
   code: string;
-  /** The display name (e.g. `'California'`). */
   name: string;
 }
 
-/** The 50 states, DC, and the five inhabited territories. */
 export const UNITED_STATES_SUBREGIONS: ReadonlyArray<AddressSubregion> = [
   { code: 'AL', name: 'Alabama' },
   { code: 'AK', name: 'Alaska' },
@@ -70,7 +63,6 @@ export const UNITED_STATES_SUBREGIONS: ReadonlyArray<AddressSubregion> = [
   { code: 'VI', name: 'U.S. Virgin Islands' },
 ];
 
-/** The 10 provinces and 3 territories. */
 export const CANADA_SUBREGIONS: ReadonlyArray<AddressSubregion> = [
   { code: 'AB', name: 'Alberta' },
   { code: 'BC', name: 'British Columbia' },
@@ -92,13 +84,6 @@ const BY_COUNTRY: Readonly<Record<string, ReadonlyArray<AddressSubregion>>> = {
   CA: CANADA_SUBREGIONS,
 };
 
-/**
- * The subregions a country accepts, or null when its subregion is unvalidated
- * free text.
- *
- * An empty country string returns the US list rather than null — matching iOS,
- * whose forms default to the US before a country is picked.
- */
 export function subregionsForCountry(
   alpha2: string,
 ): ReadonlyArray<AddressSubregion> | null {
@@ -107,25 +92,16 @@ export function subregionsForCountry(
   return BY_COUNTRY[trimmed.toUpperCase()] ?? null;
 }
 
-/** The accepted codes for a country, or null when the country is unvalidated. */
 export function subregionCodesForCountry(alpha2: string): ReadonlySet<string> | null {
   const list = subregionsForCountry(alpha2);
   return list ? new Set(list.map((s) => s.code)) : null;
 }
 
-/** Looks up a subregion by code within a country's list. Case-insensitive. */
 export function findSubregion(code: string, alpha2: string): AddressSubregion | null {
   const needle = code.trim().toUpperCase();
   return subregionsForCountry(alpha2)?.find((s) => s.code === needle) ?? null;
 }
 
-/**
- * Trims a subregion, upper-casing it only for countries whose subregions are
- * validated as codes — a free-text country keeps its casing.
- *
- * Call this before sending an address: without it, "california" goes to the API
- * as typed where iOS would send "CA".
- */
 export function normalizeSubregion(value: string, alpha2: string): string {
   const trimmed = value.trim();
   return subregionsForCountry(alpha2) === null ? trimmed : trimmed.toUpperCase();

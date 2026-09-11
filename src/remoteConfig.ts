@@ -1,24 +1,6 @@
 import { frameRequestHeaders } from './bespokeRequest';
 import { FRAME_API_BASE_URL } from './client';
 
-// One fetch of `/v1/config/all` for every third-party credential the SDK needs.
-// Mirrors iOS, which consolidated five separate config calls into this endpoint
-// (frame-ios 262ef10, FRA-6251) — the aggregate is the only config request a
-// normal launch makes, and its blocks are what every later getter serves.
-//
-// Without this, RN made three round-trips at start-up (evervault + sift through
-// the framepayments SDK, then fingerprint, then legal), each on the critical
-// path to a usable checkout.
-//
-// Cached for the process. iOS additionally persists to the keychain; a missed
-// cache here costs one request on the next cold start, and every consumer has a
-// fallback or degrades cleanly, so persistence buys little.
-//
-// The framepayments SDK's ConfigurationAPI only exposes
-// getEvervaultConfiguration()/getSiftConfiguration() as typed methods — no
-// aggregate, and no fingerprint/legal/mapbox getters at all — so this whole
-// module is a hand-rolled fetch. Typed SDK support requested in FRA-6648.
-
 export interface EvervaultConfigBlock {
   appId?: string;
   teamId?: string;
@@ -43,7 +25,6 @@ export interface LegalConfigBlock {
 
 export interface MapboxConfigBlock {
   accessToken?: string;
-  /** ISO-8601, or undefined when the token does not expire. */
   expiresAt?: string;
 }
 
@@ -84,8 +65,6 @@ function parse(body: Record<string, unknown>): RemoteConfig {
       privacyUrl: str(legal.privacy_url),
       termsUrl: str(legal.terms_url),
       platformAgreementUrl: str(legal.platform_agreement_url),
-      // iOS decodes this one as `cbcTermsAndConditions`, so the wire name is the
-      // un-suffixed form rather than `cbc_terms_url`.
       cbcTermsUrl: str(legal.cbc_terms_and_conditions),
     };
   }
@@ -98,14 +77,6 @@ function parse(body: Record<string, unknown>): RemoteConfig {
   return out;
 }
 
-/**
- * Fetches `/v1/config/all` once and caches it. Concurrent callers share the
- * single in-flight request rather than each issuing their own.
- *
- * Resolves null when the request fails — every consumer either has a bundled
- * fallback (legal) or degrades to "feature unavailable" (fingerprint, mapbox),
- * so a failure here must not throw into `Frame.initialize`.
- */
 export async function fetchRemoteConfig(): Promise<RemoteConfig | null> {
   if (cached) return cached;
   if (inFlight) return inFlight;
@@ -129,12 +100,10 @@ export async function fetchRemoteConfig(): Promise<RemoteConfig | null> {
   return inFlight;
 }
 
-/** The cached config, without triggering a fetch. */
 export function peekRemoteConfig(): RemoteConfig | null {
   return cached;
 }
 
-/** Test hook — clears the cache and any in-flight request. */
 export function __resetRemoteConfig(): void {
   cached = null;
   inFlight = null;

@@ -124,14 +124,6 @@ export interface OnboardingState {
   customerEmail: string;
   ssnLast4: string;
   identityVerifiedViaGovId: boolean;
-  /**
-   * The backend has stepped this account up to government-ID verification: some
-   * capability lists `individual.identity_document` in its actionable
-   * requirements. iOS `requiresIdentityDocument(_:)`
-   * (`OnboardingContainerViewModel.swift:248-252`) scans EVERY capability row
-   * for the key, not just `kyc` — a payout-only account gets it on
-   * `bank_account_receive`.
-   */
   identityDocumentRequired: boolean;
   // The pre-created Persona inquiry id (`inq_...`) from POST /idv/session, kept
   // for reference/debugging after the flow completes.
@@ -149,22 +141,7 @@ export interface OnboardingState {
 
   // ─── ConfirmBankAccount ───
   savedPayoutMethods: ReadonlyArray<FramePaymentMethod>;
-  /**
-   * The payout method picked on SelectPayoutMethodScreen, or `null` for its
-   * "Add Payout Method" row — `null` means "add a new bank", NOT "nothing
-   * selected" (the screen always has one row selected).
-   *
-   * Every host that renders that screen must route `null` to the add-payout
-   * form: `OnboardingRoot` advances to the `add` sub-step, `StandaloneMethodRoot`
-   * swaps its sub-screen. Treating `null` as "nothing picked" makes the
-   * add-a-bank path unreachable.
-   */
   selectedPayoutMethodId: string | null;
-  /**
-   * The payment method the account currently pays out to, as reported by the
-   * server. Drives the "Primary" badge on the payout list. iOS
-   * `OnboardingContainerViewModel.primaryPayoutMethodId`.
-   */
   primaryPayoutMethodId: string | null;
   ach: OnboardingAch;
   achManualMode: boolean;
@@ -388,8 +365,6 @@ export function onboardingReducer(state: OnboardingState, action: OnboardingActi
       return {
         ...state,
         identityDocumentRequired: action.required,
-        // The SSN row disappears once a government ID is required, so drop any
-        // stale SSN error that would otherwise wedge Continue on a hidden field.
         fieldErrors: action.required ? clearError(state.fieldErrors, 'ssnLast4') : state.fieldErrors,
       };
     case 'SET_IDENTITY_VERIFIED_VIA_GOV_ID':
@@ -410,24 +385,6 @@ export function onboardingReducer(state: OnboardingState, action: OnboardingActi
       };
     }
     case 'APPLY_ADDRESS': {
-      // Fills the billing address fields from a picked autocomplete
-      // suggestion. Ports iOS BillingAddressDetailView.apply(_:)
-      // (BillingAddressDetailView.swift:53-76) — the mirror of
-      // FrameCheckoutViewModel.apply(_:) for the onboarding "Current Address"
-      // field.
-      //
-      // One dispatch, not one SET_ADDRESS_FIELD per field: iOS's own comment
-      // explains why (BillingAddressDetailView.swift:54-57) — writing fields
-      // one at a time publishes a change per field, and a field still
-      // rendering mid-fill can write its pre-fill value back before the next
-      // field lands, so only the last field applied would actually stick.
-      //
-      // Line 2 and country are deliberately excluded here — line 2 because
-      // Mapbox doesn't reliably return apartment/unit, so whatever the user
-      // typed stands; country because the caller (BillingAddressDetailView)
-      // applies it only when it matches one the picker offers, matching iOS's
-      // `AvailableCountry.allCountries.first(where:)` guard, and only in
-      // international mode.
       const nextAddress: OnboardingAddress = { ...state.address, ...action.address };
       let errors = state.fieldErrors;
       for (const field of ['line1', 'city', 'state', 'postalCode'] as const) {

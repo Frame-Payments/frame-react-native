@@ -101,15 +101,6 @@ export function entrySubStep(step: OnboardingStep): OnboardingSubStep | null {
 }
 
 function firstPersonalInfoSubStep(): PersonalInfoSubStep {
-  // Phone auth always runs first, with no capability gate — iOS hardcodes
-  // `@State private var identitySteps: UserIdentificationSteps = .phoneAuth`
-  // (`Sources/FrameOnboarding/Views/Identity/Identification/UserIdentificationView.swift:42`).
-  //
-  // This is not cosmetic: `accounts.create` is reachable from exactly one place,
-  // inside sendOtp (useOnboardingViewModel.ts). Skipping phone auth means no
-  // account exists, and submitCustomerInformation then throws
-  // 'No account id present. Restart onboarding.' with no recovery — which is
-  // what an `age_verification`-only flow used to hit.
   return 'phone_auth';
 }
 
@@ -150,35 +141,14 @@ export function validatePhoneAuth(state: OnboardingState): Record<string, string
   return errors;
 }
 
-// Whether an SSN-collecting capability was requested. Written once here because
-// it used to be duplicated against two DIFFERENT state sources — the screen read
-// the `capabilities` prop while the validator read the trimmed
-// `state.requiredCapabilities`, so once trimming dropped `kyc` the SSN field
-// still rendered but no longer validated.
 export function requiresKyc(capabilities: ReadonlyArray<OnboardingCapability>): boolean {
   return capabilities.includes('kyc') || capabilities.includes('kyc_prefill');
 }
 
-/**
- * Whether government-ID verification is mandatory for this account, rather than
- * the user's optional "I don't have an SSN" opt-out.
- *
- * True when the merchant requested `idv`, or when the backend stepped the
- * account up by listing `individual.identity_document` in some capability's
- * actionable requirements. Mirrors iOS `governmentIdRequired`
- * (`OnboardingContainerViewModel.swift:113-115`).
- */
 export function governmentIdRequired(state: OnboardingState): boolean {
   return state.requiredCapabilities.includes('idv') || state.identityDocumentRequired;
 }
 
-/**
- * Whether the SSN input is suppressed entirely. iOS renamed its flag
- * `identityVerifiedViaGovId` → `skipSSN` precisely to capture "already verified
- * *or* required to be" (`OnboardingContainerViewModel.swift:107-109`): once a
- * government ID is mandatory the backend will not accept an SSN, so asking for
- * one strands the user on a field that cannot satisfy the requirement.
- */
 export function skipsSsnEntry(state: OnboardingState): boolean {
   return state.identityVerifiedViaGovId || governmentIdRequired(state);
 }
@@ -218,9 +188,6 @@ export function validateCustomerInformation(state: OnboardingState): Record<stri
     if (dobError) errors.dob = dobError;
   }
 
-  // SSN is required for the kyc / kyc_prefill capabilities unless the SSN input
-  // is suppressed — either the user already verified with a government ID, or
-  // one is mandatory and Persona runs on submit instead.
   if (!skipsSsnEntry(state) && requiresKyc(state.requiredCapabilities)) {
     const ssnError = validateSSNLast4(state.ssnLast4);
     if (ssnError) errors.ssnLast4 = ssnError;
@@ -243,9 +210,6 @@ export function validateAddress(address: OnboardingAddress, required: boolean): 
   const cityError = validateNonEmpty(address.city, 'City');
   if (cityError) errors['address.city'] = cityError;
 
-  // Country-aware, matching iOS Validators.validateSubregion: a US state must
-  // be one of the accepted codes, and the label follows the country ("Province"
-  // for Canada, "County" for the UK).
   const stateError = validateSubregion(address.state, address.country);
   if (stateError) errors['address.state'] = stateError;
 

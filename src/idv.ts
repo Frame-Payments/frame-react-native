@@ -4,9 +4,6 @@ import { frameRequestHeaders as idvHeaders } from './bespokeRequest';
 import { ErrorCodes, frameError } from './errors';
 
 // The framepayments SDK has no API surface for the `/v1/idv/*` endpoints and
-// exposes no generic request hook, so these calls are hand-rolled. Routing and
-// headers come from bespokeRequest so they can't drift from the SDK's.
-// Typed SDK support requested in FRA-6648.
 
 /**
  * Create a Persona inquiry server-side and return its id. The backend pre-
@@ -64,32 +61,14 @@ export async function createIdvSession(): Promise<{ inquiryId: string }> {
  */
 export type IdvCompletionStatus = 'verified' | 'not_verified' | 'pending';
 
-/**
- * The full `/v1/idv/complete` answer. iOS decodes five fields
- * (`IdentityVerificationResponses.swift:38-52`) and branches its applicant-facing
- * copy on `category`, falling back to `status`. Reading only `verified` — as this
- * module used to — collapses six distinct outcomes into one message, so a
- * terminally-declined applicant is told to retry.
- */
 export interface IdvCompletion {
   status: IdvCompletionStatus;
-  /** The remediation category: terminal / review / retriable_with_new_data / step_up / transient. */
   category?: string;
-  /** The raw verification status: declined / failed / needs_review / … */
   rawStatus?: string;
   failureType?: string;
   retriable?: boolean;
 }
 
-/**
- * What to tell an applicant whose verification didn't come back verified.
- * `category` decides; `rawStatus` is the fallback when the run has no conclusion
- * to offer. Ports iOS `idvFailureMessage(for:)`
- * (`OnboardingContainerViewModel.swift:960-984`) message-for-message.
- *
- * @param mandatory - When a government ID is required there is no SSN fallback
- *   to offer, so the default message must not suggest one.
- */
 export function idvFailureMessage(completion: IdvCompletion, mandatory = false): string {
   switch (completion.category) {
     case 'terminal':
@@ -119,10 +98,6 @@ export function idvFailureMessage(completion: IdvCompletion, mandatory = false):
   }
 }
 
-/**
- * Confirms an inquiry and returns the full answer. Prefer this over
- * {@link completeIdvSession} when the caller renders a failure message.
- */
 export async function completeIdvSessionDetailed(inquiryId: string): Promise<IdvCompletion> {
   let response: Response;
   try {
@@ -162,11 +137,6 @@ export async function completeIdvSessionDetailed(inquiryId: string): Promise<Idv
   };
 }
 
-/**
- * Confirms an inquiry and returns only the 3-state verdict. Kept for callers
- * that don't render a message; {@link completeIdvSessionDetailed} carries the
- * detail needed to say WHY.
- */
 export async function completeIdvSession(inquiryId: string): Promise<IdvCompletionStatus> {
   return (await completeIdvSessionDetailed(inquiryId)).status;
 }

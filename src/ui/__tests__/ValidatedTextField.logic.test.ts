@@ -38,7 +38,6 @@ describe('applyInputRestriction', () => {
   });
 
   it('keeps letters, whitespace and name punctuation', () => {
-    // The punctuation real names and place names contain.
     expect(applyInputRestriction("O'Fallon", 'textOnly')).toBe("O'Fallon");
     expect(applyInputRestriction('Stoke-on-Trent', 'textOnly')).toBe('Stoke-on-Trent');
     expect(applyInputRestriction('St. Louis', 'textOnly')).toBe('St. Louis');
@@ -46,8 +45,6 @@ describe('applyInputRestriction', () => {
   });
 
   it('keeps non-ASCII letters', () => {
-    // Names here are compared against a government ID during KYC, so dropping a
-    // character the legal name contains would cause a verification failure.
     expect(applyInputRestriction('José', 'textOnly')).toBe('José');
     expect(applyInputRestriction('Müller', 'textOnly')).toBe('Müller');
     expect(applyInputRestriction('李', 'textOnly')).toBe('李');

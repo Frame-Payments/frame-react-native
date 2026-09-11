@@ -17,11 +17,6 @@ export interface ApplePayBridgePresentArgs {
   applePayMerchantId: string;
   countryCode?: string;
   supportedNetworks?: ReadonlyArray<string>;
-  /**
-   * Draws the sheet with a $0 "Card Verification" pending item instead of a
-   * total. Used by the add-to-owner flow, where no charge is created — matching
-   * iOS's `.addToOwner` branch in FrameApplePayViewModel.buildPaymentRequest.
-   */
   verificationOnly?: boolean;
 }
 
@@ -151,10 +146,6 @@ export async function addApplePayToOwnerFlow(
   await ensureAttested();
 
   const currency = options.currency ?? 'usd';
-  // No charge is created here, so the sheet shows a $0 "Card Verification"
-  // pending item rather than a total. It previously showed "Total $1.00", which
-  // reads to the cardholder as a real charge. iOS uses the $0 pending item
-  // (FrameApplePayViewModel.swift:138-148).
   const sheetResponse = await FrameApplePay.presentApplePay({
     amount: 0,
     currency,
@@ -257,9 +248,6 @@ async function createPaymentMethodAndCharge(
   }
 
   const pm = await createWalletPaymentMethod({ type: 'card', account: owner.id, _wallet: wallet });
-  // The server resolves a payment's session through the account, so only the
-  // account path can carry one — a ChargeIntent on a customer has no account to
-  // resolve through. Never blocks: the server's rejection is authoritative.
   const sonarSessionId = await sessionIdForPayment(owner.id);
   const transfer = await client.sdk.transfers.create({
     amount: options.amount,
@@ -274,13 +262,6 @@ async function createPaymentMethodAndCharge(
   return transfer.id;
 }
 
-// Creates the Apple Pay payment method, resetting attestation when the server
-// refuses the device assertion.
-//
-// The device's App Attest key can be revoked server-side, after which every
-// assertion fails identically — without the reset the device stays wedged until
-// the app is reinstalled. iOS does the same at
-// FrameApplePayViewModel.swift:182-184.
 async function createWalletPaymentMethod(
   params: Parameters<typeof client.sdk.paymentMethods.createApplePayPaymentMethod>[0],
 ) {
@@ -290,7 +271,6 @@ async function createWalletPaymentMethod(
     });
   } catch (err) {
     if (isAssertionRejection(err)) {
-      // Best-effort: a failed reset must not mask the original error.
       await resetAttestation().catch(() => {});
     }
     throw err;

@@ -80,8 +80,6 @@ export function SelectPayoutMethodScreen({
                 <PaymentMethodRow
                   key={pm.id}
                   title={
-                    // iOS marks the account's current payout destination
-                    // (SelectPayoutMethodView.swift:149-154).
                     state.primaryPayoutMethodId === pm.id ? `${achTitle(pm)} · Primary` : achTitle(pm)
                   }
                   subtitle={achSubtitle(pm) ?? undefined}

@@ -1,8 +1,3 @@
-/**
- * Unit tests for the Mapbox address-search client. remoteConfig is mocked
- * directly (addressSearch.ts talks to it for the token, not to the network
- * for config), and `fetch` is stubbed for the Mapbox calls themselves.
- */
 
 const mockFetchRemoteConfig = jest.fn();
 jest.mock('../remoteConfig', () => ({
@@ -242,9 +237,6 @@ describe('retrieveAddress', () => {
   });
 
   it('regenerates the session token after a successful retrieve', async () => {
-    // Billing-session grouping: the next suggest call after a retrieve must
-    // start a fresh session rather than continuing to bill against the one
-    // that just ended.
     mockFetchRemoteConfig.mockResolvedValue({ mapbox: { accessToken: 'pk.test' } });
     mockFetchOnce({ features: [{ properties: { address: '1 Main St', context: {} } }] });
     mockFetchOnce({ suggestions: [] });

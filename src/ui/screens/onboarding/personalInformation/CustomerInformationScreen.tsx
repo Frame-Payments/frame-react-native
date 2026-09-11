@@ -58,24 +58,10 @@ export function CustomerInformationScreen({
 }: CustomerInformationScreenProps) {
   const theme = useFrameTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  // Address-autocomplete's suggestion dropdown must render outside the
-  // ScrollView it would otherwise be clipped by — see
-  // AddressAutocompleteField.tsx's header comment. Same pattern as
-  // CheckoutScreen.tsx.
   const [addressOverlay, setAddressOverlay] = useState<AddressAutocompleteOverlayState | null>(null);
   const showDob = !requiresDobInPhoneAuth(capabilities);
-  // Read the trimmed reducer capabilities, not the raw `capabilities` prop:
-  // reconciliation drops capabilities the account has already satisfied, and
-  // the validator reads the trimmed list. Sourcing the two from different
-  // places is what let the SSN field render while no longer being validated.
   const ssnCapabilityRequested = requiresKyc(state.requiredCapabilities);
-  // The SSN section shows whenever an SSN-collecting capability is requested and
-  // the SSN input isn't suppressed — the user has already verified with a
-  // government ID, or one is mandatory and Persona runs on submit instead.
   const showSsn = ssnCapabilityRequested && !skipsSsnEntry(state);
-  // The manual opt-out is redundant once verification is mandatory: iOS
-  // suppresses it because Persona runs automatically after Continue
-  // (`CustomerInformationView.swift:50-55`).
   const showNoSsnButton = showSsn && !governmentIdRequired(state) && isPersonaAvailable();
   // Once verified, replace the whole SSN block with a confirmation line.
   const showVerifiedNotice = ssnCapabilityRequested && state.identityVerifiedViaGovId;

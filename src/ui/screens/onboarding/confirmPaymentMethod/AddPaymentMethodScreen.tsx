@@ -50,10 +50,6 @@ export function AddPaymentMethodScreen({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const cardFieldRef = useRef<PaymentCardFieldHandle | null>(null);
   const isAddressOnly = state.addressVerificationOnly;
-  // Address-autocomplete's suggestion dropdown must render outside the
-  // ScrollView it would otherwise be clipped by — see
-  // AddressAutocompleteField.tsx's header comment. Same pattern as
-  // CheckoutScreen.tsx / CustomerInformationScreen.tsx.
   const [addressOverlay, setAddressOverlay] = useState<AddressAutocompleteOverlayState | null>(null);
 
   const [applePayReady, setApplePayReady] = useState(false);

@@ -50,8 +50,6 @@ describe('isAssertionRejection', () => {
   });
 
   it('does not throw on non-error values', () => {
-    // This runs on a payment's failure path; throwing here would turn a card
-    // decline into a TypeError.
     expect(isAssertionRejection(null)).toBe(false);
     expect(isAssertionRejection(undefined)).toBe(false);
     expect(isAssertionRejection('boom')).toBe(false);

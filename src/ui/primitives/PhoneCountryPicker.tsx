@@ -35,13 +35,8 @@ export function PhoneCountryPicker({ selectedAlpha2, onSelect, testID }: PhoneCo
   const [open, setOpen] = useState(false);
   const theme = useFrameTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  // getPhoneCountries already excludes restricted countries, so there is no
-  // call-site filter to forget.
   const countries = useMemo(() => getPhoneCountries(), []);
   const selected = useMemo(
-    // Falls back to the device's region rather than the alphabetically first
-    // country, which used to make Afghanistan the default for anyone whose
-    // selection didn't match.
     () => findPhoneCountry(selectedAlpha2) ?? getDefaultPhoneCountry(),
     [selectedAlpha2],
   );

@@ -51,7 +51,6 @@ describe('checkoutReducer', () => {
   });
 
   describe('APPLY_ADDRESS', () => {
-    // Ports iOS FrameCheckoutViewModel.apply(_:) (FrameCheckoutViewModel.swift:183-201).
 
     it('fills every field an autocomplete result carries', () => {
       let s = initialCheckoutState();
@@ -102,7 +101,6 @@ describe('checkoutReducer', () => {
         type: 'SET_FIELD_ERRORS',
         errors: { addressLine1: 'X', addressCity: 'Y', addressState: 'Z', addressPostalCode: 'W' },
       });
-      // Only line1 and postalCode are supplied — city/state errors must survive.
       s = checkoutReducer(s, {
         type: 'APPLY_ADDRESS',
         address: { line1: '1 Main St', postalCode: '78701' },
@@ -114,11 +112,6 @@ describe('checkoutReducer', () => {
     });
 
     it('is a single state transition — no field can be read mid-fill in an inconsistent state', () => {
-      // Regression guard for the exact bug iOS's own comment describes
-      // (BillingAddressDetailView.swift:54-57): dispatching one
-      // SET_ADDRESS_FIELD per field would let a still-focused sibling field's
-      // own onChange fire between two of them and overwrite one with a stale
-      // value. A single APPLY_ADDRESS dispatch cannot be interleaved.
       let s = initialCheckoutState();
       const before = s;
       const after = checkoutReducer(before, {
@@ -157,9 +150,6 @@ describe('selectors', () => {
   });
 
   it('hasUsablePaymentInput: saved card still needs name + email', () => {
-    // iOS validates name and email on both paths, so the Pay button must not
-    // enable for a saved card before they are filled — otherwise the tap fails
-    // validation with no visible reason.
     let s = initialCheckoutState();
     s = checkoutReducer(s, { type: 'SELECT_SAVED_OPTION', id: 'pm_1' });
     expect(hasUsablePaymentInput(s)).toBe(false);
@@ -173,7 +163,6 @@ describe('selectors', () => {
     s = checkoutReducer(s, { type: 'SELECT_SAVED_OPTION', id: 'pm_1' });
     s = checkoutReducer(s, { type: 'SET_CUSTOMER_NAME', value: 'Eric Townsend' });
     s = checkoutReducer(s, { type: 'SET_CUSTOMER_EMAIL', value: 'eric@example.com' });
-    // No cardComplete, no address — a saved card needs neither.
     expect(hasUsablePaymentInput(s)).toBe(true);
   });
 
@@ -217,15 +206,12 @@ describe('selectors', () => {
 
 describe('validateForSubmit', () => {
   it('saved card path still validates name and email', () => {
-    // iOS runs both validators unconditionally and only skips the card and
-    // address blocks for a saved card (FrameCheckoutViewModel.swift:213-224).
     let s = initialCheckoutState();
     s = checkoutReducer(s, { type: 'SELECT_SAVED_OPTION', id: 'pm_1' });
     const empty = validateForSubmit(s);
     expect(empty.isValid).toBe(false);
     expect(empty.fieldErrors.customerName).toBeDefined();
     expect(empty.fieldErrors.customerEmail).toBeDefined();
-    // ...and nothing else: the card and address blocks are skipped.
     expect(empty.fieldErrors.addressLine1).toBeUndefined();
 
     s = checkoutReducer(s, { type: 'SET_CUSTOMER_NAME', value: 'Eric Townsend' });
@@ -257,9 +243,6 @@ describe('validateForSubmit', () => {
   });
 
   it('non-US country validates the postal code against that country format', () => {
-    // Was a bare non-empty check, so 'K1A' passed. iOS uses the country-aware
-    // Validators.validatePostalCode, and RN already had the same table in
-    // validation.ts — checkout just wasn't calling it.
     function caStateWith(postalCode: string) {
       let s = initialCheckoutState();
       s = checkoutReducer(s, { type: 'SET_CUSTOMER_NAME', value: 'Eric Townsend' });
@@ -318,7 +301,6 @@ describe('saved-method loading', () => {
   });
 
   it('does not auto-select over a deliberate "Enter New Payment Method" choice', () => {
-    // A late-arriving options list must not undo an explicit pick.
     let s = checkoutReducer(initialCheckoutState(), { type: 'SELECT_SAVED_OPTION', id: null });
     s = checkoutReducer(s, { type: 'SET_PAYMENT_OPTIONS', options: [savedCard] });
     expect(s.selectedAccountPaymentOptionId).toBeNull();

@@ -133,9 +133,6 @@ async function createPaymentMethodAndCharge(
     { type: 'card', account: owner.id, _wallet: wallet },
     { usePublishableKey: true },
   );
-  // The server resolves a payment's session through the account, so only the
-  // account path can carry one — a ChargeIntent on a customer has no account to
-  // resolve through. Never blocks: the server's rejection is authoritative.
   const sonarSessionId = await sessionIdForPayment(owner.id);
   const transfer = await client.sdk.transfers.create({
     amount: options.amountCents,

@@ -32,8 +32,6 @@ jest.mock('framepayments', () => {
     transfers = { create: transfersCreate };
     constructor(_config: unknown) {}
   }
-  // The real module exports this and api-errors reads it; a mock without it
-  // makes any `instanceof FrameAPIError` throw.
   class MockFrameAPIError extends Error {
     status = 0;
     raw: unknown = null;

@@ -33,22 +33,7 @@ export function toToastMessage(error: unknown, fallback: string = DEFAULT_TOAST_
   return `Error: ${fallback}`;
 }
 
-/**
- * Whether the API rejected the request because the device assertion was refused.
- *
- * The device's App Attest key can be revoked server-side (a reinstall, a
- * security event), after which every assertion fails identically until the key
- * is regenerated. Callers reset attestation on this so the next attempt mints a
- * fresh key rather than leaving the device wedged until the app is reinstalled.
- *
- * Mirrors iOS `NetworkingError.isAssertionRejection`
- * (`Sources/Frame/Networking/CommonObjects.swift:187-193`) — a 422 whose message
- * mentions assertion or attestation.
- */
 export function isAssertionRejection(error: unknown): boolean {
-  // Duck-typed rather than `instanceof FrameAPIError`: this runs on the failure
-  // path of a payment, and an `instanceof` against a class the bundle didn't
-  // load throws, turning a card decline into a TypeError.
   if (typeof error !== 'object' || error === null) return false;
   const { status, raw, message: rawMessage } = error as {
     status?: unknown;
@@ -66,13 +51,6 @@ export function isAssertionRejection(error: unknown): boolean {
   );
 }
 
-// Error codes a host can never resolve by retrying inside the checkout/cart UI
-// — they mean the merchant integration itself is misconfigured (no secret key
-// configured for a server-only operation, SDK never initialized, no Apple/
-// Google Pay merchant ID). Everything else (a declined card, a validation
-// error, a transient network blip, 3DS being unresolved) is recoverable: the
-// user can fix the input or retry, so it toasts and the sheet stays open
-// rather than tearing down (mirrors iOS `FrameCheckoutView.swift:428-436`).
 const UNRECOVERABLE_CHECKOUT_CODES: ReadonlySet<string> = new Set([
   ErrorCodes.MISSING_SECRET_KEY,
   ErrorCodes.NOT_INITIALIZED,
@@ -81,27 +59,11 @@ const UNRECOVERABLE_CHECKOUT_CODES: ReadonlySet<string> = new Set([
   ErrorCodes.INVALID_MERCHANT_ID,
 ]);
 
-/**
- * Whether this error means the checkout/cart flow can never succeed no matter
- * what the user does — a merchant-integration misconfiguration rather than a
- * payment failure. Checkout reports these via `onFail` (rejecting the host's
- * `presentCheckout`/`presentCart` promise) instead of swallowing them into a
- * toast that would loop forever on a Pay button that can never work.
- */
 export function isUnrecoverableCheckoutError(error: unknown): boolean {
   const code = isFrameError(error) ? error.code : normalizeToFrameError(error).code;
   return UNRECOVERABLE_CHECKOUT_CODES.has(code);
 }
 
-/**
- * Whether this error is a client-side field-validation rejection — the view
- * model already dispatched `SET_FIELD_ERRORS` with the specific per-field
- * messages before throwing (see `useCheckoutViewModel.submit` /
- * `useOnboardingViewModel`'s `sendOtp`/`confirmFrameOtp`/etc). A screen
- * catching this should NOT also show a generic toast — the inline errors
- * already say what's wrong, and a toast on top reads like a real API failure
- * for what's often just an unfilled or malformed field.
- */
 export function isValidationError(error: unknown): boolean {
   const code = isFrameError(error) ? error.code : normalizeToFrameError(error).code;
   return code === ErrorCodes.VALIDATION_FAILED;

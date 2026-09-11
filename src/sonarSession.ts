@@ -2,42 +2,10 @@ import { AppState, type AppStateStatus } from 'react-native';
 import { client } from './client';
 import { getFingerprintVisitorId } from './fingerprint';
 
-// Sonar fraud-detection sessions. Ported from iOS SessionManager
-// (`Sources/Frame/Networking/SonarSessionManager.swift`).
-//
-// The server resolves a payment's session THROUGH the Frame account, so a
-// session only backs a payment once it has been associated with one; a session
-// created without an account is invisible to risk checks and the payment is
-// rejected with `sonar_session_required`. Sessions also go stale: the server
-// requires the session's latest device event to be recent, and only a create or
-// update call records one.
-//
-// Naming trap worth stating: iOS's "Sonar session" is the `charge_sessions`
-// resource (POST/PATCH /v1/charge_sessions). The framepayments SDK ALSO has a
-// `sonarSessions` API on /v1/sonar_sessions — a DIFFERENT resource and the
-// wrong target; do not use it here. The correctly-targeted resource is
-// `client.sdk.chargeSessions` (see the Transport section below) — its request
-// params don't yet declare `fingerprint_visitor_id`/`account_id`, so those go
-// through a runtime-safe cast rather than a hand-rolled `fetch()`.
-//
-// All state lives in module scope, not on the SDK instance: prefetchIpAddress
-// calls resetClients() mid-flight, which would otherwise discard it.
-
-/** Sits well inside the server's freshness window. */
 const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 
-/**
- * How often the keep-alive re-touches the live session. Deliberately shorter
- * than REFRESH_INTERVAL_MS so a refresh always lands before the window closes,
- * rather than the window expiring and the refresh falling onto the payment's
- * critical path.
- */
 const KEEP_ALIVE_INTERVAL_MS = 10 * 60 * 1000;
 
-/**
- * Where session identifiers are persisted. A seam so tests can inject a fake
- * instead of mocking AsyncStorage. Mirrors iOS's `SessionStorage` protocol.
- */
 export interface SessionStorage {
   get(accountId: string | null): Promise<string | null>;
   set(value: string, accountId: string | null): Promise<void>;
@@ -46,10 +14,6 @@ export interface SessionStorage {
   setLastRefresh(at: number, accountId: string | null): Promise<void>;
 }
 
-// Key scheme matches iOS exactly so a session survives a platform switch in a
-// shared-storage setup and, more importantly, so the two SDKs agree on what
-// "this account's session" means. Keying per account is what stops one
-// account's session being reused by the next account on the same device.
 const LEGACY_KEY = 'frame_charge_session_id';
 const KEY_PREFIX = 'frame_sonar_session_id_';
 const REFRESH_SUFFIX = '_refreshed_at';
@@ -80,12 +44,6 @@ function loadAsyncStorage(): AsyncStorageLike | null {
   return cachedAsyncStorage;
 }
 
-/**
- * Persists to AsyncStorage when the host has it, matching iOS's UserDefaults
- * (which survives restarts). AsyncStorage is an OPTIONAL peer dep, so this
- * degrades to in-memory when absent — a session is then re-created per app run
- * rather than the SDK failing.
- */
 export function createDefaultSessionStorage(): SessionStorage {
   const memory = new Map<string, string>();
   const store = loadAsyncStorage();
@@ -117,53 +75,25 @@ export function createDefaultSessionStorage(): SessionStorage {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Manager state
-// ─────────────────────────────────────────────────────────────────────────────
-
 let storage: SessionStorage = createDefaultSessionStorage();
 let inFlight = new Map<string, Promise<string>>();
 let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
 let appStateSubscription: { remove: () => void } | null = null;
 
-/**
- * Serializes access to the pre-account (legacy, `null`-keyed) session slot.
- *
- * iOS's SessionManager is an actor, so its methods are inherently serialized —
- * that's what makes its legacy-slot read-then-clear safe with no explicit lock.
- * RN has no actor equivalent, and `inFlight` alone doesn't cover this: it keys
- * per ACCOUNT, so two different accounts' first-time `establishSession` calls
- * are two independent map entries that both run concurrently. Both would read
- * the same legacy session, both PATCH it with their own account_id, and both
- * clear the slot — the server does last-write-wins, so one caller ends up
- * holding a session id the server actually associated with the other account.
- * This tail chains every legacy-slot read+adopt+clear into one queue.
- */
 let legacySessionLock: Promise<unknown> = Promise.resolve();
 
 function withLegacySessionLock<T>(fn: () => Promise<T>): Promise<T> {
   const result = legacySessionLock.then(fn, fn);
-  // Swallow so one failed adoption doesn't wedge the queue for later callers;
-  // the real error still propagates to whoever awaited `result`.
   legacySessionLock = result.catch(() => {});
   return result;
 }
 
-/**
- * The account whose session the keep-alive should re-touch. `null` means no
- * account is known yet, so the pre-account warm-up session is the live one.
- * This is what stops the keep-alive POSTing a fresh orphan over an adopted
- * session: once an account is known, refreshes go out as an update and preserve
- * the account binding.
- */
 let activeAccountId: string | null = null;
 
-/** Test hook — swap the storage seam. */
 export function __setSessionStorage(next: SessionStorage): void {
   storage = next;
 }
 
-/** Test hook — clear all manager state. */
 export function __resetSonarSession(): void {
   storage = createDefaultSessionStorage();
   inFlight = new Map();
@@ -174,26 +104,6 @@ export function __resetSonarSession(): void {
   appStateSubscription = null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Transport
-// ─────────────────────────────────────────────────────────────────────────────
-
-// The `chargeSessions` resource on the framepayments SDK already targets the
-// right endpoint (POST/PATCH /v1/charge_sessions — verified against the
-// compiled client), so this rides it rather than a raw `fetch()`: same ambient
-// auth (apiKey/publishableKey), same interceptors, no header/base-URL
-// duplication to keep in sync by hand. Its TypeScript params
-// (CreateChargeSessionParams/UpdateChargeSessionParams) don't declare
-// `fingerprint_visitor_id` or `account_id`, so those go through a runtime-safe
-// cast — the same pattern used elsewhere in this SDK for fields the npm
-// package's types don't yet cover (e.g. accounts.create in
-// useOnboardingViewModel.ts).
-//
-// The response id field is read defensively: the type declares `id`, but iOS's
-// own wire contract for this exact endpoint (SonarSessionRequests.swift:14-20)
-// decodes `sonar_session_id`. Unverified which the server actually sends, so
-// both are accepted rather than guessing. See FRA-6648 (framepayments ticket)
-// filed to get this typed and confirmed upstream.
 interface SessionResponse {
   id?: unknown;
   sonar_session_id?: unknown;
@@ -220,13 +130,6 @@ async function createSession(accountId: string | null): Promise<string> {
   return sessionIdFrom(response, 'create');
 }
 
-/**
- * Updates an existing session, associating it with `accountId` and recording a
- * new device event server-side — the latter is what returns the session to the
- * freshness window. A null `accountId` refreshes the pre-account session in
- * place, keeping the same id so the device event accumulates against it rather
- * than against a fresh orphan.
- */
 async function refreshSession(session: string, accountId: string | null): Promise<string> {
   const visitorId = await getFingerprintVisitorId();
   if (!visitorId) {
@@ -240,16 +143,10 @@ async function refreshSession(session: string, accountId: string | null): Promis
     const response = (await client.sdk.chargeSessions.update(session, params)) as unknown as SessionResponse;
     return sessionIdFrom(response, 'update');
   } catch {
-    // The server no longer recognises this session, so replace it rather than
-    // fail the payment.
     await storage.clear(accountId);
     return createSession(accountId);
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Lifecycle
-// ─────────────────────────────────────────────────────────────────────────────
 
 async function isFresh(accountId: string | null): Promise<boolean> {
   const last = await storage.lastRefresh(accountId);
@@ -269,27 +166,15 @@ async function establishSession(accountId: string): Promise<string> {
     return refreshed;
   }
 
-  // Only the legacy-slot read+adopt+clear is locked: it's the one step shared
-  // across every account, so it's the only step two different accounts'
-  // concurrent establishSession calls can race on (inFlight itself is keyed
-  // per account and doesn't cover this). A brand-new session with no legacy
-  // slot to contend over stays fully concurrent across accounts.
   const adopted = await withLegacySessionLock(async () => {
-    // Re-check under the lock: another queued call may already have adopted
-    // (and cleared) the legacy session for this same account while this one
-    // was waiting.
     const stillMissing = await storage.get(accountId);
     if (stillMissing) return stillMissing;
 
     const legacy = await storage.get(null);
     if (!legacy) return null;
 
-    // Adopt the pre-account session rather than creating a fresh one, so its
-    // id and accumulated device event survive.
     const value = await refreshSession(legacy, accountId);
     await store(value, accountId);
-    // Leaving the legacy slot readable would let the next account on this
-    // device adopt the same session.
     await storage.clear(null);
     return value;
   });
@@ -300,23 +185,11 @@ async function establishSession(accountId: string): Promise<string> {
   return created;
 }
 
-/**
- * Starts the periodic refresh of whichever session is currently live.
- *
- * Idempotent by design: this is called from every ensureSession, and
- * cancel-and-recreate would restart the interval, so a user retrying checkout
- * could push the next refresh out indefinitely. The tick reads activeAccountId
- * when it fires, so an already-running timer picks up a newly adopted account
- * without a restart.
- */
 function startKeepAlive(): void {
   if (keepAliveTimer !== null) return;
   keepAliveTimer = setInterval(() => {
     void touchActiveSession();
   }, KEEP_ALIVE_INTERVAL_MS);
-  // A background refresh is not a reason to hold a process open. RN's timers
-  // have no unref, so this is a no-op there and only matters under Node (tests,
-  // SSR-style harnesses), where an un-unref'd interval hangs the run.
   (keepAliveTimer as unknown as { unref?: () => void }).unref?.();
 }
 
@@ -325,20 +198,11 @@ function stopKeepAlive(): void {
   keepAliveTimer = null;
 }
 
-/**
- * Refreshes the live session: the adopted account session when one is known,
- * otherwise the pre-account warm-up session. Failures are swallowed
- * deliberately — this runs in the background, and a missed keep-alive is
- * recovered by ensureSession on the payment path.
- */
 async function touchActiveSession(): Promise<void> {
   if (!activeAccountId) {
     await warmUp().catch(() => {});
     return;
   }
-  // Join an in-flight establish rather than issuing a competing one — a
-  // keep-alive tick can land while checkout is already establishing the same
-  // session.
   const running = inFlight.get(activeAccountId);
   if (running) {
     await running.catch(() => {});
@@ -357,21 +221,7 @@ function runExclusive(accountId: string): Promise<string> {
   return task;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Public surface
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Returns a session for `accountId` fresh enough to back a payment, creating or
- * refreshing one if necessary. Idempotent, and coalesces concurrent callers
- * onto a single round trip.
- *
- * Call this before taking a payment and await it: the server rejects a transfer
- * outright without a live session for the account.
- */
 export async function ensureSession(accountId: string): Promise<string> {
-  // From here on the keep-alive refreshes this account's session rather than
-  // the pre-account one.
   activeAccountId = accountId;
   startKeepAlive();
 
@@ -381,16 +231,6 @@ export async function ensureSession(accountId: string): Promise<string> {
   return runExclusive(accountId);
 }
 
-/**
- * Brings the pre-account session into the freshness window, creating one only
- * when none exists. Freshness-gated, so this is the keep-alive's tick for the
- * pre-account session.
- *
- * A stale session is refreshed IN PLACE, keeping the same id so the new device
- * event accumulates against the session the adoption path will look for.
- * Replacing it here would reintroduce the event-landing race that creating
- * early exists to avoid.
- */
 export async function warmUp(): Promise<void> {
   const stored = await storage.get(null);
   if (stored && (await isFresh(null))) return;
@@ -402,15 +242,6 @@ export async function warmUp(): Promise<void> {
   await store(await createSession(null), null);
 }
 
-/**
- * Establishes the session this app run uses, at SDK start-up. The server
- * fetches a new session's device event asynchronously, so starting early gives
- * that event time to land before checkout.
- *
- * Unconditional rather than freshness-gated: the stored session outlives the
- * process, so a launch inside the window would otherwise record nothing.
- * Failures are swallowed; the payment path calls ensureSession.
- */
 export async function initializeSession(accountId?: string | null): Promise<void> {
   const id = accountId && accountId.length > 0 ? accountId : null;
   activeAccountId = id;
@@ -419,8 +250,6 @@ export async function initializeSession(accountId?: string | null): Promise<void
   if (!id) {
     const stored = await storage.get(null);
     if (stored) {
-      // Refresh in place when one exists, so the id the adoption path will look
-      // for survives.
       const refreshed = await refreshSession(stored, null).catch(() => null);
       if (refreshed) await store(refreshed, null);
       return;
@@ -430,36 +259,15 @@ export async function initializeSession(accountId?: string | null): Promise<void
     return;
   }
 
-  // Through runExclusive, not establishSession directly: a concurrent
-  // ensureSession/refreshOnFlowEntry call for the same account must join this
-  // one round trip rather than racing it with an independent establishSession
-  // call — the inFlight map is what makes that coalescing work.
   await runExclusive(id).catch(() => {});
 }
 
-/**
- * Records a device event when the merchant presents one of the SDK's entry-point
- * screens — onboarding, checkout, cart, or a standalone payment element.
- *
- * Mirrors the web SDK, which writes the session once per page load. A native app
- * has no page loads, so presenting one of these screens is the closest
- * equivalent: it is the point where the user has committed to a flow that risk
- * checks will score.
- *
- * Deliberately unconditional rather than freshness-gated — the window is an
- * SDK-side estimate of the server's, and entering a flow is exactly when it is
- * worth a request to be certain. Fire-and-forget; failures are ignored.
- */
 export async function refreshOnFlowEntry(accountId?: string | null): Promise<void> {
   const id = accountId && accountId.length > 0 ? accountId : null;
   const stored = await storage.get(id).catch(() => null);
 
   if (!stored) {
     if (id) {
-      // Through runExclusive (not establishSession directly) so the launch
-      // session is ADOPTED onto the account, keeping its id and accumulated
-      // device event, AND so a concurrent ensureSession call for the same
-      // account joins this round trip instead of racing an independent one.
       activeAccountId = id;
       startKeepAlive();
       await runExclusive(id).catch(() => {});
@@ -474,29 +282,17 @@ export async function refreshOnFlowEntry(accountId?: string | null): Promise<voi
   if (refreshed) await store(refreshed, id);
 }
 
-/**
- * Re-touches the live session and restarts the keep-alive after the app returns
- * to the foreground. Backgrounding is the most common way a session goes stale
- * — timers do not fire while suspended, so the window can close unnoticed.
- */
 export async function resume(): Promise<void> {
   await touchActiveSession();
   startKeepAlive();
 }
 
-/** Stops the keep-alive while backgrounded, so it neither burns cycles nor fires requests that would be suspended mid-flight. */
 export function pause(): void {
   stopKeepAlive();
 }
 
-/**
- * Registers the AppState listener that drives resume/pause. Called once from
- * Frame.initialize, where iOS registers its own observer. Idempotent.
- */
 export function observeAppLifecycle(): void {
   if (appStateSubscription) return;
-  // Guarded: AppState is absent under some test renderers and older RN shims,
-  // and losing the keep-alive is not a reason to fail Frame.initialize.
   if (typeof AppState?.addEventListener !== 'function') return;
   appStateSubscription = AppState.addEventListener('change', (status: AppStateStatus) => {
     if (status === 'active') void resume();
@@ -504,11 +300,6 @@ export function observeAppLifecycle(): void {
   });
 }
 
-/**
- * The stored session id for a payment, or undefined when none is available.
- * Never throws: a missing session must not block a payment from being attempted,
- * since the server's rejection is the authoritative answer.
- */
 export async function sessionIdForPayment(accountId: string): Promise<string | undefined> {
   try {
     return await ensureSession(accountId);

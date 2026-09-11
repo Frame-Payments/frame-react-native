@@ -181,18 +181,9 @@ async function runInitialize(options: {
   // Prefetch Evervault + Sift configs in the background. Card encryption can't
   // proceed until Evervault is configured, but we don't block initialize on it
   // — submit-time encryption will re-await this promise via configureEvervault's
-  // memoization. Sift is handed its config as soon as the fetch lands.
   void prefetchServiceConfigs();
-  // Start the Sonar session and watch for foreground/background transitions, as
-  // iOS does in its own initialize. Backgrounding is the most common way a
-  // session goes stale — timers do not fire while suspended. Fire-and-forget:
-  // the payment path calls ensureSession and the server is authoritative.
   observeAppLifecycle();
   void initializeSession();
-  // Legal URLs are read synchronously during render, so fetch them now and let
-  // the bundled fallbacks cover the window before this lands. Shares the same
-  // /v1/config/all round trip as prefetchServiceConfigs above — fetchRemoteConfig
-  // dedupes concurrent callers onto one in-flight request.
   void prefetchLegalConfiguration();
   // Resolve the device IP asynchronously and reset the cached SDK client so
   // subsequent requests pick up the ip_address header. iOS resolves
@@ -211,11 +202,6 @@ async function prefetchIpAddress(): Promise<void> {
 }
 
 async function prefetchServiceConfigs(): Promise<void> {
-  // One request for every third-party credential, matching iOS's
-  // /v1/config/all consolidation (frame-ios FRA-6251). This previously made
-  // three separate round-trips at start-up — evervault + sift through the SDK,
-  // then fingerprint, then legal, each on the critical path to a usable
-  // checkout.
   const config = await fetchRemoteConfig();
   if (!config) {
     debugWarn('Configuration prefetch failed', new Error('/v1/config/all returned no usable body'));
@@ -237,9 +223,6 @@ async function prefetchServiceConfigs(): Promise<void> {
   const sift = config.sift;
   if (sift?.accountId && sift?.beaconKey) {
     __internal.setSiftConfiguration({ accountId: sift.accountId, beaconKey: sift.beaconKey });
-    // Hand the config to the Sift SDK so it actually starts collecting. This is
-    // what iOS's SiftManager.initializeSift does; until now RN cached the
-    // config and nothing ever read it, so no device events were collected.
     if (!initializeSift() && getDebugMode()) {
       console.warn('[Frame] Sift config fetched but the SDK could not be initialized.');
     }
@@ -323,9 +306,6 @@ export async function presentCheckout(options: PresentCheckoutOptions): Promise<
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentCheckout requires accountId');
   }
-  // Records a device event on entering the flow, mirroring iOS's
-  // .refreshesSonarSession(accountId:) modifier on FrameCheckoutView.
-  // Fire-and-forget — it must never hold up presentation.
   void refreshOnFlowEntry(options.accountId);
   const [applePayReady, googlePayReady] = await Promise.all([
     Platform.OS === 'ios' ? canMakeApplePay() : Promise.resolve(false),
@@ -362,11 +342,8 @@ export interface PresentCartOptions {
   currency?: string;
   /** Custom title shown in the cart sheet header. */
   title?: string;
-  /** Subtitle under the cart title. Defaults to `'Cart'`. */
   subtitle?: string;
-  /** Label on the cart's checkout button. Defaults to `'Checkout'`. */
   checkoutButtonTitle?: string;
-  /** Minimum height of each cart line-item row. Defaults to 65, matching iOS. */
   cartItemHeight?: number;
   /**
    * Controls whether a billing address is collected at checkout.
@@ -514,19 +491,8 @@ export async function presentOnboarding(options: PresentOnboardingOptions): Prom
   ));
 }
 
-/**
- * Options shared by the three standalone payment/payout screens.
- */
 export interface PresentMethodOptions {
-  /** The Frame account the method is attached to. */
   accountId: string;
-  /**
-   * Onboarding-session token (`onb_sess_...`) from
-   * `POST /v1/onboarding_sessions`. While the screen is presented every request
-   * is scoped to this token, overriding the configured pk_/sk_ keys — the
-   * publishable-key-safe way to add a method on device. Mirrors the
-   * `clientSecret:` parameter iOS's three standalone views take.
-   */
   clientSecret?: string | null;
 }
 
@@ -551,57 +517,14 @@ function presentMethodScreen(
   ));
 }
 
-/**
- * Presents a standalone "add payment method" sheet, outside the onboarding
- * flow. Resolves with the new payment-method ID.
- *
- * Mirrors iOS `FrameAddPaymentMethodView`.
- *
- * @param options - Account and session configuration.
- * @returns A promise that resolves to the new payment-method ID.
- * @throws {FrameErrorShape} `USER_CANCELED` if the user dismisses the sheet;
- *   `NOT_INITIALIZED` if {@link initialize} was not called first;
- *   `INVALID_ACCOUNT` if `accountId` is missing.
- *
- * @example
- * ```ts
- * const pmId = await Frame.presentAddPaymentMethod({ accountId: 'acc_...', clientSecret });
- * ```
- */
 export function presentAddPaymentMethod(options: PresentMethodOptions): Promise<string> {
   return presentMethodScreen('add_payment', options, 'presentAddPaymentMethod');
 }
 
-/**
- * Presents a standalone "add payout method" sheet (Plaid or manual ACH),
- * outside the onboarding flow. The new bank is also elected as the account's
- * payout destination, matching iOS. Resolves with the new payment-method ID.
- *
- * Mirrors iOS `FrameAddPayoutMethodView`.
- *
- * @param options - Account and session configuration.
- * @returns A promise that resolves to the new payment-method ID.
- * @throws {FrameErrorShape} `USER_CANCELED` if the user dismisses the sheet;
- *   `NOT_INITIALIZED` if {@link initialize} was not called first;
- *   `INVALID_ACCOUNT` if `accountId` is missing.
- */
 export function presentAddPayoutMethod(options: PresentMethodOptions): Promise<string> {
   return presentMethodScreen('add_payout', options, 'presentAddPayoutMethod');
 }
 
-/**
- * Presents a standalone "select payout method" sheet listing the account's
- * saved banks, and elects the chosen one as the account's payout destination.
- * Resolves with the elected payment-method ID.
- *
- * Mirrors iOS `FrameSelectPayoutMethodView`.
- *
- * @param options - Account and session configuration.
- * @returns A promise that resolves to the elected payment-method ID.
- * @throws {FrameErrorShape} `USER_CANCELED` if the user dismisses the sheet;
- *   `NOT_INITIALIZED` if {@link initialize} was not called first;
- *   `INVALID_ACCOUNT` if `accountId` is missing.
- */
 export function presentSelectPayoutMethod(options: PresentMethodOptions): Promise<string> {
   return presentMethodScreen('select_payout', options, 'presentSelectPayoutMethod');
 }

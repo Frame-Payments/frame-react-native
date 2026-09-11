@@ -67,8 +67,6 @@ describe('actionableRequirements', () => {
 
 describe('requiresIdentityDocument', () => {
   it('detects the step-up on a non-kyc capability', () => {
-    // iOS scans every capability row, not just kyc — a payout-only account gets
-    // the key on bank_account_receive.
     const account = {
       capabilities: [
         { name: 'bank_account_receive', status: 'pending', currently_due: ['individual.identity_document'] },
@@ -107,9 +105,6 @@ describe('requiresIdentityDocument', () => {
 
 describe('trimCompletedCapabilities', () => {
   it('keeps idv despite an empty currently_due while it is still pending', () => {
-    // idv's requirement is event-driven and declares no field keys, so its
-    // currently_due is empty from the moment it is requested. Judging by
-    // currently_due alone would drop it while unsatisfied.
     const account = { capabilities: [{ name: 'idv', status: 'pending', currently_due: [] }] };
     expect(trimCompletedCapabilities(['idv'], account)).toEqual(['idv']);
   });
@@ -178,8 +173,6 @@ describe('resolveOnboardingOutcome', () => {
   });
 
   it('judges the base kyc row that kyc_prefill drags in', () => {
-    // The KYC verdict never lands on kyc_prefill itself, so a host that only
-    // asked for kyc_prefill must still be judged against kyc.
     const account = {
       capabilities: [
         { name: 'kyc_prefill', status: 'active' },
@@ -229,7 +222,6 @@ describe('resolveOnboardingOutcome', () => {
   });
 
   it('an unrecognized failure type does not read as a demand for action', () => {
-    // A type added server-side must not be inferred as actionable.
     const account = {
       capabilities: [{ name: 'kyc', status: 'pending', errors: [{ code: 'invented_next_year' }] }],
     };
@@ -242,9 +234,6 @@ describe('resolveOnboardingOutcome', () => {
   });
 
   it('a required capability absent from the response is not a failure signal', () => {
-    // The server silently skips capabilities gated on a merchant switch that is
-    // off, so an absent row means the merchant is not entitled — not that the
-    // applicant fell short.
     const account = { capabilities: [{ name: 'kyc', status: 'active' }] };
     expect(resolveOnboardingOutcome(account, ['kyc', 'geo_compliance'])).toEqual({ status: 'approved' });
   });

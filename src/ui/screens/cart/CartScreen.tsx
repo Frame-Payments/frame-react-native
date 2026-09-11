@@ -19,7 +19,6 @@ export interface CartScreenProps {
   title?: string;
   subtitle?: string;
   checkoutButtonTitle?: string;
-  /** Minimum height of each line-item row. Defaults to 65, matching iOS. */
   cartItemHeight?: number;
   isCheckingOut?: boolean;
   onCheckout: () => void;

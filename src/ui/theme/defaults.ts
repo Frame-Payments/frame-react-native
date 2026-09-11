@@ -11,19 +11,6 @@ import type {
  */
 export type ColorScheme = 'light' | 'dark';
 
-// Every value below is iOS's actual default, not a from-scratch RN choice —
-// pulled from Sources/Frame/Theming/FrameTheme.swift's Colors.init defaults
-// and the Colors.xcassets color sets those named assets resolve to
-// (Sources/Frame/Resources/Colors.xcassets/*.colorset/Contents.json), so a
-// host that never overrides the theme renders visually identically on both
-// platforms.
-//
-// Two slots resolve to plain SwiftUI system colors rather than a named asset:
-//   - secondaryButton = Color(.systemBackground) — Apple's semantic window
-//     background, opaque white in light mode and opaque black in dark mode
-//     (NOT the same as RN's previous fully-transparent default).
-//   - error / toastBackground = .red (SwiftUI's systemRed) — Apple's
-//     documented HIG system-red hex values (#FF3B30 light / #FF453A dark).
 export const lightColors: Required<FrameThemeColors> = {
   primaryButton: '#2B4146',
   primaryButtonText: '#FFFFFF',
@@ -64,16 +51,6 @@ export const darkColors: Required<FrameThemeColors> = {
   onboardingProgressEmptyOnBrand: '#FFFFFF40',
 };
 
-// Point sizes match iOS's Dynamic Type styles at their default ("Large")
-// content-size category (Sources/Frame/Theming/FrameTheme.swift's Fonts.init:
-// title=.title(28), headline/button=.headline(17 semibold), body=.body(17),
-// label=.subheadline(15), caption=.caption(12)). `heading` (18, semibold) and
-// `bodySmall` (14) are iOS's own explicit `.system(size:weight:)` overrides,
-// not named styles, so there's no separate Dynamic Type constant to match —
-// their point sizes are copied directly from those two `.system(size:)` calls.
-//
-// RN has no OS-level Dynamic Type scaling to inherit these from, so these are
-// fixed sizes rather than a live accessibility-driven scale, same as before.
 export const defaultFonts: Required<FrameThemeFonts> = {
   title: { name: 'system', size: 28 },
   heading: { name: 'system', size: 18 },
@@ -96,12 +73,6 @@ export const fontWeights = {
   button: '600',
 } as const;
 
-// Apple's documented Dynamic Type line heights at the default size category,
-// for the slots backed by a named text style (title/headline/body/label/
-// caption/button — button uses .headline's line height too, matching its font).
-// `heading` and `bodySmall` have no named style to read a line height from
-// (see the size comment above), so they use the same ~1.3x ratio the other
-// slots' size:line-height pairs approximate.
 export const fontLineHeights = {
   title: 34,
   heading: 23,

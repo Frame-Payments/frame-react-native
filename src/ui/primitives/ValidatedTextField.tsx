@@ -35,19 +35,8 @@ export interface ValidatedTextFieldProps {
    */
   onErrorChange?: (next: string | null) => void;
   keyboardType?: KeyboardTypeOptions;
-  /**
-   * Enables the platform's autofill / QuickType suggestions for this field.
-   * Maps to iOS `textContentType` and Android `autoComplete`, which iOS's
-   * checkout passes for name, email and every address field — without it the
-   * user gets no Contacts autofill at all.
-   */
   textContentType?: TextInputProps['textContentType'];
   autoComplete?: TextInputProps['autoComplete'];
-  /**
-   * Restricts what characters the field accepts. iOS's checkout applies
-   * `textOnly` to Name, City and State
-   * (`FrameCheckoutView.swift:278,351,360`).
-   */
   inputRestriction?: TextFieldInputRestriction;
   /** Positive integer; non-positive / non-integer values are ignored. */
   characterLimit?: number;
@@ -74,12 +63,6 @@ export interface ValidatedTextFieldProps {
   style?: ViewStyle;
   /** Override the screen-reader label. Defaults to `prompt`. */
   accessibilityLabel?: string;
-  /**
-   * Focus lifecycle, matching iOS's `focused: FocusState<Bool>.Binding?`
-   * (`ValidatedTextField.swift:94`). {@link AddressAutocompleteField} uses
-   * this to show/hide its suggestion overlay only while the field itself has
-   * focus, the same way iOS gates its `.overlay` on `@FocusState`.
-   */
   onFocus?: () => void;
   onBlur?: () => void;
 }
@@ -135,9 +118,6 @@ export function ValidatedTextField({
   const theme = useFrameTheme();
 
   const handleChange = (next: string) => {
-    // Filter BEFORE truncating, matching iOS
-    // (ValidatedTextField.swift:157-163): truncating first would let a
-    // disallowed character consume one of the allowed slots.
     const truncated = truncateToLimit(applyInputRestriction(next, inputRestriction), characterLimit);
     if (error && onErrorChange) onErrorChange(null);
     onChangeText(truncated);

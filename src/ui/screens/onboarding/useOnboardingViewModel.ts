@@ -93,7 +93,6 @@ export interface OnboardingViewModelResult {
   setCustomerEmail: (value: string) => void;
   setSsnLast4: (value: string) => void;
   setAddressField: (field: keyof OnboardingAddress, value: string) => void;
-  /** Batch-fills the address fields from a picked autocomplete suggestion. */
   applyAddress: (address: Partial<OnboardingAddress>) => void;
   setVerifyPhoneUi: (ui: VerifyPhoneUi | null) => void;
   setAchField: (field: 'routingNumber' | 'accountNumber', value: string) => void;
@@ -109,14 +108,6 @@ export interface OnboardingViewModelResult {
    *  Twilio). Mirrors iOS OnboardingContainerViewModel.checkExistingAccount()
    *  called from sendOTPVerification / confirmTwilioOTP. */
   refreshAccountAfterPhoneVerify: () => Promise<void>;
-  /**
-   * Confirms a Prove-issued phone verification server-side. Prove's own SDK
-   * success is not the verification: iOS posts
-   * `PhoneOTPVerificationAPI.confirmVerification(accountId:verificationId:)`
-   * with no body once Prove succeeds
-   * (`Sources/FrameOnboarding/ViewModels/OnboardingContainerViewModel.swift:472-475`),
-   * and without it the account's phone stays unverified.
-   */
   confirmProveVerification: () => Promise<void>;
   submitCustomerInformation: () => Promise<void>;
   /** No-SSN path: create an IDV session, launch Persona against the pre-created
@@ -254,9 +245,6 @@ export function useOnboardingViewModel({
             type: 'SET_IDENTITY_DOCUMENT_REQUIRED',
             required: requiresIdentityDocument(account),
           });
-          // Seeds the "Primary" badge on the payout list. iOS reads the same
-          // field in checkExistingAccount; the npm SDK's Account type doesn't
-          // declare it, hence the runtime read.
           const payoutId = (account as { payout_payment_method_id?: unknown }).payout_payment_method_id;
           if (typeof payoutId === 'string') {
             dispatch({ type: 'SET_PRIMARY_PAYOUT_METHOD_ID', id: payoutId });
@@ -314,24 +302,12 @@ export function useOnboardingViewModel({
   // Reads from stateRef so the value reflects auto-created accounts (the
   // empty-account-create path in sendOtp dispatches SET_ACCOUNT_ID before the
   // user reaches the final step).
-  //
-  // Reaching the last step is not passing verification, so the account is
-  // re-fetched here and the capabilities are read for a verdict — otherwise a
-  // declined applicant is reported to the host as `completed` with nothing to
-  // distinguish them from an approved one. Mirrors iOS
-  // `resolveFinalOutcome()` (`OnboardingContainerViewModel.swift:162-181`)
-  // and the pre-onResult resolve at `OnboardingContainerView.swift:202-212`.
-  //
-  // The latch is taken up front: the fetch is async, and a second tap while it
-  // is in flight must not produce a second result.
   const complete = useCallback(() => {
     if (completedRef.current) return;
     completedRef.current = true;
     const accountId = stateRef.current.accountId ?? undefined;
     const required = stateRef.current.requiredCapabilities;
     void (async () => {
-      // A fetch failure must not claim success — iOS defaults to pendingReview
-      // for exactly this reason.
       const account = accountId ? await client.sdk.accounts.get(accountId).catch(() => null) : null;
       const outcome: OnboardingOutcome = account
         ? resolveOnboardingOutcome(account, required)
@@ -427,11 +403,6 @@ export function useOnboardingViewModel({
         // Mirrors iOS beginOnboardingSessionIfNeeded.
         await ensureOnboardingSession(accountId);
 
-        // Reconcile here too. accounts.create provisions capabilities through
-        // the server's dependency graph, so the created account can come back
-        // already stepped up to `individual.identity_document` — a step-up the
-        // host-supplied-accountId path catches and this one used to miss
-        // entirely, leaving governmentIdRequired false for the whole flow.
         dispatch({
           type: 'SET_IDENTITY_DOCUMENT_REQUIRED',
           required: requiresIdentityDocument(account),
@@ -439,13 +410,6 @@ export function useOnboardingViewModel({
       }
 
       const e164 = `+${current.phoneCountry.callingCode}${current.phoneNumber.replace(/\D+/g, '')}`;
-      // `date_of_birth` is the identity-resolution key the backend hands to
-      // Prove / kyc_prefill; without it prefill degrades or fails outright.
-      // iOS declares it non-optional on CreateVerificationRequest and encodes
-      // it as `date_of_birth`
-      // (`Sources/FrameOnboarding/Networking/PhoneOTPVerification/PhoneOTPVerificationRequests.swift:25-41`).
-      // The npm SDK's CreatePhoneVerificationParams doesn't declare the field,
-      // hence the runtime-safe cast — same pattern as accounts.create above.
       const dateOfBirth = dobIso(current);
       const verification = await client.sdk.phoneVerifications.create(
         accountId,
@@ -512,10 +476,6 @@ export function useOnboardingViewModel({
     if (!current.accountId || !current.pendingVerificationId) {
       throw frameError(ErrorCodes.PAYMENT_FAILED, 'Phone verification session expired. Restart the step.');
     }
-    // iOS sends no request body on the Prove path — the code belongs to the
-    // Twilio path only. The npm SDK's ConfirmPhoneVerificationParams declares
-    // `code` as required, so cast rather than send an empty string the backend
-    // would reject.
     await client.sdk.phoneVerifications.confirm(
       current.accountId,
       current.pendingVerificationId,
@@ -523,20 +483,8 @@ export function useOnboardingViewModel({
     );
   }, []);
 
-  // Government-ID verification via Persona. The backend's /idv/complete response
-  // is the authoritative verified flag — Persona's client-side status is not
-  // trusted.
-  //
-  // Shared by the user's manual "I don't have an SSN" opt-out and the mandatory
-  // run that submitCustomerInformation performs when governmentIdRequired. It
-  // deliberately sits OUTSIDE guardedAction so the mandatory path can call it
-  // from inside an action that already holds the guard.
   const runGovernmentIdVerification = useCallback(async (opts?: { mandatory?: boolean }) => {
     const { inquiryId } = await createIdvSession();
-    // A pre-existing account may already have an approved (terminal) inquiry,
-    // which the Persona SDK can't launch. The backend reads inquiry status
-    // server-side, so if it reports verified up front we skip Persona. Any
-    // non-verified status (including 'pending') just means "launch Persona".
     const preCheck = await completeIdvSession(inquiryId);
     if (preCheck === 'verified') {
       dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId });
@@ -545,12 +493,6 @@ export function useOnboardingViewModel({
     try {
       await launchPersonaInquiry({ inquiryId });
     } catch (err) {
-      // A cancel is a normal, non-error exit — leave the applicant unverified.
-      // But say something: every other exit from here surfaces a message, and a
-      // silent return leaves the Continue button looking dead when verification
-      // is required. iOS toasts for exactly this reason
-      // (OnboardingContainerViewModel.swift:926-932). Re-thrown as USER_CANCELED
-      // so the caller's guard still treats it as a cancel, not a failure.
       if ((err as { code?: string }).code === ErrorCodes.USER_CANCELED) {
         showToast('Identity verification was cancelled.');
       }
@@ -558,19 +500,12 @@ export function useOnboardingViewModel({
     }
     const completion = await completeIdvSessionDetailed(inquiryId);
     if (completion.status === 'pending') {
-      // The user finished Persona but the confirm request couldn't reach an
-      // authoritative answer (network blip / transient 5xx). Don't push them
-      // to the SSN fallback — the verification likely succeeded and just
-      // needs a moment to settle.
       throw frameError(
         ErrorCodes.PAYMENT_FAILED,
         'We could not reach our verification service just now. Please try again in a moment.',
       );
     }
     if (completion.status === 'not_verified') {
-      // The message is chosen from the backend's `category` / `status`, so a
-      // terminally-declined applicant is pointed at support rather than told to
-      // retry a check that cannot pass.
       throw frameError(
         ErrorCodes.PAYMENT_FAILED,
         idvFailureMessage(completion, opts?.mandatory === true),
@@ -605,9 +540,6 @@ export function useOnboardingViewModel({
         email: current.customerEmail,
         phone: { number: phoneE164, country_code: current.phoneCountry.callingCode },
         birthdate: dobIso(current),
-        // Omit SSN entirely whenever the SSN input was suppressed — either the
-        // user verified via government ID, or one is mandatory and we never
-        // collected an SSN to send.
         ssn_last_four: skipsSsnEntry(current) ? undefined : current.ssnLast4 || undefined,
         address: {
           line_1: current.address.line1,
@@ -635,18 +567,8 @@ export function useOnboardingViewModel({
         dispatch({ type: 'SET_EXISTING_ACCOUNT_HAS_TOS', value: true });
       }
 
-      // Government-ID verification is mandatory when the merchant requested
-      // `idv` or the backend stepped the account up via
-      // `individual.identity_document`. iOS runs Persona right here, after the
-      // profile update and before advancing, and only advances on success
-      // (`OnboardingContainerViewModel.submitPersonalInformation`,
-      // `:835-844`). A throw leaves the user on this screen with the toast, so
-      // they can retry rather than landing on a later step that cannot succeed.
       if (governmentIdRequired(current) && !current.identityVerifiedViaGovId) {
         if (!isPersonaAvailable()) {
-          // Hiding the flow is only acceptable while it's an optional opt-out.
-          // Once it's required, a silent skip strands the user, so name the
-          // missing peer dependency instead.
           throw frameError(
             ErrorCodes.PERSONA_UNAVAILABLE,
             'This account requires government-ID verification, which needs the ' +
@@ -666,7 +588,6 @@ export function useOnboardingViewModel({
     });
   }, [guardedAction, advance, runGovernmentIdVerification]);
 
-  // The user's manual opt-out from the SSN field.
   const verifyIdentityWithoutSsn = useCallback(async () => {
     return guardedAction(() => runGovernmentIdVerification());
   }, [guardedAction, runGovernmentIdVerification]);
@@ -781,11 +702,6 @@ export function useOnboardingViewModel({
           const verification = await client.sdk.threeDS.create({ payment_method_id: paymentMethodId });
           verificationId = verification?.id ?? null;
         } catch (err) {
-          // A duplicate-intent refusal carries the id of the verification
-          // already in flight. Recovering it is what lets a user who bounced
-          // out mid-challenge resume rather than hitting a hard error. iOS
-          // reads the same `existing_intent_id`
-          // (OnboardingContainerViewModel.swift:1003-1008).
           const existingId = existingIntentIdFrom(err);
           if (!existingId) throw err;
           const existing = await client.sdk.threeDS.get(existingId);
@@ -868,15 +784,6 @@ export function useOnboardingViewModel({
     });
   }, [guardedAction]);
 
-  /**
-   * Makes `paymentMethodId` (or the currently selected payout method) the
-   * account's payout destination. Without this the user finishes the payout
-   * step with a bank attached but nothing designated to pay out to.
-   *
-   * iOS calls it from every path that lands on a payout method — Continue on
-   * the select screen, manual ACH, and Plaid — and gates advancing on it
-   * succeeding (`SelectPayoutMethodView.swift:57`).
-   */
   const electSelectedPayoutMethod = useCallback(async (paymentMethodId?: string): Promise<void> => {
     const current = stateRef.current;
     const target = paymentMethodId ?? current.selectedPayoutMethodId;
@@ -1205,19 +1112,10 @@ export { isCapabilitySatisfied };
 
 // ─── Evervault helper (mirrors useCheckoutViewModel) ───
 
-// The subregion as the API should receive it: "california" becomes "CA" for a
-// country whose subregions are validated as codes, and free-text countries keep
-// their casing. iOS calls BillingAddressViewModel.normalize() explicitly before
-// assigning the address into the identity (UserIdentificationView.swift:334) —
-// done at the send sites rather than in the reducer so the user's typing isn't
-// rewritten under them mid-field.
 function normalizedSubregion(address: OnboardingAddress): string {
   return normalizeSubregion(address.state, address.country);
 }
 
-// The id of an already-in-flight 3DS verification, when the API refused a
-// create because one exists. iOS decodes it as `existing_intent_id` on the error
-// payload (`3DSecureObjects.swift:62-66`).
 function existingIntentIdFrom(error: unknown): string | null {
   if (typeof error !== 'object' || error === null) return null;
   const raw = (error as { raw?: unknown }).raw;
@@ -1232,9 +1130,6 @@ function existingIntentIdFrom(error: unknown): string | null {
   return null;
 }
 
-// 'YYYY-MM-DD' from the reducer's three DOB fields, or undefined when the user
-// hasn't supplied a complete date. Every payload that carries a birth date
-// (account create, create-phone-verification, IDV session) uses this format.
 function dobIso(state: Pick<OnboardingState, 'dobYear' | 'dobMonth' | 'dobDay'>): string | undefined {
   if (!state.dobYear || !state.dobMonth || !state.dobDay) return undefined;
   return `${state.dobYear}-${state.dobMonth.padStart(2, '0')}-${state.dobDay.padStart(2, '0')}`;

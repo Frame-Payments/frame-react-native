@@ -29,8 +29,6 @@ describe('addressFormatForCountry', () => {
   });
 
   it('leaves the state length unrestricted outside the US and Canada', () => {
-    // A UK county or a Japanese prefecture is a name, not a 2-letter code, and
-    // was previously truncated to two characters as the user typed.
     expect(addressFormatForCountry('GB').stateMaxLength).toBeUndefined();
     expect(addressFormatForCountry('JP').stateMaxLength).toBeUndefined();
   });
@@ -73,8 +71,6 @@ describe('addressSubregions', () => {
   it('upper-cases only where subregions are codes', () => {
     expect(normalizeSubregion(' ca ', 'US')).toBe('CA');
     expect(normalizeSubregion(' on ', 'CA')).toBe('ON');
-    // A free-text county keeps its casing — upper-casing it would send
-    // "GREATER LONDON" where the user typed a name.
     expect(normalizeSubregion(' Greater London ', 'GB')).toBe('Greater London');
   });
 });
@@ -87,7 +83,6 @@ describe('validateSubregion', () => {
   });
 
   it('rejects text that is not an accepted code', () => {
-    // Previously a bare non-empty check, so this passed.
     expect(validateSubregion('Californiaa', 'US')).toBe('Enter a valid 2-letter state');
     expect(validateSubregion('XX', 'US')).toBe('Enter a valid 2-letter state');
   });

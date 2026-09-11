@@ -1,8 +1,3 @@
-/**
- * Unit tests for the Sonar charge-session manager. The storage seam is
- * injected, fingerprint is mocked, and the framepayments SDK's chargeSessions
- * resource is mocked, so nothing touches the network.
- */
 
 jest.mock('react-native', () => ({
   AppState: { addEventListener: jest.fn(() => ({ remove: jest.fn() })) },
@@ -22,8 +17,6 @@ interface Call {
 
 let calls: Call[] = [];
 let nextSessionId = 1;
-// Swappable per-test so a single test can simulate a failure-then-success
-// sequence (see "replaces a session the server no longer recognises").
 let chargeSessionsImpl = {
   create: jest.fn(async (params: Record<string, unknown>) => {
     calls.push({ method: 'POST', path: '/v1/charge_sessions', body: params });
@@ -144,15 +137,12 @@ describe('ensureSession', () => {
   });
 
   it('adopts the pre-account session rather than orphaning its device event', async () => {
-    // The pre-account session accumulated a device event at launch; creating a
-    // fresh one here would leave that event on an invisible session.
     await storage.set('cs_launch', null);
     const id = await ensureSession('acct_1');
     expect(calls[0]!.method).toBe('PATCH');
     expect(calls[0]!.path).toBe('/v1/charge_sessions/cs_launch');
     expect(calls[0]!.body.account_id).toBe('acct_1');
     expect(await storage.get('acct_1')).toBe(id);
-    // The legacy slot is cleared so the next account can't adopt the same session.
     expect(await storage.get(null)).toBeNull();
   });
 
@@ -165,36 +155,17 @@ describe('ensureSession', () => {
   });
 
   it('two different accounts racing to adopt the same legacy session do not both claim it', async () => {
-    // Regression: establishSession's per-account `inFlight` entry doesn't
-    // cover the legacy (pre-account) slot, which is shared across every
-    // account. Without a lock, two concurrent first-time ensureSession calls
-    // for DIFFERENT accounts could both read, PATCH, and clear the same
-    // legacy session — the server does last-write-wins, so one account would
-    // end up holding a session id the server actually associated with the
-    // other.
     await storage.set('cs_launch', null);
     const [a, b] = await Promise.all([ensureSession('acct_1'), ensureSession('acct_2')]);
-    // Exactly one account adopts the legacy session; the other must get its
-    // own, distinct session — never the same id.
     expect(a).not.toBe(b);
     const patches = calls.filter((c) => c.method === 'PATCH' && c.path === '/v1/charge_sessions/cs_launch');
-    // The legacy session is adopted (PATCHed) at most once.
     expect(patches.length).toBeLessThanOrEqual(1);
-    // The legacy slot must not still be readable afterward — leaving it would
-    // let a THIRD account also adopt it.
     expect(await storage.get(null)).toBeNull();
-    // Both accounts must have their own stored session afterward.
     expect(await storage.get('acct_1')).toBe(a);
     expect(await storage.get('acct_2')).toBe(b);
   });
 
   it('ensureSession and refreshOnFlowEntry for the same account join one round trip', async () => {
-    // Regression: refreshOnFlowEntry used to call establishSession directly
-    // rather than through the same inFlight-coalescing path ensureSession
-    // uses, so a concurrent pair for the same account (e.g. presentCheckout's
-    // refreshOnFlowEntry firing right as checkout's submit calls
-    // ensureSession) raced two independent establish calls instead of sharing
-    // one.
     const [a, b] = await Promise.all([ensureSession('acct_1'), refreshOnFlowEntry('acct_1')]);
     void b; // refreshOnFlowEntry returns void
     expect(a).toBe('cs_1');
@@ -228,8 +199,6 @@ describe('warmUp', () => {
   });
 
   it('refreshes a stale pre-account session IN PLACE, preserving the id', async () => {
-    // Replacing it would reintroduce the event-landing race that creating early
-    // exists to avoid, so the adoption path must still find the same id.
     await storage.set('cs_launch', null);
     await storage.setLastRefresh(Date.now() - 20 * 60 * 1000, null);
     await warmUp();
@@ -247,8 +216,6 @@ describe('warmUp', () => {
 
 describe('refreshOnFlowEntry', () => {
   it('is unconditional — it touches even a fresh session', async () => {
-    // Entering a flow is exactly when it is worth a request to be certain the
-    // session carries a recent event.
     await ensureSession('acct_1');
     calls = [];
     await refreshOnFlowEntry('acct_1');

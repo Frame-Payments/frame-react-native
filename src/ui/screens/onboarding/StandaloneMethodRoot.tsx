@@ -8,28 +8,12 @@ import { AddPaymentMethodScreen } from './confirmPaymentMethod/AddPaymentMethodS
 import { AddPayoutMethodScreen } from './confirmBankAccount/AddPayoutMethodScreen';
 import { SelectPayoutMethodScreen } from './confirmBankAccount/SelectPayoutMethodScreen';
 
-// Standalone counterparts to iOS's FrameAddPaymentMethodView /
-// FrameAddPayoutMethodView / FrameSelectPayoutMethodView
-// (`Sources/FrameOnboarding/Views/Payments/`). Each reuses the onboarding
-// screen it wraps, driven by a view model constructed with NO required
-// capabilities — matching iOS's
-// `OnboardingContainerViewModel(accountId:requiredCapabilities: [])`.
-//
-// They are not part of a flow: there is no progress bar, no advance(), and the
-// result is emitted the moment the method is added or elected.
-
 export type StandaloneMethodMode = 'add_payment' | 'add_payout' | 'select_payout';
 
 export interface StandaloneMethodRootProps {
   mode: StandaloneMethodMode;
   accountId: string;
-  /**
-   * Server-minted onboarding-session token (`onb_sess_...`). While the screen is
-   * presented every request is scoped to it. Mirrors the `clientSecret:`
-   * parameter all three iOS views take.
-   */
   clientSecret?: string | null;
-  /** Fires with the payment-method id once it is added or elected. */
   onComplete: (paymentMethodId: string) => void;
   onCancel: () => void;
 }
@@ -47,8 +31,6 @@ export function StandaloneMethodRoot({
   onComplete,
   onCancel,
 }: StandaloneMethodRootProps) {
-  // Same session boundary as OnboardingRoot: begin on mount, safe-clear by token
-  // on unmount so a newer flow's session isn't wiped.
   useEffect(() => {
     if (!clientSecret) return;
     beginOnboardingSession(clientSecret);
@@ -57,17 +39,8 @@ export function StandaloneMethodRoot({
     };
   }, [clientSecret]);
 
-  // Guards against reporting twice when the host dismisses on the callback and
-  // the unmount path also fires. iOS uses the same `didFinish` latch.
-  //
-  // A ref, not state: state updates are async, so two calls in the same tick
-  // would both observe `false` and both report. The ref flips synchronously.
   const didFinish = useRef(false);
 
-  // `select_payout` only: the "Add Payout Method" row swaps this host over to
-  // the add form, standing in for iOS's navigation push. There is no back
-  // affordance because iOS's own add screen hides the back button
-  // (`SelectPayoutMethodView.swift:33`) — the close button ends the flow.
   const [showAddPayout, setShowAddPayout] = useState(false);
 
   const vm = useOnboardingViewModel({
@@ -93,9 +66,6 @@ export function StandaloneMethodRoot({
     showToast(toToastMessage(err));
   }, []);
 
-  // Renders the add-payout form. Shared by `add_payout` mode and the
-  // "Add Payout Method" row inside `select_payout`, which pushes this same
-  // form rather than electing anything — see `showAddPayout` below.
   function renderAddPayout() {
     return (
       <AddPayoutMethodScreen
@@ -107,8 +77,6 @@ export function StandaloneMethodRoot({
         onApplyAddress={vm.applyAddress}
         onOpenPlaidLink={async () => {
           const id = await vm.openPlaidLink();
-          // Adding a bank only attaches it; electing is what makes it the
-          // account's payout destination.
           await vm.electSelectedPayoutMethod(id);
           finish(id);
           return id;
@@ -151,9 +119,6 @@ export function StandaloneMethodRoot({
       case 'add_payout':
         return renderAddPayout();
       case 'select_payout':
-        // The "Add Payout Method" row pushed the add form. iOS does the same
-        // with `navigationDestination(isPresented: $showAddPayoutMethod)`
-        // (`SelectPayoutMethodView.swift:30-34`).
         if (showAddPayout) return renderAddPayout();
         return (
           <SelectPayoutMethodScreen
@@ -162,19 +127,10 @@ export function StandaloneMethodRoot({
             onSelectMethod={(id) => vm.dispatch({ type: 'SELECT_PAYOUT_METHOD', id })}
             onContinue={() => {
               const selected = vm.state.selectedPayoutMethodId;
-              // `null` is the "Add Payout Method" row, not "nothing picked":
-              // SelectPayoutMethodScreen reports the add-new row as a null id.
-              // The in-flow host routes that to the add step
-              // (`OnboardingRoot.onSelectPayoutContinue`); standalone has no
-              // flow to advance, so it swaps the sub-screen instead. Toasting
-              // here — as this used to — left the add-a-bank path unreachable.
               if (selected === null) {
                 setShowAddPayout(true);
                 return;
               }
-              // iOS gates completion on the election succeeding
-              // (`FrameSelectPayoutMethodView.swift:55-63`), so a failure keeps
-              // the screen open with a toast rather than reporting success.
               void vm
                 .electSelectedPayoutMethod(selected)
                 .then(() => finish(selected))

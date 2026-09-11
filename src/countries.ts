@@ -404,9 +404,6 @@ const NAME_BY_ALPHA2: Record<string, string> = Object.fromEntries(COUNTRIES);
  */
 export function getPhoneCountries(): PhoneCountry[] {
   if (phoneCountriesCache) return phoneCountriesCache;
-  // The restriction filter is applied HERE, not at the call site. iOS bakes it
-  // into PhoneCountrySelection.all for the same reason: a caller that forgets
-  // the filter would leak sanctioned countries into a picker.
   const blocked = new Set<string>(RESTRICTED_ALPHA2_CODES);
   phoneCountriesCache = getCountries()
     .filter((alpha2: CountryCode) => !blocked.has(alpha2))
@@ -422,37 +419,20 @@ export function getPhoneCountries(): PhoneCountry[] {
   return phoneCountriesCache;
 }
 
-/**
- * Looks up a phone country by ISO alpha-2 code, case-insensitively. Returns null
- * for an unknown or restricted code. Mirrors iOS
- * `PhoneCountrySelection.find(alpha2:)`.
- */
 export function findPhoneCountry(alpha2: string): PhoneCountry | null {
   const needle = alpha2.trim().toUpperCase();
   return getPhoneCountries().find((c) => c.alpha2Code === needle) ?? null;
 }
 
-/**
- * The phone country to start on: the device's region when it is a country we
- * offer, otherwise the US. Mirrors iOS `PhoneCountrySelection.default`.
- *
- * Pickers previously fell back to `countries[0]` — alphabetically first, i.e.
- * Afghanistan — for every user whose region wasn't matched.
- */
 export function getDefaultPhoneCountry(): PhoneCountry {
   const region = deviceRegionCode();
   const fromRegion = region ? findPhoneCountry(region) : null;
-  // The US is never restricted, so this cannot be null in practice; the throw is
-  // a type-level backstop rather than a reachable path.
   const fallback = findPhoneCountry('US');
   const resolved = fromRegion ?? fallback;
   if (!resolved) throw new Error('No phone countries available.');
   return resolved;
 }
 
-// The device's ISO region, when the JS runtime can tell us. Hermes ships a
-// minimal Intl, so this is guarded rather than assumed — an undefined result
-// simply means "use the US".
 function deviceRegionCode(): string | undefined {
   try {
     const locale = Intl.DateTimeFormat().resolvedOptions().locale;

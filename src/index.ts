@@ -50,8 +50,6 @@ export type {
   FrameThemeRadii,
 } from './types';
 export { isOnboardingApproved } from './types';
-// Frame's legal document URLs, sourced from the configuration API with bundled
-// fallbacks. iOS exposes the same four as LegalConfiguration.
 export { getLegalUrls, type LegalUrls } from './legal';
 export {
   TermsOfServiceView,
@@ -98,8 +96,6 @@ export {
   type GooglePayButtonType,
 } from './ui/primitives/GooglePayButton';
 
-// Primitives iOS marks `public` on FrameOnboarding / Frame, so host apps can
-// compose Frame-styled forms outside the SDK's own screens.
 export { PaymentMethodRow, type PaymentMethodRowProps } from './ui/primitives/PaymentMethodRow';
 export { CountryPicker, type CountryPickerProps } from './ui/primitives/CountryPicker';
 export {
@@ -114,8 +110,6 @@ export {
   type PaymentCardFieldHandle,
 } from './ui/primitives/PaymentCardField';
 
-// iOS exposes FrameToastCenter publicly so the Onboarding module — and host
-// apps — can emit into the same overlay the SDK's screens use.
 export {
   showToast,
   dismissActive as dismissToast,
@@ -146,8 +140,6 @@ import * as Validators from './validation';
 import { convertCentsToCurrencyString } from './currency';
 export { Validators };
 
-// Per-country address presentation and the subregion tables Frame validates
-// against. iOS exposes AddressFormat and AddressSubregions publicly.
 export { addressFormatForCountry, type AddressFormat } from './addressFormat';
 export {
   subregionsForCountry,

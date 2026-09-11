@@ -57,10 +57,6 @@ export function AddPayoutMethodScreen({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const plaidAvailable = isPlaidAvailable();
   const manual = state.achManualMode;
-  // Address-autocomplete's suggestion dropdown must render outside the
-  // ScrollView it would otherwise be clipped by — see
-  // AddressAutocompleteField.tsx's header comment. Same pattern as
-  // CheckoutScreen.tsx / CustomerInformationScreen.tsx.
   const [addressOverlay, setAddressOverlay] = useState<AddressAutocompleteOverlayState | null>(null);
 
   async function handlePlaid() {

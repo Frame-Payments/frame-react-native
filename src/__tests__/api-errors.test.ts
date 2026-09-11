@@ -198,9 +198,6 @@ describe('toFrameError', () => {
 
 describe('isUnrecoverableCheckoutError', () => {
   it('flags a missing secret key on a server-only operation', () => {
-    // requireSecretKeyFor throws this — no retry inside the checkout UI can
-    // ever supply a secret key, so it must reject presentCheckout rather than
-    // toast forever on a Pay button that can never work.
     const err = frameError(ErrorCodes.MISSING_SECRET_KEY, 'Checkout requires a secret key.');
     expect(isUnrecoverableCheckoutError(err)).toBe(true);
   });
@@ -217,8 +214,6 @@ describe('isUnrecoverableCheckoutError', () => {
   });
 
   it('does not flag a declined card or other recoverable payment failure', () => {
-    // These are exactly what the user can fix by retrying — must stay
-    // toast-and-stay-open, not reject the host's promise.
     expect(isUnrecoverableCheckoutError(frameError(ErrorCodes.PAYMENT_FAILED, 'declined'))).toBe(false);
     expect(isUnrecoverableCheckoutError(frameError(ErrorCodes.API_VALIDATION, 'bad zip'))).toBe(false);
     expect(isUnrecoverableCheckoutError(frameError(ErrorCodes.API_NETWORK, 'timeout'))).toBe(false);
@@ -243,15 +238,6 @@ describe('isUnrecoverableCheckoutError', () => {
 });
 
 describe('isValidationError', () => {
-  // Regression: useCheckoutViewModel.submit() and every useOnboardingViewModel
-  // action that dispatches SET_FIELD_ERRORS (sendOtp, confirmFrameOtp,
-  // submitCustomerInformation, updateSavedPaymentMethodBilling,
-  // submitManualAch, and checkout's own address+card validation) used to throw
-  // PAYMENT_FAILED afterward — the same code a real declined-card/API failure
-  // uses — so the screen's generic toast fired on top of the inline field
-  // errors the view model had just set, on every plain validation failure
-  // (e.g. an unfilled required field, or "(200) 100-1695" failing phone
-  // validation) with no real API call involved at all.
   it('flags VALIDATION_FAILED', () => {
     const err = frameError(ErrorCodes.VALIDATION_FAILED, 'Resolve the highlighted fields and try again.');
     expect(isValidationError(err)).toBe(true);

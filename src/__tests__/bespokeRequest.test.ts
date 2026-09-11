@@ -1,17 +1,3 @@
-/**
- * Tests for frameRequestHeaders' auth precedence. Ports iOS
- * FrameNetworking.bearerToken(for:)'s `.publishable` branch
- * (FrameNetworking.swift:187-201): the onboarding-session token wins while one
- * is active; otherwise the configured publishable key; a warning (not a
- * throw) when neither is present.
- *
- * Regression coverage: before this fix, frameRequestHeaders never read the
- * configured publishable key at all, so any bespoke call made before an
- * onboarding session existed (the startup /v1/config/all prefetch, or
- * checkout's Mapbox token fetch) went out with no Authorization header and
- * the backend 401'd — silently, since every caller degrades a failed fetch to
- * null/[] rather than surfacing an error.
- */
 
 const mockPlatform = { OS: 'ios' as const };
 jest.mock('react-native', () => ({ Platform: mockPlatform }));

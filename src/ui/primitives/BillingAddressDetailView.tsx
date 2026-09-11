@@ -22,19 +22,7 @@ export interface BillingAddressDetailViewProps {
   /** Per-field error map keyed as `address.<field>`. */
   errors: Readonly<Record<string, string>>;
   onChangeField: (field: keyof OnboardingAddress, value: string) => void;
-  /**
-   * Batch-applies a picked autocomplete suggestion's fields in one write.
-   * Omit to fall back to a plain text field with no autocomplete (used where
-   * a screen has no overlay-rendering layer to hoist the suggestion list
-   * into, e.g. a form with no ScrollView ancestor to escape).
-   */
   onApplyAddress?: (address: Partial<OnboardingAddress>) => void;
-  /**
-   * Reports the autocomplete suggestion list + the field's on-screen position
-   * so the CALLER can draw it outside this view's own layout — see
-   * AddressAutocompleteField.tsx's header comment for why. Required whenever
-   * `onApplyAddress` is supplied.
-   */
   onOverlayChange?: (state: AddressAutocompleteOverlayState | null) => void;
   /** When true, shows the country picker and uses the dynamic postal/zip label.
    *  When false, country is hidden + locked to US (used by ACH billing). */
@@ -70,19 +58,10 @@ export function BillingAddressDetailView({
     }
   }, [international, address.country, onChangeField]);
 
-  // Per-country labels, keyboard and length caps, matching iOS AddressFormat.
-  // A non-international form is US-only by definition, so it reads the US entry
-  // rather than whatever `address.country` happens to hold.
   const format = addressFormatForCountry(international ? address.country : 'US');
   const hasSubregionCodes = subregionsForCountry(address.country) !== null;
 
-  // Fills the address fields from a picked autocomplete suggestion. Ports iOS
-  // BillingAddressDetailView.apply(_:) (BillingAddressDetailView.swift:53-76).
   function handleSelectSuggestion(suggestion: BillingAddress) {
-    // The country is only taken in international mode, and only when the
-    // suggestion names one the picker offers — matches iOS's guard
-    // (`allowsInternational` + `AvailableCountry.allCountries.first(where:)`).
-    // A US-only form ignores the country outright.
     const countryMatch =
       international && suggestion.country
         ? getAvailableCountries().find((c) => c.alpha2Code === suggestion.country)
@@ -146,8 +125,6 @@ export function BillingAddressDetailView({
             value={address.state}
             onChangeText={(v) => onChangeField('state', v)}
             error={errors['address.state']}
-            // Upper-case only where the subregion is a code; a free-text
-            // county or prefecture is a name, not an abbreviation.
             autoCapitalize={hasSubregionCodes ? 'characters' : 'words'}
             textContentType="addressState"
             autoComplete="postal-address-region"
