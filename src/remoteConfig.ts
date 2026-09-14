@@ -1,5 +1,4 @@
-import { frameRequestHeaders } from './bespokeRequest';
-import { FRAME_API_BASE_URL } from './client';
+import { client } from './client';
 
 export interface EvervaultConfigBlock {
   appId?: string;
@@ -83,12 +82,8 @@ export async function fetchRemoteConfig(): Promise<RemoteConfig | null> {
 
   inFlight = (async () => {
     try {
-      const response = await fetch(`${FRAME_API_BASE_URL}/v1/config/all`, {
-        method: 'GET',
-        headers: frameRequestHeaders(),
-      });
-      if (!response.ok) return null;
-      cached = parse((await response.json()) as Record<string, unknown>);
+      const body = await client.sdk.configuration.getAllConfiguration({ usePublishableKey: true });
+      cached = parse(body as unknown as Record<string, unknown>);
       return cached;
     } catch {
       return null;

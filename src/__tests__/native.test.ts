@@ -12,12 +12,6 @@ const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unkno
 
 const mockPlatform = { OS: 'ios' as 'ios' | 'android' };
 
-beforeAll(() => {
-  global.fetch = jest.fn(() =>
-    Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) } as Response),
-  ) as unknown as typeof fetch;
-});
-
 // native.tsx now transitively imports the Cart/Checkout screens, which pull in
 // StyleSheet, Animated, Appearance, etc. Provide enough of the RN surface for
 // the modules to load without rendering.
@@ -80,10 +74,12 @@ jest.mock('@evervault/evervault-react-native', () => ({
   encrypt: evervaultEncryptMock,
 }));
 
+const mockGetAllConfiguration = jest.fn(() => Promise.resolve({}));
 jest.mock('framepayments', () => {
   class MockFrameSDK {
     setOnboardingSession = jest.fn();
     clearOnboardingSession = jest.fn(() => true);
+    configuration = { getAllConfiguration: () => mockGetAllConfiguration() };
     constructor(_config: unknown) {}
   }
   return { FrameSDK: MockFrameSDK };
@@ -111,7 +107,7 @@ beforeEach(() => {
   mockPresentOnboarding.mockClear();
   evervaultInitMock.mockClear().mockResolvedValue(undefined as never);
   evervaultEncryptMock.mockClear();
-  (global.fetch as jest.Mock).mockClear();
+  mockGetAllConfiguration.mockClear().mockResolvedValue({});
   mockPlatform.OS = 'ios';
   const native = require('../native');
   initialize = native.initialize;
@@ -444,9 +440,7 @@ describe('initialize prefetch — /v1/config/all', () => {
   const settlePrefetch = () => new Promise<void>((resolve) => setImmediate(resolve));
 
   function mockConfigAllOnce(body: Record<string, unknown>) {
-    (global.fetch as jest.Mock).mockImplementationOnce(() =>
-      Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response),
-    );
+    mockGetAllConfiguration.mockImplementationOnce(() => Promise.resolve(body));
   }
 
   const FULL_CONFIG = {
@@ -465,7 +459,7 @@ describe('initialize prefetch — /v1/config/all', () => {
     mockConfigAllOnce(FULL_CONFIG);
     await initialize({ secretKey: 'sk_1', publishableKey: 'pk_1' });
     await settlePrefetch();
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(mockGetAllConfiguration).toHaveBeenCalledTimes(1);
   });
 
   it('does not call configureEvervault when backend returns null team_id', async () => {
@@ -476,7 +470,7 @@ describe('initialize prefetch — /v1/config/all', () => {
   });
 
   it('does not throw from initialize when prefetch fails', async () => {
-    (global.fetch as jest.Mock).mockImplementationOnce(() => Promise.reject(new Error('network down')));
+    mockGetAllConfiguration.mockImplementationOnce(() => Promise.reject(new Error('network down')));
     await expect(initialize({ secretKey: 'sk_1', publishableKey: 'pk_1' })).resolves.toBeUndefined();
     await settlePrefetch();
     expect(evervaultInitMock).not.toHaveBeenCalled();
@@ -484,7 +478,7 @@ describe('initialize prefetch — /v1/config/all', () => {
 
   it('debugMode true → prefetch failures emit console.warn', async () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    (global.fetch as jest.Mock).mockImplementationOnce(() => Promise.reject(new Error('boom')));
+    mockGetAllConfiguration.mockImplementationOnce(() => Promise.reject(new Error('boom')));
     await initialize({ secretKey: 'sk_1', publishableKey: 'pk_1', debugMode: true });
     await settlePrefetch();
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Configuration prefetch failed'));
@@ -493,7 +487,7 @@ describe('initialize prefetch — /v1/config/all', () => {
 
   it('debugMode false → prefetch failures are silent', async () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    (global.fetch as jest.Mock).mockImplementationOnce(() => Promise.reject(new Error('boom')));
+    mockGetAllConfiguration.mockImplementationOnce(() => Promise.reject(new Error('boom')));
     // Publishable-key only so we isolate prefetch-warning behavior from the
     // init-time secretKey-configured warning.
     await initialize({ publishableKey: 'pk_1' });

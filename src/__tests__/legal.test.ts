@@ -1,5 +1,16 @@
 jest.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
 
+const mockGetAllConfiguration = jest.fn();
+jest.mock('framepayments', () => {
+  class MockFrameSDK {
+    configuration = { getAllConfiguration: () => mockGetAllConfiguration() };
+    constructor(_config: unknown) {}
+  }
+  return { FrameSDK: MockFrameSDK };
+});
+
+import { setConfig, resetConfig } from '../config';
+import { resetClients } from '../client';
 import { __resetLegalConfiguration, getLegalUrls, prefetchLegalConfiguration } from '../legal';
 import { __resetRemoteConfig } from '../remoteConfig';
 
@@ -10,14 +21,23 @@ const FALLBACKS = {
   cbcTermsUrl: 'https://framepayments.com/legal/cbc-terms-and-conditions',
 };
 
-function mockJson(body: unknown, ok = true) {
-  global.fetch = jest.fn(async () => ({ ok, status: ok ? 200 : 503, json: async () => body }) as Response) as
-    unknown as typeof fetch;
+function mockOnce(body: unknown) {
+  mockGetAllConfiguration.mockImplementationOnce(async () => body);
+}
+
+function mockRejectOnce(err: unknown) {
+  mockGetAllConfiguration.mockImplementationOnce(async () => {
+    throw err;
+  });
 }
 
 beforeEach(() => {
   __resetLegalConfiguration();
   __resetRemoteConfig();
+  resetConfig();
+  resetClients();
+  setConfig({ publishableKey: 'pk_test_x', debugMode: false });
+  mockGetAllConfiguration.mockClear();
 });
 
 describe('getLegalUrls', () => {
@@ -26,7 +46,7 @@ describe('getLegalUrls', () => {
   });
 
   it('returns the configured URLs once the prefetch lands', async () => {
-    mockJson({
+    mockOnce({
       legal: {
         privacy_url: 'https://example.test/p',
         terms_url: 'https://example.test/t',
@@ -44,34 +64,32 @@ describe('getLegalUrls', () => {
   });
 
   it('falls back per-field, so a partial response never yields a broken link', async () => {
-    mockJson({ legal: { privacy_url: 'https://example.test/p' } });
+    mockOnce({ legal: { privacy_url: 'https://example.test/p' } });
     await prefetchLegalConfiguration();
     expect(getLegalUrls()).toEqual({ ...FALLBACKS, privacyUrl: 'https://example.test/p' });
   });
 
   it('ignores empty strings', async () => {
-    mockJson({ legal: { privacy_url: '', terms_url: 'https://example.test/t' } });
+    mockOnce({ legal: { privacy_url: '', terms_url: 'https://example.test/t' } });
     await prefetchLegalConfiguration();
     expect(getLegalUrls().privacyUrl).toBe(FALLBACKS.privacyUrl);
     expect(getLegalUrls().termsUrl).toBe('https://example.test/t');
   });
 
   it('keeps the fallbacks when the request fails', async () => {
-    mockJson({}, false);
+    mockRejectOnce(new Error('HTTP 503'));
     await prefetchLegalConfiguration();
     expect(getLegalUrls()).toEqual(FALLBACKS);
   });
 
   it('keeps the fallbacks when the request throws', async () => {
-    global.fetch = jest.fn(async () => {
-      throw new Error('offline');
-    }) as unknown as typeof fetch;
+    mockRejectOnce(new Error('offline'));
     await expect(prefetchLegalConfiguration()).resolves.toBeUndefined();
     expect(getLegalUrls()).toEqual(FALLBACKS);
   });
 
   it('keeps the fallbacks when the aggregate response carries no legal block', async () => {
-    mockJson({ evervault: { team_id: 't', app_id: 'a' } });
+    mockOnce({ evervault: { team_id: 't', app_id: 'a' } });
     await prefetchLegalConfiguration();
     expect(getLegalUrls()).toEqual(FALLBACKS);
   });

@@ -104,12 +104,7 @@ export function __resetSonarSession(): void {
   appStateSubscription = null;
 }
 
-interface SessionResponse {
-  id?: unknown;
-  sonar_session_id?: unknown;
-}
-
-function sessionIdFrom(response: SessionResponse, context: string): string {
+function sessionIdFrom(response: { id?: string; sonar_session_id?: string }, context: string): string {
   const id = response.sonar_session_id ?? response.id;
   if (typeof id !== 'string' || id.length === 0) {
     throw new Error(`Sonar session ${context} response carried no session id.`);
@@ -122,11 +117,10 @@ async function createSession(accountId: string | null): Promise<string> {
   if (!visitorId) {
     throw new Error('Fingerprint returned no visitor id, so no Sonar session can be created.');
   }
-  const params = {
+  const response = await client.sdk.chargeSessions.create({
     fingerprint_visitor_id: visitorId,
     ...(accountId ? { account_id: accountId } : {}),
-  } as unknown as Parameters<typeof client.sdk.chargeSessions.create>[0];
-  const response = (await client.sdk.chargeSessions.create(params)) as unknown as SessionResponse;
+  });
   return sessionIdFrom(response, 'create');
 }
 
@@ -135,12 +129,11 @@ async function refreshSession(session: string, accountId: string | null): Promis
   if (!visitorId) {
     throw new Error('Fingerprint returned no visitor id, so the Sonar session cannot be refreshed.');
   }
-  const params = {
-    fingerprint_visitor_id: visitorId,
-    ...(accountId ? { account_id: accountId } : {}),
-  } as unknown as Parameters<typeof client.sdk.chargeSessions.update>[1];
   try {
-    const response = (await client.sdk.chargeSessions.update(session, params)) as unknown as SessionResponse;
+    const response = await client.sdk.chargeSessions.update(session, {
+      fingerprint_visitor_id: visitorId,
+      ...(accountId ? { account_id: accountId } : {}),
+    });
     return sessionIdFrom(response, 'update');
   } catch {
     await storage.clear(accountId);

@@ -1,18 +1,34 @@
 jest.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
 
+const mockGetAllConfiguration = jest.fn();
+jest.mock('framepayments', () => {
+  class MockFrameSDK {
+    configuration = { getAllConfiguration: () => mockGetAllConfiguration() };
+    constructor(_config: unknown) {}
+  }
+  return { FrameSDK: MockFrameSDK };
+});
+
+import { setConfig, resetConfig } from '../config';
+import { resetClients } from '../client';
 import { __resetRemoteConfig, fetchRemoteConfig, peekRemoteConfig } from '../remoteConfig';
 
-function mockOnce(body: unknown, ok = true) {
-  (global.fetch as jest.Mock).mockImplementationOnce(async () => ({
-    ok,
-    status: ok ? 200 : 503,
-    json: async () => body,
-  }));
+function mockOnce(body: unknown) {
+  mockGetAllConfiguration.mockImplementationOnce(async () => body);
+}
+
+function mockRejectOnce(err: unknown) {
+  mockGetAllConfiguration.mockImplementationOnce(async () => {
+    throw err;
+  });
 }
 
 beforeEach(() => {
   __resetRemoteConfig();
-  global.fetch = jest.fn();
+  resetConfig();
+  resetClients();
+  setConfig({ publishableKey: 'pk_test_x', debugMode: false });
+  mockGetAllConfiguration.mockClear();
 });
 
 describe('fetchRemoteConfig', () => {
@@ -56,12 +72,12 @@ describe('fetchRemoteConfig', () => {
     mockOnce({ evervault: { team_id: 't1', app_id: 'a1' } });
     await fetchRemoteConfig();
     await fetchRemoteConfig();
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(mockGetAllConfiguration).toHaveBeenCalledTimes(1);
   });
 
   it('coalesces concurrent callers onto one in-flight request', async () => {
     let resolveResponse!: (v: unknown) => void;
-    (global.fetch as jest.Mock).mockImplementationOnce(
+    mockGetAllConfiguration.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           resolveResponse = resolve;
@@ -69,26 +85,24 @@ describe('fetchRemoteConfig', () => {
     );
     const p1 = fetchRemoteConfig();
     const p2 = fetchRemoteConfig();
-    resolveResponse({ ok: true, status: 200, json: async () => ({ evervault: { team_id: 't', app_id: 'a' } }) });
+    resolveResponse({ evervault: { team_id: 't', app_id: 'a' } });
     const [c1, c2] = await Promise.all([p1, p2]);
     expect(c1).toEqual(c2);
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(mockGetAllConfiguration).toHaveBeenCalledTimes(1);
   });
 
-  it('resolves null on a non-ok response, without throwing', async () => {
-    mockOnce({}, false);
+  it('resolves null on a failed request, without throwing', async () => {
+    mockRejectOnce(new Error('HTTP 503'));
     await expect(fetchRemoteConfig()).resolves.toBeNull();
   });
 
   it('resolves null when the request throws', async () => {
-    (global.fetch as jest.Mock).mockImplementationOnce(async () => {
-      throw new Error('offline');
-    });
+    mockRejectOnce(new Error('offline'));
     await expect(fetchRemoteConfig()).resolves.toBeNull();
   });
 
   it('does not cache a failure — a later call can succeed', async () => {
-    mockOnce({}, false);
+    mockRejectOnce(new Error('HTTP 503'));
     expect(await fetchRemoteConfig()).toBeNull();
     mockOnce({ evervault: { team_id: 't1', app_id: 'a1' } });
     expect(await fetchRemoteConfig()).toEqual({ evervault: { appId: 'a1', teamId: 't1' } });

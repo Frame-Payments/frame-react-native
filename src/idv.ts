@@ -1,9 +1,7 @@
 import { getActiveOnboardingSession } from './auth';
-import { FRAME_API_BASE_URL } from './client';
-import { frameRequestHeaders as idvHeaders } from './bespokeRequest';
+import { client } from './client';
+import { isTransportError } from './api-errors';
 import { ErrorCodes, frameError } from './errors';
-
-// The framepayments SDK has no API surface for the `/v1/idv/*` endpoints and
 
 /**
  * Create a Persona inquiry server-side and return its id. The backend pre-
@@ -17,32 +15,15 @@ export async function createIdvSession(): Promise<{ inquiryId: string }> {
       'No active onboarding session. Identity verification requires an onboarding client secret.',
     );
   }
-  let response: Response;
+  let inquiryId: string;
   try {
-    response = await fetch(`${FRAME_API_BASE_URL}/v1/idv/session`, {
-      method: 'POST',
-      headers: idvHeaders(),
-      body: JSON.stringify({}),
-    });
+    ({ inquiry_id: inquiryId } = await client.sdk.idv.createSession());
   } catch (err) {
     throw frameError(
-      ErrorCodes.API_NETWORK,
+      isTransportError(err) ? ErrorCodes.API_NETWORK : ErrorCodes.API_ERROR,
       err instanceof Error ? err.message : 'Failed to reach the identity-verification service.',
     );
   }
-  if (!response.ok) {
-    throw frameError(
-      ErrorCodes.API_ERROR,
-      `Identity-verification session request failed (HTTP ${response.status}).`,
-    );
-  }
-  let body: { inquiry_id?: unknown };
-  try {
-    body = (await response.json()) as { inquiry_id?: unknown };
-  } catch {
-    throw frameError(ErrorCodes.API_DECODE, 'Identity-verification session response was not JSON.');
-  }
-  const inquiryId = typeof body.inquiry_id === 'string' ? body.inquiry_id : null;
   if (!inquiryId) {
     throw frameError(ErrorCodes.API_ERROR, 'Identity-verification session returned no inquiry id.');
   }
@@ -99,32 +80,12 @@ export function idvFailureMessage(completion: IdvCompletion, mandatory = false):
 }
 
 export async function completeIdvSessionDetailed(inquiryId: string): Promise<IdvCompletion> {
-  let response: Response;
+  let body: Awaited<ReturnType<typeof client.sdk.idv.completeSession>>;
   try {
-    response = await fetch(`${FRAME_API_BASE_URL}/v1/idv/complete`, {
-      method: 'POST',
-      headers: idvHeaders(),
-      body: JSON.stringify({ inquiry_id: inquiryId }),
-    });
+    body = await client.sdk.idv.completeSession(inquiryId);
   } catch {
-    // Network hiccup → unknown, not an authoritative "not verified".
-    return { status: 'pending' };
-  }
-  if (!response.ok) {
-    // Endpoint not live yet / transient server error → unknown.
-    return { status: 'pending' };
-  }
-  let body: {
-    verified?: unknown;
-    category?: unknown;
-    status?: unknown;
-    failure_type?: unknown;
-    retriable?: unknown;
-  };
-  try {
-    body = (await response.json()) as typeof body;
-  } catch {
-    // Non-JSON (e.g. the JSON variant hasn't shipped) → unknown.
+    // Network error, non-2xx, or undecodable body → unknown, not an
+    // authoritative "not verified".
     return { status: 'pending' };
   }
   const str = (v: unknown) => (typeof v === 'string' && v.length > 0 ? v : undefined);

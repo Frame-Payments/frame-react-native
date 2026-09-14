@@ -92,6 +92,7 @@ export default function App() {
       // server-minted onb_sess_ token (see handleOnboarding).
       publishableKey: FRAME_PUBLISHABLE_KEY,
       secretKey: FRAME_SECRET_KEY,
+      accountId: DEMO_ACCOUNT_ID !== 'ENTER_AN_ACCOUNT_ID' ? DEMO_ACCOUNT_ID : undefined,
       debugMode: __DEV__,
       applePayMerchantId: APPLE_PAY_MERCHANT_ID,
       googlePayMerchantId: GOOGLE_PAY_MERCHANT_ID,
