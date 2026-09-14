@@ -43,6 +43,7 @@ This is a full ground-up rewrite. The SDK no longer wraps the native Frame iOS /
 
 ### Changed
 
+- `framepayments` peer bumped to `^2.7.0` (was `^2.6.0`, FRA-6780). Adopts the typed `idv`, `accounts.electPayoutMethod`, and `configuration.getAllConfiguration` surfaces added there, replacing hand-rolled `fetch()` calls in `idv.ts`, `payoutMethod.ts`, and `remoteConfig.ts`. `sonarSession.ts` drops its cast-based response-id fallback and now sends `fingerprint_visitor_id`/`account_id` as typed params. 2.7.0 also removed the SDK's dead `sonarSessions`/`onboarding` namespaces — this repo never called either.
 - `framepayments` peer pinned to `^2.1.0` (was `^2.0.0`). 2.1.0 adds the per-call publishable-key routing the standalone SDK relies on.
 - `withFrameAndroidManifest`: `CAMERA` and `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` permissions are now conditionally injected based on the host app's installed peer deps (vision-camera, expo-location / `@react-native-community/geolocation`). Host apps that don't use document upload or geocompliance no longer ship those permissions.
 

@@ -18,15 +18,15 @@ export const SDK_VERSION_HEADER = 'X-Frame-SDK-Version';
 // The framepayments SDK defaults to this host when no `baseURL` override is
 // passed to its ClientConfig (see framepayments' client.ts). We never override
 // it, so every SDK request — and any bespoke request that must route the same
-// way (e.g. the IDV endpoints in idv.ts, which the SDK exposes no API for) —
-// hits this host. Exported so idv.ts stays in lockstep rather than hardcoding
-// its own copy.
+// way (e.g. addressSearch.ts, for endpoints the SDK exposes no API for) — hits
+// this host. Exported so bespoke callers stay in lockstep rather than
+// hardcoding their own copy.
 export const FRAME_API_BASE_URL = 'https://api.framepayments.com';
 
 // The User-Agent every SDK request sends, matching the native Frame iOS /
 // Android SDKs (see getClient below for why the exact strings matter to the
-// backend's native-SDK routing). Exported so non-SDK requests (idv.ts) send the
-// identical header instead of duplicating the platform/version logic.
+// backend's native-SDK routing). Exported so non-SDK requests (bespokeRequest.ts)
+// send the identical header instead of duplicating the platform/version logic.
 export function frameUserAgent(): string | undefined {
   return Platform.OS === 'ios'
     ? 'iOS'
