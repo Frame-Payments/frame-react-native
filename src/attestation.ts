@@ -2,6 +2,7 @@ import { NativeModules, Platform } from 'react-native';
 import { sha256 } from 'js-sha256';
 import { client } from './client';
 import { ErrorCodes, frameError } from './errors';
+import { recordEvent } from './accountEvents';
 
 const LINKING_ERROR =
   "The native module 'FrameAttestation' isn't linked. " +
@@ -73,9 +74,14 @@ let inflightEnsureAttested: Promise<string> | null = null;
  */
 export function ensureAttested(): Promise<string> {
   if (inflightEnsureAttested) return inflightEnsureAttested;
-  inflightEnsureAttested = runEnsureAttested().finally(() => {
-    inflightEnsureAttested = null;
-  });
+  inflightEnsureAttested = runEnsureAttested()
+    .catch((err) => {
+      recordEvent('device_attestation_failed', 'PaymentSheet', err instanceof Error ? err.message : undefined);
+      throw err;
+    })
+    .finally(() => {
+      inflightEnsureAttested = null;
+    });
   return inflightEnsureAttested;
 }
 

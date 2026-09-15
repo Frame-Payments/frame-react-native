@@ -1,6 +1,7 @@
 import { client } from './client';
 import { beginOnboardingSession, getActiveOnboardingSession } from './auth';
 import { warnOnce } from './warn';
+import { recordEvent } from './accountEvents';
 
 // Mints an account-scoped onboarding session on-device so that the rest of the
 // onboarding flow — most importantly the no-SSN IDV calls in idv.ts, which
@@ -52,6 +53,7 @@ export async function ensureOnboardingSession(
       `Failed to mint an onboarding session (${err instanceof Error ? err.message : 'unknown error'}); ` +
         'onboarding requests will fall back to the configured key.',
     );
+    recordEvent('onboarding_session_mint_failed', 'Onboarding');
     return false;
   }
 }
