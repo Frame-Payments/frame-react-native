@@ -5,7 +5,7 @@ import { FRAME_API_BASE_URL, SDK_VERSION, SDK_VERSION_HEADER, frameUserAgent } f
 const MAX_QUEUE_SIZE = 100;
 const MAX_BATCH_SIZE = 100;
 const FLUSH_SIZE_THRESHOLD = 20;
-const FLUSH_INTERVAL_MS = 30_000;
+const FLUSH_INTERVAL_MS = 20_000;
 const MAX_TRANSPORT_RETRIES = 2;
 
 interface AccountEvent {
