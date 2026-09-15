@@ -12,6 +12,7 @@ import { ApplePayButton } from '../../../primitives/ApplePayButton';
 import { canMakeApplePay } from '../../../../applePay';
 import { getApplePayMerchantId } from '../../../../config';
 import { showToast } from '../../../primitives/toastCenter';
+import { recordEvent } from '../../../../accountEvents';
 import type { OnboardingAddress, OnboardingState } from '../onboardingReducer';
 import { FORM_SPACING } from '../formSpacing';
 
@@ -86,6 +87,8 @@ export function AddPaymentMethodScreen({
     const cardErrors = cardFieldRef.current?.validate() ?? null;
     if (cardErrors) {
       const first = cardErrors.pan ?? cardErrors.expiry ?? cardErrors.cvc ?? 'Enter valid card details.';
+      const firstField = cardErrors.pan ? 'pan' : cardErrors.expiry ? 'expiry' : 'cvc';
+      recordEvent('card_validation_failed', 'PaymentMethod', firstField);
       showToast(first);
       return;
     }

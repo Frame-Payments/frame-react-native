@@ -20,6 +20,7 @@ import { CaptureScreen } from './uploadDocuments/CaptureScreen';
 import { ReviewScreen } from './uploadDocuments/ReviewScreen';
 import { VerificationSubmittedScreen } from './VerificationSubmittedScreen';
 import { areDocsComplete, requiresDobInPhoneAuth } from './onboardingSelectors';
+import { recordEvent } from '../../../accountEvents';
 
 export interface OnboardingRootProps {
   accountId: string | null;
@@ -69,6 +70,22 @@ export function OnboardingRoot({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientSecret]);
+
+  // Fires once when the onboarding UI actually mounts, as distinct from the
+  // account-prefetch that can run before any screen is visible.
+  useEffect(() => {
+    recordEvent('onboarding_started', 'Onboarding');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fires whenever the personal_information sub-step changes — this is the
+  // cluster's slice of the per-step viewed event; other step clusters are
+  // instrumented by the agents owning those files.
+  useEffect(() => {
+    if (vm.state.currentStep !== 'personal_information' || !vm.state.subStep) return;
+    recordEvent('onboarding_step_viewed', vm.state.subStep, vm.state.subStep);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vm.state.currentStep, vm.state.subStep]);
 
   // ─── Routing helpers ───
 
@@ -187,6 +204,7 @@ export function OnboardingRoot({
   const onCaptureDone = useCallback(
     (side: 'front' | 'back' | 'selfie', uri: string, type: string, name: string) => {
       vm.dispatch({ type: 'SET_DOC_PHOTO', side, photo: { uri, type, name } });
+      recordEvent('document_photo_captured', 'DocumentUpload', `side: ${side}`);
       vm.goTo('upload_documents', `review_${side}` as const);
     },
     [vm],
@@ -200,6 +218,7 @@ export function OnboardingRoot({
   const onReviewRetake = useCallback(
     (side: 'front' | 'back' | 'selfie') => {
       vm.dispatch({ type: 'SET_DOC_PHOTO', side, photo: null });
+      recordEvent('document_photo_retaken', 'DocumentUpload', `side: ${side}`);
       vm.goTo('upload_documents', `capture_${side}` as const);
     },
     [vm],
@@ -209,8 +228,14 @@ export function OnboardingRoot({
     try {
       await vm.ensureCustomerIdentity();
       await vm.uploadCapturedDocuments();
+      recordEvent('document_upload_completed', 'DocumentUpload');
       vm.advance();
     } catch (err) {
+      recordEvent(
+        'document_upload_failed',
+        'DocumentUpload',
+        err instanceof Error ? err.message : undefined,
+      );
       surfaceError(err);
     }
   }, [vm, surfaceError]);
@@ -244,7 +269,12 @@ export function OnboardingRoot({
               onChangePhoneNumber={vm.setPhoneNumber}
               onChangeDob={vm.setDob}
               onMount={() => void vm.generateTermsOfServiceToken()}
-              onSubmit={() => vm.sendOtp().catch(surfaceError)}
+              onSubmit={() =>
+                vm
+                  .sendOtp()
+                  .then(() => recordEvent('onboarding_step_completed', 'phone_auth', 'phone_auth'))
+                  .catch(surfaceError)
+              }
             />
           );
         case 'verify_phone':
@@ -252,7 +282,12 @@ export function OnboardingRoot({
             <VerifyPhoneScreen
               state={vm.state}
               onChangeOtp={vm.setOtpCode}
-              onConfirmFrameOtp={() => vm.confirmFrameOtp().catch(surfaceError)}
+              onConfirmFrameOtp={() =>
+                vm
+                  .confirmFrameOtp()
+                  .then(() => recordEvent('onboarding_step_completed', 'verify_phone', 'verify_phone'))
+                  .catch(surfaceError)
+              }
               onProveResult={(result) => {
                 if (result.status === 'success') {
                   void vm
@@ -260,6 +295,7 @@ export function OnboardingRoot({
                     .then(() => vm.refreshAccountAfterPhoneVerify())
                     .catch(() => {})
                     .finally(() => {
+                      recordEvent('onboarding_step_completed', 'verify_phone', 'verify_phone');
                       vm.goTo('personal_information', 'customer_information');
                     });
                   return;
@@ -269,8 +305,14 @@ export function OnboardingRoot({
                 // OTP confirm endpoint accepts the new id, then surface the
                 // failure message. Without re-issuing, confirmFrameOtp would
                 // try to confirm the Prove-issued id.
+                recordEvent('silent_phone_auth_fallback', 'PhoneVerification', result.message);
                 if (result.message) showToast(result.message);
                 void vm.sendOtp({ forceFrameOtp: true }).catch((err) => {
+                  recordEvent(
+                    'silent_phone_auth_failed',
+                    'PhoneVerification',
+                    err instanceof Error ? err.message : undefined,
+                  );
                   surfaceError(err);
                   vm.goTo('personal_information', 'phone_auth');
                 });
@@ -291,7 +333,14 @@ export function OnboardingRoot({
               onChangeSsn={vm.setSsnLast4}
               onChangeAddressField={vm.setAddressField}
               onApplyAddress={vm.applyAddress}
-              onSubmit={() => vm.submitCustomerInformation().catch(surfaceError)}
+              onSubmit={() =>
+                vm
+                  .submitCustomerInformation()
+                  .then(() =>
+                    recordEvent('onboarding_step_completed', 'customer_information', 'customer_information'),
+                  )
+                  .catch(surfaceError)
+              }
               onVerifyIdentity={() => vm.verifyIdentityWithoutSsn().catch(surfaceError)}
             />
           );
@@ -376,7 +425,10 @@ export function OnboardingRoot({
           return (
             <UploadDocumentsListScreen
               state={vm.state}
-              onChangeIdType={(value) => vm.dispatch({ type: 'SET_DOC_ID_TYPE', value })}
+              onChangeIdType={(value) => {
+                vm.dispatch({ type: 'SET_DOC_ID_TYPE', value });
+                recordEvent('document_upload_started', 'DocumentUpload', `id_type: ${value}`);
+              }}
               onCaptureFront={() => vm.goTo('upload_documents', 'capture_front')}
               onCaptureBack={() => vm.goTo('upload_documents', 'capture_back')}
               onCaptureSelfie={() => vm.goTo('upload_documents', 'capture_selfie')}
@@ -485,6 +537,7 @@ export function OnboardingRoot({
             if (vm.state.verifyPhoneUi === 'otp_for_prove') {
               void cancelProveOtp();
             }
+            recordEvent('phone_code_entry_cancelled', 'PhoneVerification');
             vm.goTo('personal_information', 'phone_auth');
           },
         };

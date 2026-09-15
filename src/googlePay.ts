@@ -3,6 +3,7 @@ import { currentSessionId, sessionIdForPayment } from './sonarSession';
 import { client, requireSecretKeyFor } from './client';
 import { ErrorCodes, frameError } from './errors';
 import { getDebugMode, getGooglePayMerchantId, getIpAddress } from './config';
+import { recordEvent } from './accountEvents';
 import type { PresentGooglePayOptions, WalletOwner } from './types';
 
 const LINKING_ERROR =
@@ -67,6 +68,7 @@ export async function presentGooglePayFlow(options: PresentGooglePayOptions): Pr
   if (Platform.OS !== 'android') {
     throw frameError(ErrorCodes.PLATFORM_UNSUPPORTED, 'Frame.presentGooglePay is Android-only; use presentApplePay on iOS.');
   }
+  recordEvent('google_pay_started', 'GooglePay');
   validateOwner(options.owner);
   // The charge step (chargeIntents/transfers create) is server-only and needs a
   // secret key. Fail before opening the Google Pay sheet so a publishable-key-
@@ -74,6 +76,7 @@ export async function presentGooglePayFlow(options: PresentGooglePayOptions): Pr
   requireSecretKeyFor('Google Pay charge');
   const merchantId = getGooglePayMerchantId();
   if (!merchantId) {
+    recordEvent('google_pay_unavailable', 'GooglePay', 'merchant id');
     throw frameError(
       ErrorCodes.INVALID_MERCHANT_ID,
       'No Google Pay merchant ID configured. Pass `googlePayMerchantId` to Frame.initialize(...).',
@@ -82,6 +85,13 @@ export async function presentGooglePayFlow(options: PresentGooglePayOptions): Pr
 
   const environment: 'TEST' | 'PRODUCTION' = getDebugMode() ? 'TEST' : 'PRODUCTION';
   const walletConfig = await client.sdk.wallet.getGooglePayConfiguration({ usePublishableKey: true });
+  if (!walletConfig.processor || !walletConfig.processor_key) {
+    recordEvent('google_pay_misconfigured', 'GooglePay', 'invalid processor from backend config');
+    throw frameError(
+      ErrorCodes.INVALID_MERCHANT_ID,
+      'Frame backend returned an incomplete Google Pay wallet configuration (missing processor).',
+    );
+  }
 
   const sheetResponse = await FrameGooglePay.presentGooglePay({
     amountCents: options.amountCents,
@@ -89,9 +99,21 @@ export async function presentGooglePayFlow(options: PresentGooglePayOptions): Pr
     googlePayMerchantId: merchantId,
     environment,
     walletConfig,
+  }).catch((err) => {
+    if ((err as { code?: string })?.code === 'USER_CANCELED') {
+      recordEvent('google_pay_cancelled', 'GooglePay', 'sheet dismissed with no result');
+    }
+    throw err;
   });
 
-  return createPaymentMethodAndCharge(options, sheetResponse);
+  try {
+    const id = await createPaymentMethodAndCharge(options, sheetResponse);
+    recordEvent('google_pay_authorized', 'GooglePay');
+    return id;
+  } catch (err) {
+    recordEvent('google_pay_failed', 'GooglePay', err instanceof Error ? err.message : undefined);
+    throw err;
+  }
 }
 
 async function createPaymentMethodAndCharge(

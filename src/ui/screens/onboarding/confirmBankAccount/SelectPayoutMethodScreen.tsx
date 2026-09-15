@@ -6,6 +6,7 @@ import { PaymentMethodRow } from '../../../primitives/PaymentMethodRow';
 import { Icon } from '../../../assets';
 import type { OnboardingState } from '../onboardingReducer';
 import { FORM_SPACING } from '../formSpacing';
+import { recordEvent } from '../../../../accountEvents';
 
 // Select a saved ACH payout method or add a new bank account. Parent owns the
 // Continue routing.
@@ -71,7 +72,10 @@ export function SelectPayoutMethodScreen({
                   }
                   subtitle={achSubtitle(pm) ?? undefined}
                   selected={state.selectedPayoutMethodId === pm.id}
-                  onPress={() => onSelectMethod(pm.id)}
+                  onPress={() => {
+                    recordEvent('saved_payout_method_selected', 'PayoutMethod');
+                    onSelectMethod(pm.id);
+                  }}
                   icon={<Icon name="bank-icon" width={40} height={28} color={theme.colors.textPrimary} />}
                   testID={`onboarding.payout.${pm.id}`}
                 />

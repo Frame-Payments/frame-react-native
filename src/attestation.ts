@@ -75,6 +75,10 @@ let inflightEnsureAttested: Promise<string> | null = null;
 export function ensureAttested(): Promise<string> {
   if (inflightEnsureAttested) return inflightEnsureAttested;
   inflightEnsureAttested = runEnsureAttested()
+    .then((keyId) => {
+      recordEvent('attestation_completed', 'PaymentSheet');
+      return keyId;
+    })
     .catch((err) => {
       recordEvent('device_attestation_failed', 'PaymentSheet', err instanceof Error ? err.message : undefined);
       throw err;
@@ -91,7 +95,10 @@ async function runEnsureAttested(): Promise<string> {
   const existing = await FrameAttestation.attestedKeyId();
   if (existing) return existing;
 
+  recordEvent('attestation_started', 'PaymentSheet');
+
   if (!(await FrameAttestation.isSupported())) {
+    recordEvent('attestation_not_supported', 'PaymentSheet');
     throw frameError(
       ErrorCodes.NOT_ATTESTED,
       'App Attest is not supported on this device (iOS 14+ on a real device required).',
@@ -203,6 +210,7 @@ export async function generateAssertionForPayment(paymentData: Uint8Array): Prom
     if ((err as { code?: string }).code !== ErrorCodes.ATTESTATION_FAILED) throw err;
     await FrameAttestation.resetAttestation();
     await ensureAttested();
+    recordEvent('attestation_assertion_retried', 'PaymentSheet');
     return assertOnce(paymentData);
   }
 }
@@ -211,6 +219,7 @@ export async function generateAssertionForPayment(paymentData: Uint8Array): Prom
 export async function resetAttestation(): Promise<void> {
   guardIos();
   await FrameAttestation.resetAttestation();
+  recordEvent('attestation_reset', 'PaymentSheet');
 }
 
 // ----- helpers -----

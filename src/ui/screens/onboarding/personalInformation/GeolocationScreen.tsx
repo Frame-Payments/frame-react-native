@@ -3,6 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useFrameTheme } from '../../../theme/ThemeContext';
 import { Button } from '../../../primitives/Button';
 import { client } from '../../../../client';
+import { recordEvent } from '../../../../accountEvents';
 import { showToast } from '../../../primitives/toastCenter';
 import { FORM_SPACING } from '../formSpacing';
 
@@ -30,12 +31,17 @@ export function GeolocationScreen({ accountId, onAdvance }: GeolocationScreenPro
     (async () => {
       try {
         if (accountId) {
+          recordEvent('compliance_check_started', 'Compliance');
           await client.sdk.geoCompliance.getAccountStatus(accountId);
+          recordEvent('compliance_check_passed', 'Compliance');
         }
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : 'Could not verify your location.';
         showToast(message);
+        // Non-blocking: RN advances the flow even on failure, so this is
+        // recorded but never gates onAdvance below.
+        recordEvent('compliance_check_failed', 'Compliance', message);
       } finally {
         if (!cancelled) {
           setDone(true);

@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFrameTheme } from '../../../theme/ThemeContext';
+import { recordEvent } from '../../../../accountEvents';
 import { Button } from '../../../primitives/Button';
 import { ValidatedTextField } from '../../../primitives/ValidatedTextField';
 import { DobInputField } from '../../../primitives/DobInputField';
@@ -59,6 +60,11 @@ export function CustomerInformationScreen({
   const theme = useFrameTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [addressOverlay, setAddressOverlay] = useState<AddressAutocompleteOverlayState | null>(null);
+
+  useEffect(() => {
+    recordEvent('profile_step_started', 'PersonalInformation');
+  }, []);
+
   const showDob = !requiresDobInPhoneAuth(capabilities);
   const ssnCapabilityRequested = requiresKyc(state.requiredCapabilities);
   const showSsn = ssnCapabilityRequested && !skipsSsnEntry(state);

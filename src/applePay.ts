@@ -6,6 +6,7 @@ import { ErrorCodes, frameError } from './errors';
 import { ensureAttested, generateAssertionForPayment, resetAttestation } from './attestation';
 import { isAssertionRejection } from './api-errors';
 import { getApplePayMerchantId, getIpAddress } from './config';
+import { recordEvent } from './accountEvents';
 import type { PresentApplePayOptions, WalletOwner } from './types';
 
 const LINKING_ERROR =
@@ -79,6 +80,7 @@ export async function presentApplePayFlow(options: PresentApplePayOptions): Prom
   if (Platform.OS !== 'ios') {
     throw frameError(ErrorCodes.PLATFORM_UNSUPPORTED, 'Frame.presentApplePay is iOS-only; use presentGooglePay on Android.');
   }
+  recordEvent('apple_pay_started', 'ApplePay');
   validateOwner(options.owner);
   // The charge step (chargeIntents/transfers create) is server-only and needs a
   // secret key. Fail before opening the Apple Pay sheet so a publishable-key-
@@ -86,6 +88,7 @@ export async function presentApplePayFlow(options: PresentApplePayOptions): Prom
   requireSecretKeyFor('Apple Pay charge');
   const merchantId = getApplePayMerchantId();
   if (!merchantId) {
+    recordEvent('apple_pay_unavailable', 'ApplePay', 'merchant id');
     throw frameError(
       ErrorCodes.INVALID_MERCHANT_ID,
       'No Apple Pay merchant ID configured. Pass `applePayMerchantId` to Frame.initialize(...).',
@@ -99,6 +102,11 @@ export async function presentApplePayFlow(options: PresentApplePayOptions): Prom
     currency: options.currency ?? 'usd',
     applePayMerchantId: merchantId,
     supportedNetworks: DEFAULT_SUPPORTED_NETWORKS,
+  }).catch((err) => {
+    if ((err as { code?: string })?.code === 'USER_CANCELED') {
+      recordEvent('apple_pay_cancelled', 'ApplePay', 'sheet dismissed with no result');
+    }
+    throw err;
   });
 
   try {
@@ -107,9 +115,11 @@ export async function presentApplePayFlow(options: PresentApplePayOptions): Prom
     // dismissed itself (background/foreground race), we still need to
     // return the successful id — not blow up the payment that succeeded.
     await safeFinishApplePay('success');
+    recordEvent('apple_pay_authorized', 'ApplePay');
     return id;
   } catch (err) {
     await safeFinishApplePay('failure');
+    recordEvent('apple_pay_failed', 'ApplePay', err instanceof Error ? err.message : undefined);
     throw err;
   }
 }
@@ -134,9 +144,11 @@ export async function addApplePayToOwnerFlow(
       'Frame Apple Pay add-to-owner is iOS-only.',
     );
   }
+  recordEvent('apple_pay_started', 'ApplePay');
   validateOwner(options.owner);
   const merchantId = getApplePayMerchantId();
   if (!merchantId) {
+    recordEvent('apple_pay_unavailable', 'ApplePay', 'merchant id');
     throw frameError(
       ErrorCodes.INVALID_MERCHANT_ID,
       'No Apple Pay merchant ID configured. Pass `applePayMerchantId` to Frame.initialize(...).',
@@ -152,6 +164,11 @@ export async function addApplePayToOwnerFlow(
     applePayMerchantId: merchantId,
     supportedNetworks: DEFAULT_SUPPORTED_NETWORKS,
     verificationOnly: true,
+  }).catch((err) => {
+    if ((err as { code?: string })?.code === 'USER_CANCELED') {
+      recordEvent('apple_pay_cancelled', 'ApplePay', 'sheet dismissed with no result');
+    }
+    throw err;
   });
 
   try {
@@ -165,9 +182,11 @@ export async function addApplePayToOwnerFlow(
       throw frameError(ErrorCodes.PAYMENT_METHOD_FAILED, 'Frame returned no payment method id.');
     }
     await safeFinishApplePay('success');
+    recordEvent('apple_pay_card_added', 'ApplePay', 'mode: add-to-owner');
     return pm.id;
   } catch (err) {
     await safeFinishApplePay('failure');
+    recordEvent('apple_pay_failed', 'ApplePay', err instanceof Error ? err.message : undefined);
     throw err;
   }
 }
@@ -274,6 +293,7 @@ async function createWalletPaymentMethod(
     });
   } catch (err) {
     if (isAssertionRejection(err)) {
+      recordEvent('apple_pay_assertion_rejected', 'ApplePay');
       await resetAttestation().catch(() => {});
     }
     throw err;

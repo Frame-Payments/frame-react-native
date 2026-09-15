@@ -2,6 +2,7 @@ import { fetchRemoteConfig } from './remoteConfig';
 import { frameRequestHeaders } from './bespokeRequest';
 import { FRAME_API_BASE_URL } from './client';
 import { subregionsForCountry } from './addressSubregions';
+import { recordEvent } from './accountEvents';
 import type { BillingAddress } from './types';
 
 const MAPBOX_SEARCH_BASE = 'https://api.mapbox.com/search/searchbox/v1';
@@ -113,10 +114,11 @@ export async function suggestAddresses(
         cachedToken = undefined;
         cachedExpiresAt = undefined;
       }
+      recordEvent('address_search_failed', 'AddressSearch', `HTTP ${response.status}`);
       return [];
     }
     const body = (await response.json()) as MapboxSuggestResponse;
-    return (body.suggestions ?? [])
+    const results = (body.suggestions ?? [])
       .map((s): AddressSuggestion | null => {
         if (typeof s.mapbox_id !== 'string' || typeof s.name !== 'string') return null;
         return {
@@ -126,7 +128,10 @@ export async function suggestAddresses(
         };
       })
       .filter((s): s is AddressSuggestion => s !== null);
-  } catch {
+    recordEvent('address_searched', 'AddressSearch');
+    return results;
+  } catch (err) {
+    recordEvent('address_search_failed', 'AddressSearch', err instanceof Error ? err.message : undefined);
     return [];
   }
 }
@@ -146,15 +151,21 @@ export async function retrieveAddress(suggestion: AddressSuggestion): Promise<Bi
         cachedToken = undefined;
         cachedExpiresAt = undefined;
       }
+      recordEvent('address_lookup_failed', 'AddressSearch', `HTTP ${response.status}`);
       return null;
     }
     const body = (await response.json()) as MapboxRetrieveResponse;
     const feature = body.features?.[0];
-    if (!feature) return null;
+    if (!feature) {
+      recordEvent('address_lookup_failed', 'AddressSearch', 'no feature returned');
+      return null;
+    }
 
     sessionToken = cryptoRandomUUID();
+    recordEvent('address_suggestion_selected', 'AddressSearch');
     return billingAddressFromFeature(feature);
-  } catch {
+  } catch (err) {
+    recordEvent('address_lookup_failed', 'AddressSearch', err instanceof Error ? err.message : undefined);
     return null;
   }
 }

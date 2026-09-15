@@ -138,7 +138,9 @@ async function refreshSession(session: string, accountId: string | null): Promis
     return sessionIdFrom(response, 'update');
   } catch {
     await storage.clear(accountId);
-    return createSession(accountId);
+    const created = await createSession(accountId);
+    recordEvent('fraud_session_recreated', 'PaymentSheet', 'refresh failed, fell back to creating fresh');
+    return created;
   }
 }
 
@@ -157,6 +159,7 @@ async function establishSession(accountId: string): Promise<string> {
   if (existing) {
     const refreshed = await refreshSession(existing, accountId);
     await store(refreshed, accountId);
+    recordEvent('fraud_session_refreshed', 'PaymentSheet');
     return refreshed;
   }
 
@@ -170,12 +173,14 @@ async function establishSession(accountId: string): Promise<string> {
     const value = await refreshSession(legacy, accountId);
     await store(value, accountId);
     await storage.clear(null);
+    recordEvent('fraud_session_adopted', 'PaymentSheet', 'pre-account session migrated to account-scoped');
     return value;
   });
   if (adopted) return adopted;
 
   const created = await createSession(accountId);
   await store(created, accountId);
+  recordEvent('fraud_session_started', 'PaymentSheet');
   return created;
 }
 

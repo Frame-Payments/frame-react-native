@@ -122,7 +122,20 @@ export async function confirmCharge(
         'Card verification could not be started. Please try again.',
       );
     }
-    if ((await presentChallenge(challengeUrl)) === 'unavailable') {
+    recordEvent('step_up_challenge_started', 'PaymentSheet', '3DS');
+    const challengeResult = await presentChallenge(challengeUrl);
+    switch (challengeResult) {
+      case 'completed':
+        recordEvent('step_up_challenge_completed', 'PaymentSheet', 'cardholder finished the challenge UI');
+        break;
+      case 'failed':
+        recordEvent('step_up_challenge_abandoned', 'PaymentSheet', 'cardholder cancelled/dismissed');
+        break;
+      case 'unavailable':
+        recordEvent('step_up_challenge_unavailable', 'PaymentSheet', 'challenge page never loaded');
+        break;
+    }
+    if (challengeResult === 'unavailable') {
       throw frameError(
         ErrorCodes.PAYMENT_FAILED,
         'Card verification could not be started. Please try again.',
