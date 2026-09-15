@@ -1,4 +1,5 @@
 import { ErrorCodes, frameError } from './errors';
+import { recordEvent } from './accountEvents';
 
 export const THREE_DS_CALLBACK_PATH = '/evervault/3ds/callback';
 
@@ -150,6 +151,7 @@ async function pollForTerminal(
       }
     } catch (err) {
       if (attempt === maxAttempts) {
+        recordEvent('charge_poll_exhausted', 'PaymentSheet', 'reload failed on final poll attempt');
         throw frameError(
           ErrorCodes.API_NETWORK,
           `Could not read the payment status after ${maxAttempts} attempts: ` +
@@ -160,5 +162,6 @@ async function pollForTerminal(
     await sleep(intervalMs);
   }
 
+  recordEvent('charge_poll_timed_out', 'PaymentSheet');
   return { status: 'timed_out' };
 }

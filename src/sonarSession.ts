@@ -1,6 +1,7 @@
 import { AppState, type AppStateStatus } from 'react-native';
 import { client } from './client';
 import { getFingerprintVisitorId } from './fingerprint';
+import { recordEvent } from './accountEvents';
 
 const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 
@@ -263,7 +264,9 @@ export async function refreshOnFlowEntry(accountId?: string | null): Promise<voi
     if (id) {
       activeAccountId = id;
       startKeepAlive();
-      await runExclusive(id).catch(() => {});
+      await runExclusive(id).catch(() => {
+        recordEvent('sonar_session_failed', 'PaymentSheet', 'establishSession failed on flow entry');
+      });
       return;
     }
     const created = await createSession(null).catch(() => null);
