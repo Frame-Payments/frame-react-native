@@ -1,5 +1,6 @@
 import { ErrorCodes, frameError } from './errors';
 import { recordEvent } from './accountEvents';
+import { AccountEventName, AccountEventScreen, AccountEventDetail } from './accountEventCatalog';
 
 export const THREE_DS_CALLBACK_PATH = '/evervault/3ds/callback';
 
@@ -122,17 +123,17 @@ export async function confirmCharge(
         'Card verification could not be started. Please try again.',
       );
     }
-    recordEvent('step_up_challenge_started', 'PaymentSheet', '3DS');
+    recordEvent(AccountEventName.STEP_UP_CHALLENGE_STARTED, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.STEP_UP_CHALLENGE_IS_3DS);
     const challengeResult = await presentChallenge(challengeUrl);
     switch (challengeResult) {
       case 'completed':
-        recordEvent('step_up_challenge_completed', 'PaymentSheet', 'cardholder finished the challenge UI');
+        recordEvent(AccountEventName.STEP_UP_CHALLENGE_COMPLETED, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.STEP_UP_CHALLENGE_COMPLETED_CONTEXT);
         break;
       case 'failed':
-        recordEvent('step_up_challenge_abandoned', 'PaymentSheet', 'cardholder cancelled/dismissed');
+        recordEvent(AccountEventName.STEP_UP_CHALLENGE_ABANDONED, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.STEP_UP_CHALLENGE_CARDHOLDER_DISMISSED);
         break;
       case 'unavailable':
-        recordEvent('step_up_challenge_unavailable', 'PaymentSheet', 'challenge page never loaded');
+        recordEvent(AccountEventName.STEP_UP_CHALLENGE_UNAVAILABLE, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.STEP_UP_CHALLENGE_NEVER_LOADED);
         break;
     }
     if (challengeResult === 'unavailable') {
@@ -164,7 +165,7 @@ async function pollForTerminal(
       }
     } catch (err) {
       if (attempt === maxAttempts) {
-        recordEvent('charge_poll_exhausted', 'PaymentSheet', 'reload failed on final poll attempt');
+        recordEvent(AccountEventName.CHARGE_POLL_EXHAUSTED, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.CHARGE_POLL_RELOAD_FAILED);
         throw frameError(
           ErrorCodes.API_NETWORK,
           `Could not read the payment status after ${maxAttempts} attempts: ` +
@@ -175,6 +176,6 @@ async function pollForTerminal(
     await sleep(intervalMs);
   }
 
-  recordEvent('charge_poll_timed_out', 'PaymentSheet');
+  recordEvent(AccountEventName.CHARGE_POLL_TIMED_OUT, AccountEventScreen.PAYMENT_SHEET);
   return { status: 'timed_out' };
 }

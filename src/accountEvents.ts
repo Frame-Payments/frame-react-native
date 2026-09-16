@@ -1,6 +1,7 @@
 import { AppState, type AppStateStatus } from 'react-native';
 import { getAccountId, getPublishableKey } from './config';
 import { FRAME_API_BASE_URL, SDK_VERSION, SDK_VERSION_HEADER, frameUserAgent } from './client';
+import type { AccountEventName, AccountEventScreen } from './accountEventCatalog';
 
 const MAX_QUEUE_SIZE = 100;
 const MAX_BATCH_SIZE = 100;
@@ -28,7 +29,13 @@ let flushTimer: ReturnType<typeof setInterval> | null = null;
 let appStateSubscription: { remove: () => void } | null = null;
 let flushing: Promise<void> | null = null;
 
-export function recordEvent(name: string, screen: string, detail?: string): void {
+/**
+ * `name` and `screen` are typed as {@link AccountEventName}/{@link AccountEventScreen}
+ * union members for the common case, but widened to `string` to admit the few call sites
+ * that legitimately compute one dynamically (a per-step key, or an idv-category-derived
+ * event name) rather than picking a fixed catalog value.
+ */
+export function recordEvent(name: AccountEventName | (string & {}), screen: AccountEventScreen | (string & {}), detail?: string): void {
   const accountId = getAccountId();
   if (!accountId) return;
 

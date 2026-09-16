@@ -4,6 +4,7 @@ import { useFrameTheme } from '../../../theme/ThemeContext';
 import { Button } from '../../../primitives/Button';
 import { client } from '../../../../client';
 import { recordEvent } from '../../../../accountEvents';
+import { AccountEventName, AccountEventScreen } from '../../../../accountEventCatalog';
 import { showToast } from '../../../primitives/toastCenter';
 import { FORM_SPACING } from '../formSpacing';
 
@@ -31,9 +32,9 @@ export function GeolocationScreen({ accountId, onAdvance }: GeolocationScreenPro
     (async () => {
       try {
         if (accountId) {
-          recordEvent('compliance_check_started', 'Compliance');
+          recordEvent(AccountEventName.COMPLIANCE_CHECK_STARTED, AccountEventScreen.COMPLIANCE);
           await client.sdk.geoCompliance.getAccountStatus(accountId);
-          recordEvent('compliance_check_passed', 'Compliance');
+          recordEvent(AccountEventName.COMPLIANCE_CHECK_PASSED, AccountEventScreen.COMPLIANCE);
         }
       } catch (err) {
         if (cancelled) return;
@@ -41,7 +42,7 @@ export function GeolocationScreen({ accountId, onAdvance }: GeolocationScreenPro
         showToast(message);
         // Non-blocking: RN advances the flow even on failure, so this is
         // recorded but never gates onAdvance below.
-        recordEvent('compliance_check_failed', 'Compliance', message);
+        recordEvent(AccountEventName.COMPLIANCE_CHECK_FAILED, AccountEventScreen.COMPLIANCE, message);
       } finally {
         if (!cancelled) {
           setDone(true);

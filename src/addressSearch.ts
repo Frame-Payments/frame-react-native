@@ -3,6 +3,7 @@ import { frameRequestHeaders } from './bespokeRequest';
 import { FRAME_API_BASE_URL } from './client';
 import { subregionsForCountry } from './addressSubregions';
 import { recordEvent } from './accountEvents';
+import { AccountEventName, AccountEventScreen, AccountEventDetail } from './accountEventCatalog';
 import type { BillingAddress } from './types';
 
 const MAPBOX_SEARCH_BASE = 'https://api.mapbox.com/search/searchbox/v1';
@@ -114,7 +115,7 @@ export async function suggestAddresses(
         cachedToken = undefined;
         cachedExpiresAt = undefined;
       }
-      recordEvent('address_search_failed', 'AddressSearch', `HTTP ${response.status}`);
+      recordEvent(AccountEventName.ADDRESS_SEARCH_FAILED, AccountEventScreen.ADDRESS_SEARCH, `HTTP ${response.status}`);
       return [];
     }
     const body = (await response.json()) as MapboxSuggestResponse;
@@ -128,10 +129,10 @@ export async function suggestAddresses(
         };
       })
       .filter((s): s is AddressSuggestion => s !== null);
-    recordEvent('address_searched', 'AddressSearch');
+    recordEvent(AccountEventName.ADDRESS_SEARCHED, AccountEventScreen.ADDRESS_SEARCH);
     return results;
   } catch (err) {
-    recordEvent('address_search_failed', 'AddressSearch', err instanceof Error ? err.message : undefined);
+    recordEvent(AccountEventName.ADDRESS_SEARCH_FAILED, AccountEventScreen.ADDRESS_SEARCH, err instanceof Error ? err.message : undefined);
     return [];
   }
 }
@@ -151,21 +152,21 @@ export async function retrieveAddress(suggestion: AddressSuggestion): Promise<Bi
         cachedToken = undefined;
         cachedExpiresAt = undefined;
       }
-      recordEvent('address_lookup_failed', 'AddressSearch', `HTTP ${response.status}`);
+      recordEvent(AccountEventName.ADDRESS_LOOKUP_FAILED, AccountEventScreen.ADDRESS_SEARCH, `HTTP ${response.status}`);
       return null;
     }
     const body = (await response.json()) as MapboxRetrieveResponse;
     const feature = body.features?.[0];
     if (!feature) {
-      recordEvent('address_lookup_failed', 'AddressSearch', 'no feature returned');
+      recordEvent(AccountEventName.ADDRESS_LOOKUP_FAILED, AccountEventScreen.ADDRESS_SEARCH, AccountEventDetail.ADDRESS_LOOKUP_NO_FEATURE_RETURNED);
       return null;
     }
 
     sessionToken = cryptoRandomUUID();
-    recordEvent('address_suggestion_selected', 'AddressSearch');
+    recordEvent(AccountEventName.ADDRESS_SUGGESTION_SELECTED, AccountEventScreen.ADDRESS_SEARCH);
     return billingAddressFromFeature(feature);
   } catch (err) {
-    recordEvent('address_lookup_failed', 'AddressSearch', err instanceof Error ? err.message : undefined);
+    recordEvent(AccountEventName.ADDRESS_LOOKUP_FAILED, AccountEventScreen.ADDRESS_SEARCH, err instanceof Error ? err.message : undefined);
     return null;
   }
 }
