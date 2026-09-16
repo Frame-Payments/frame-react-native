@@ -6,6 +6,8 @@ import { PaymentMethodRow } from '../../../primitives/PaymentMethodRow';
 import { Icon, type IconName } from '../../../assets';
 import type { OnboardingState } from '../onboardingReducer';
 import { FORM_SPACING } from '../formSpacing';
+import { recordEvent } from '../../../../accountEvents';
+import { AccountEventName, AccountEventScreen } from '../../../../accountEventCatalog';
 
 // Select a saved card or add a new one. The Continue handler is owned by the
 // parent (OnboardingRoot) and mirrors iOS SelectPaymentMethodView's
@@ -87,7 +89,10 @@ export function SelectPaymentMethodScreen({
                   title={cardTitle(pm)}
                   subtitle={cardSubtitle(pm) ?? undefined}
                   selected={state.selectedPaymentMethodId === pm.id}
-                  onPress={() => onSelectMethod(pm.id)}
+                  onPress={() => {
+                    recordEvent(AccountEventName.SAVED_PAYMENT_METHOD_SELECTED, AccountEventScreen.PAYMENT_METHOD);
+                    onSelectMethod(pm.id);
+                  }}
                   icon={<Icon name={brandIconName(pm.card?.brand)} width={40} height={28} />}
                   testID={`onboarding.pm.${pm.id}`}
                 />

@@ -2,6 +2,8 @@ import { NativeModules, Platform } from 'react-native';
 import { sha256 } from 'js-sha256';
 import { client } from './client';
 import { ErrorCodes, frameError } from './errors';
+import { recordEvent } from './accountEvents';
+import { AccountEventName, AccountEventScreen } from './accountEventCatalog';
 
 const LINKING_ERROR =
   "The native module 'FrameAttestation' isn't linked. " +
@@ -73,9 +75,18 @@ let inflightEnsureAttested: Promise<string> | null = null;
  */
 export function ensureAttested(): Promise<string> {
   if (inflightEnsureAttested) return inflightEnsureAttested;
-  inflightEnsureAttested = runEnsureAttested().finally(() => {
-    inflightEnsureAttested = null;
-  });
+  inflightEnsureAttested = runEnsureAttested()
+    .then((keyId) => {
+      recordEvent(AccountEventName.ATTESTATION_COMPLETED, AccountEventScreen.PAYMENT_SHEET);
+      return keyId;
+    })
+    .catch((err) => {
+      recordEvent(AccountEventName.DEVICE_ATTESTATION_FAILED, AccountEventScreen.PAYMENT_SHEET, err instanceof Error ? err.message : undefined);
+      throw err;
+    })
+    .finally(() => {
+      inflightEnsureAttested = null;
+    });
   return inflightEnsureAttested;
 }
 
@@ -85,7 +96,10 @@ async function runEnsureAttested(): Promise<string> {
   const existing = await FrameAttestation.attestedKeyId();
   if (existing) return existing;
 
+  recordEvent(AccountEventName.ATTESTATION_STARTED, AccountEventScreen.PAYMENT_SHEET);
+
   if (!(await FrameAttestation.isSupported())) {
+    recordEvent(AccountEventName.ATTESTATION_NOT_SUPPORTED, AccountEventScreen.PAYMENT_SHEET);
     throw frameError(
       ErrorCodes.NOT_ATTESTED,
       'App Attest is not supported on this device (iOS 14+ on a real device required).',
@@ -197,6 +211,7 @@ export async function generateAssertionForPayment(paymentData: Uint8Array): Prom
     if ((err as { code?: string }).code !== ErrorCodes.ATTESTATION_FAILED) throw err;
     await FrameAttestation.resetAttestation();
     await ensureAttested();
+    recordEvent(AccountEventName.ATTESTATION_ASSERTION_RETRIED, AccountEventScreen.PAYMENT_SHEET);
     return assertOnce(paymentData);
   }
 }
@@ -205,6 +220,7 @@ export async function generateAssertionForPayment(paymentData: Uint8Array): Prom
 export async function resetAttestation(): Promise<void> {
   guardIos();
   await FrameAttestation.resetAttestation();
+  recordEvent(AccountEventName.ATTESTATION_RESET, AccountEventScreen.PAYMENT_SHEET);
 }
 
 // ----- helpers -----

@@ -15,6 +15,8 @@ import {
 import { electPayoutMethod } from '../../../payoutMethod';
 import { normalizeSubregion } from '../../../addressSubregions';
 import { ensureOnboardingSession } from '../../../onboardingSession';
+import { recordEvent } from '../../../accountEvents';
+import { AccountEventName, AccountEventScreen, AccountEventDetail } from '../../../accountEventCatalog';
 import { setSiftUserId } from '../../../sift';
 import { isNotFoundError } from '../../../api-errors';
 import { beginOnboardingSession, endOnboardingSession } from '../../../auth';
@@ -329,6 +331,7 @@ export function useOnboardingViewModel({
   const cancel = useCallback(() => {
     if (completedRef.current) return;
     completedRef.current = true;
+    recordEvent(AccountEventName.ONBOARDING_CANCELLED, stateRef.current.currentStep);
     onCancel();
   }, [onCancel]);
 
@@ -344,6 +347,20 @@ export function useOnboardingViewModel({
         ? resolveOnboardingOutcome(account, originallyRequiredCapabilitiesRef.current)
         : { status: 'pending_review' };
       dispatch({ type: 'SET_FINAL_OUTCOME', outcome });
+      switch (outcome.status) {
+        case 'approved':
+          recordEvent(AccountEventName.ONBOARDING_COMPLETED, AccountEventScreen.ONBOARDING, AccountEventDetail.ONBOARDING_COMPLETED_APPROVED);
+          break;
+        case 'pending_review':
+          recordEvent(AccountEventName.ONBOARDING_NEEDS_REVIEW, AccountEventScreen.ONBOARDING);
+          break;
+        case 'declined':
+          recordEvent(AccountEventName.ONBOARDING_DECLINED, AccountEventScreen.ONBOARDING, outcome.message);
+          break;
+        case 'action_required':
+          recordEvent(AccountEventName.ONBOARDING_ACTION_REQUIRED, AccountEventScreen.ONBOARDING, outcome.message);
+          break;
+      }
       return outcome;
     } finally {
       dispatch({ type: 'SET_RESOLVING_OUTCOME', resolving: false });
@@ -415,6 +432,9 @@ export function useOnboardingViewModel({
         throw frameError(ErrorCodes.VALIDATION_FAILED, 'Resolve the highlighted fields and try again.');
       }
       const forceFrameOtp = opts?.forceFrameOtp === true;
+      if (current.pendingVerificationId === null) {
+        recordEvent(AccountEventName.PHONE_VERIFICATION_STARTED, AccountEventScreen.PHONE_VERIFICATION);
+      }
 
       // Create an empty individual account if none exists, then OTP. Mirrors
       // iOS createEmptyIndividualAccount. The SDK types name + email as
@@ -437,11 +457,32 @@ export function useOnboardingViewModel({
             },
           },
         };
-        const account = await client.sdk.accounts.create(
-          createParams as unknown as Parameters<typeof client.sdk.accounts.create>[0],
-        );
+        let account: Awaited<ReturnType<typeof client.sdk.accounts.create>>;
+        try {
+          account = await client.sdk.accounts.create(
+            createParams as unknown as Parameters<typeof client.sdk.accounts.create>[0],
+          );
+        } catch (err) {
+          if (current.termsOfServiceToken) {
+            recordEvent(
+              AccountEventName.TERMS_OF_SERVICE_ACCEPT_FAILED,
+              AccountEventScreen.TERMS_OF_SERVICE,
+              err instanceof Error ? err.message : undefined,
+            );
+          }
+          recordEvent(
+            AccountEventName.ONBOARDING_SESSION_START_FAILED,
+            AccountEventScreen.ONBOARDING,
+            err instanceof Error ? err.message : undefined,
+          );
+          throw err;
+        }
         if (!account?.id) {
+          recordEvent(AccountEventName.ONBOARDING_SESSION_START_FAILED, AccountEventScreen.ONBOARDING, AccountEventDetail.ONBOARDING_SESSION_NO_ACCOUNT_ID);
           throw frameError(ErrorCodes.PAYMENT_FAILED, 'Frame returned no account id.');
+        }
+        if (current.termsOfServiceToken) {
+          recordEvent(AccountEventName.TERMS_OF_SERVICE_ACCEPTED, AccountEventScreen.TERMS_OF_SERVICE);
         }
         accountId = account.id;
         dispatch({ type: 'SET_ACCOUNT_ID', id: accountId });
@@ -464,15 +505,27 @@ export function useOnboardingViewModel({
         });
       }
 
+      const isResend = current.pendingVerificationId !== null;
       const e164 = `+${current.phoneCountry.callingCode}${current.phoneNumber.replace(/\D+/g, '')}`;
       const dateOfBirth = dobIso(current);
-      const verification = await client.sdk.phoneVerifications.create(
-        accountId,
-        {
-          phone_number: e164,
-          ...(dateOfBirth ? { date_of_birth: dateOfBirth } : {}),
-        } as unknown as Parameters<typeof client.sdk.phoneVerifications.create>[1],
-      );
+      let verification: Awaited<ReturnType<typeof client.sdk.phoneVerifications.create>>;
+      try {
+        verification = await client.sdk.phoneVerifications.create(
+          accountId,
+          {
+            phone_number: e164,
+            ...(dateOfBirth ? { date_of_birth: dateOfBirth } : {}),
+          } as unknown as Parameters<typeof client.sdk.phoneVerifications.create>[1],
+        );
+      } catch (err) {
+        recordEvent(
+          isResend ? AccountEventName.PHONE_CODE_RESEND_FAILED : AccountEventName.PHONE_CODE_SEND_FAILED,
+          AccountEventScreen.PHONE_VERIFICATION,
+          err instanceof Error ? err.message : undefined,
+        );
+        throw err;
+      }
+      recordEvent(isResend ? AccountEventName.PHONE_CODE_RESENT : AccountEventName.PHONE_CODE_SENT, AccountEventScreen.PHONE_VERIFICATION);
 
       const rawProveAuthToken = (verification as { prove_auth_token?: string }).prove_auth_token ?? null;
 
@@ -485,6 +538,11 @@ export function useOnboardingViewModel({
 
       const proveAuthToken = forceFrameOtp ? null : rawProveAuthToken;
       const ui: VerifyPhoneUi = proveAuthToken ? 'loading_prove' : 'otp_frame_api';
+      if (ui === 'otp_frame_api') {
+        recordEvent(AccountEventName.PHONE_CODE_ENTRY_STARTED, AccountEventScreen.PHONE_VERIFICATION);
+      } else {
+        recordEvent(AccountEventName.SILENT_PHONE_AUTH_STARTED, AccountEventScreen.PHONE_VERIFICATION, AccountEventDetail.PROVE_PROVIDER);
+      }
       dispatch({
         type: 'SET_VERIFY_PHONE',
         verificationId: verification.id,
@@ -529,11 +587,17 @@ export function useOnboardingViewModel({
       if (!current.accountId || !current.pendingVerificationId) {
         throw frameError(ErrorCodes.PAYMENT_FAILED, 'Phone verification session expired. Restart the step.');
       }
-      await client.sdk.phoneVerifications.confirm(
-        current.accountId,
-        current.pendingVerificationId,
-        { code: current.otpCode },
-      );
+      try {
+        await client.sdk.phoneVerifications.confirm(
+          current.accountId,
+          current.pendingVerificationId,
+          { code: current.otpCode },
+        );
+      } catch (err) {
+        recordEvent(AccountEventName.PHONE_CODE_INCORRECT, AccountEventScreen.PHONE_VERIFICATION);
+        throw err;
+      }
+      recordEvent(AccountEventName.PHONE_VERIFIED, AccountEventScreen.PHONE_VERIFICATION);
       await refreshAccountAfterPhoneVerify();
       dispatch({ type: 'SET_SUB_STEP', subStep: 'customer_information' });
     });
@@ -549,12 +613,15 @@ export function useOnboardingViewModel({
       current.pendingVerificationId,
       {} as unknown as Parameters<typeof client.sdk.phoneVerifications.confirm>[2],
     );
+    recordEvent(AccountEventName.SILENT_PHONE_AUTH_COMPLETED, AccountEventScreen.PHONE_VERIFICATION, AccountEventDetail.PROVE_PROVIDER);
   }, []);
 
   const runGovernmentIdVerification = useCallback(async (opts?: { mandatory?: boolean }) => {
+    recordEvent(AccountEventName.STEP_UP_STARTED, AccountEventScreen.IDENTITY_VERIFICATION, AccountEventDetail.PERSONA_PROVIDER);
     const { inquiryId } = await createIdvSession();
     const preCheck = await completeIdvSession(inquiryId);
     if (preCheck === 'verified') {
+      recordEvent(AccountEventName.STEP_UP_ALREADY_VERIFIED, AccountEventScreen.IDENTITY_VERIFICATION);
       dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId });
       return;
     }
@@ -563,22 +630,30 @@ export function useOnboardingViewModel({
     } catch (err) {
       if ((err as { code?: string }).code === ErrorCodes.USER_CANCELED) {
         showToast('Identity verification was cancelled.');
+        recordEvent(AccountEventName.STEP_UP_CANCELLED, AccountEventScreen.IDENTITY_VERIFICATION);
+      } else if ((err as { code?: string }).code === ErrorCodes.PERSONA_UNAVAILABLE) {
+        recordEvent(AccountEventName.STEP_UP_PROVIDER_UNAVAILABLE, AccountEventScreen.IDENTITY_VERIFICATION);
+      } else {
+        recordEvent(AccountEventName.STEP_UP_FAILED, AccountEventScreen.IDENTITY_VERIFICATION);
       }
       throw err;
     }
     const completion = await completeIdvSessionDetailed(inquiryId);
     if (completion.status === 'pending') {
+      recordEvent(AccountEventName.STEP_UP_UNAVAILABLE, AccountEventScreen.IDENTITY_VERIFICATION, AccountEventDetail.STEP_UP_CATEGORY_TRANSIENT);
       throw frameError(
         ErrorCodes.PAYMENT_FAILED,
         'We could not reach our verification service just now. Please try again in a moment.',
       );
     }
     if (completion.status === 'not_verified') {
+      recordEvent(idvCategoryEventName(completion.category), AccountEventScreen.IDENTITY_VERIFICATION, idvCategoryDetail(completion.category));
       throw frameError(
         ErrorCodes.PAYMENT_FAILED,
         idvFailureMessage(completion, opts?.mandatory === true),
       );
     }
+    recordEvent(AccountEventName.STEP_UP_COMPLETED, AccountEventScreen.IDENTITY_VERIFICATION);
     dispatch({ type: 'SET_IDENTITY_VERIFIED_VIA_GOV_ID', verified: true, inquiryId });
   }, []);
 
@@ -588,6 +663,7 @@ export function useOnboardingViewModel({
       const errors = validateCustomerInformation(current);
       if (Object.keys(errors).length > 0) {
         dispatch({ type: 'SET_FIELD_ERRORS', errors });
+        recordEvent(AccountEventName.PROFILE_VALIDATION_FAILED, AccountEventScreen.PERSONAL_INFORMATION, Object.keys(errors).join(','));
         throw frameError(ErrorCodes.VALIDATION_FAILED, 'Resolve the highlighted fields and try again.');
       }
       if (!current.accountId) {
@@ -620,14 +696,36 @@ export function useOnboardingViewModel({
       };
       
       const updateBody: Record<string, unknown> = { profile: { individual } };
+      const attachingTos = !current.existingAccountHasTOS && current.termsOfServiceToken != null;
       if (!current.existingAccountHasTOS) {
         const tos = buildTosPayload(current.termsOfServiceToken);
         if (tos) updateBody.terms_of_service = tos;
       }
-      const updatedAccount = await client.sdk.accounts.update(
-        current.accountId,
-        updateBody as Parameters<typeof client.sdk.accounts.update>[1],
-      );
+      let updatedAccount: Awaited<ReturnType<typeof client.sdk.accounts.update>>;
+      try {
+        updatedAccount = await client.sdk.accounts.update(
+          current.accountId,
+          updateBody as Parameters<typeof client.sdk.accounts.update>[1],
+        );
+      } catch (err) {
+        recordEvent(
+          AccountEventName.PROFILE_UPDATE_FAILED,
+          AccountEventScreen.PERSONAL_INFORMATION,
+          err instanceof Error ? err.message : undefined,
+        );
+        if (attachingTos) {
+          recordEvent(
+            AccountEventName.TERMS_OF_SERVICE_ACCEPT_FAILED,
+            AccountEventScreen.TERMS_OF_SERVICE,
+            err instanceof Error ? err.message : undefined,
+          );
+        }
+        throw err;
+      }
+      recordEvent(AccountEventName.PROFILE_UPDATED, AccountEventScreen.PERSONAL_INFORMATION);
+      if (attachingTos) {
+        recordEvent(AccountEventName.TERMS_OF_SERVICE_ACCEPTED, AccountEventScreen.TERMS_OF_SERVICE);
+      }
       // Subsequent updates within this session should not re-send the TOS
       // payload (mirrors iOS behavior — `existingAccountHasTOS` flips after
       // first acceptance).
@@ -651,6 +749,7 @@ export function useOnboardingViewModel({
 
       const blocked = resolveBlockedOutcome(updatedAccount, originallyRequiredCapabilitiesRef.current);
       if (blocked) {
+        recordEvent(AccountEventName.ONBOARDING_BLOCKED, AccountEventScreen.ONBOARDING, blocked.status);
         dispatch({ type: 'SET_FINAL_OUTCOME', outcome: blocked });
         if (showCompletionScreen) {
           dispatch({ type: 'GO_TO_STEP', step: 'verification_submitted', subStep: null });
@@ -669,6 +768,7 @@ export function useOnboardingViewModel({
       // they can retry rather than landing on a later step that cannot succeed.
       if (governmentIdRequired(refreshed) && !refreshed.identityVerifiedViaGovId) {
         if (!isPersonaAvailable()) {
+          recordEvent(AccountEventName.STEP_UP_PROVIDER_UNAVAILABLE, AccountEventScreen.IDENTITY_VERIFICATION);
           throw frameError(
             ErrorCodes.PERSONA_UNAVAILABLE,
             'This account requires government-ID verification, which needs the ' +
@@ -698,12 +798,18 @@ export function useOnboardingViewModel({
     return guardedAction(async () => {
       const current = stateRef.current;
       if (!current.accountId) return;
+      recordEvent(AccountEventName.PAYMENT_METHOD_STEP_STARTED, AccountEventScreen.PAYMENT_METHOD);
       try {
         const resp = await client.sdk.accounts.getPaymentMethods(current.accountId);
         // Cards only on this step; ACH lives on the payout step.
         const cards = (resp.data ?? []).filter((m) => m.card != null);
         dispatch({ type: 'SET_SAVED_PAYMENT_METHODS', methods: cards });
-      } catch {
+      } catch (err) {
+        recordEvent(
+          AccountEventName.SAVED_PAYMENT_METHODS_LOAD_FAILED,
+          AccountEventScreen.PAYMENT_METHOD,
+          err instanceof Error ? err.message : undefined,
+        );
         dispatch({ type: 'SET_SAVED_PAYMENT_METHODS', methods: [] });
       }
     });
@@ -712,6 +818,7 @@ export function useOnboardingViewModel({
   const submitNewCard = useCallback(
     async (card: { pan: string; expirationMonth: string; expirationYear: string; cvc: string }): Promise<string> => {
       return guardedAction(async () => {
+        recordEvent(AccountEventName.ADD_PAYMENT_METHOD_STARTED, AccountEventScreen.PAYMENT_METHOD);
         const current = stateRef.current;
         if (!current.accountId) {
           throw frameError(ErrorCodes.PAYMENT_FAILED, 'No account id present.');
@@ -735,21 +842,33 @@ export function useOnboardingViewModel({
           country: current.address.country,
           postal_code: current.address.postalCode,
         };
-        const pm = await client.sdk.paymentMethods.createCard({
-          type: PaymentMethodType.CARD,
-          account: current.accountId,
-          card_number: encryptedPan,
-          exp_month: card.expirationMonth,
-          exp_year: card.expirationYear,
-          cvc: encryptedCvc,
-          billing,
-        });
+        let pm: Awaited<ReturnType<typeof client.sdk.paymentMethods.createCard>>;
+        try {
+          pm = await client.sdk.paymentMethods.createCard({
+            type: PaymentMethodType.CARD,
+            account: current.accountId,
+            card_number: encryptedPan,
+            exp_month: card.expirationMonth,
+            exp_year: card.expirationYear,
+            cvc: encryptedCvc,
+            billing,
+          });
+        } catch (err) {
+          recordEvent(
+            AccountEventName.PAYMENT_METHOD_ADD_FAILED,
+            AccountEventScreen.PAYMENT_METHOD,
+            err instanceof Error ? err.message : undefined,
+          );
+          throw err;
+        }
         if (!pm?.id) {
+          recordEvent(AccountEventName.PAYMENT_METHOD_ADD_FAILED, AccountEventScreen.PAYMENT_METHOD, AccountEventDetail.NO_PAYMENT_METHOD_ID_RETURNED);
           throw frameError(ErrorCodes.PAYMENT_METHOD_FAILED, 'Frame returned no payment method id.');
         }
-        
+
         dispatch({ type: 'APPEND_SAVED_PAYMENT_METHOD', method: pm });
         dispatch({ type: 'SELECT_PAYMENT_METHOD', id: pm.id });
+        recordEvent(AccountEventName.PAYMENT_METHOD_ADDED, AccountEventScreen.PAYMENT_METHOD);
         return pm.id;
       });
     },
@@ -874,11 +993,17 @@ export function useOnboardingViewModel({
     return guardedAction(async () => {
       const current = stateRef.current;
       if (!current.accountId) return;
+      recordEvent(AccountEventName.PAYOUT_METHOD_STEP_STARTED, AccountEventScreen.PAYOUT_METHOD);
       try {
         const resp = await client.sdk.accounts.getPaymentMethods(current.accountId);
         const achs = (resp.data ?? []).filter((m) => m.ach != null);
         dispatch({ type: 'SET_SAVED_PAYOUT_METHODS', methods: achs });
-      } catch {
+      } catch (err) {
+        recordEvent(
+          AccountEventName.SAVED_PAYOUT_METHODS_LOAD_FAILED,
+          AccountEventScreen.PAYOUT_METHOD,
+          err instanceof Error ? err.message : undefined,
+        );
         dispatch({ type: 'SET_SAVED_PAYOUT_METHODS', methods: [] });
       }
     });
@@ -896,6 +1021,7 @@ export function useOnboardingViewModel({
 
   const submitManualAch = useCallback(async (): Promise<string> => {
     return guardedAction(async () => {
+      recordEvent(AccountEventName.ADD_PAYOUT_METHOD_STARTED, AccountEventScreen.PAYOUT_METHOD, AccountEventDetail.PAYOUT_METHOD_MANUAL);
       const current = stateRef.current;
       if (!current.accountId) {
         throw frameError(ErrorCodes.PAYMENT_FAILED, 'No account id present.');
@@ -914,21 +1040,33 @@ export function useOnboardingViewModel({
         country: 'US',
         postal_code: current.address.postalCode,
       };
-      const pm = await client.sdk.paymentMethods.createACH({
-        type: PaymentMethodType.ACH,
-        account: current.accountId,
-        account_type:
-          current.ach.accountType === 'savings'
-            ? PaymentAccountType.SAVINGS
-            : PaymentAccountType.CHECKING,
-        account_number: current.ach.accountNumber,
-        routing_number: current.ach.routingNumber,
-        billing,
-      });
+      let pm: Awaited<ReturnType<typeof client.sdk.paymentMethods.createACH>>;
+      try {
+        pm = await client.sdk.paymentMethods.createACH({
+          type: PaymentMethodType.ACH,
+          account: current.accountId,
+          account_type:
+            current.ach.accountType === 'savings'
+              ? PaymentAccountType.SAVINGS
+              : PaymentAccountType.CHECKING,
+          account_number: current.ach.accountNumber,
+          routing_number: current.ach.routingNumber,
+          billing,
+        });
+      } catch (err) {
+        recordEvent(
+          AccountEventName.PAYOUT_METHOD_ADD_FAILED,
+          AccountEventScreen.PAYOUT_METHOD,
+          err instanceof Error ? err.message : undefined,
+        );
+        throw err;
+      }
       if (!pm?.id) {
+        recordEvent(AccountEventName.PAYOUT_METHOD_ADD_FAILED, AccountEventScreen.PAYOUT_METHOD, AccountEventDetail.NO_PAYMENT_METHOD_ID_RETURNED);
         throw frameError(ErrorCodes.PAYMENT_METHOD_FAILED, 'Frame returned no payment method id.');
       }
       dispatch({ type: 'SELECT_PAYOUT_METHOD', id: pm.id });
+      recordEvent(AccountEventName.PAYOUT_METHOD_ADDED, AccountEventScreen.PAYOUT_METHOD, AccountEventDetail.PAYOUT_METHOD_MANUAL_ACH);
       return pm.id;
     });
   }, [guardedAction]);
@@ -967,7 +1105,10 @@ export function useOnboardingViewModel({
       if (!current.accountId) {
         throw frameError(ErrorCodes.PAYMENT_FAILED, 'No account id present.');
       }
+      recordEvent(AccountEventName.ADD_PAYOUT_METHOD_STARTED, AccountEventScreen.PAYOUT_METHOD, AccountEventDetail.PAYOUT_METHOD_PLAID);
+      recordEvent(AccountEventName.BANK_LINK_STARTED, AccountEventScreen.PAYOUT_METHOD, AccountEventDetail.PLAID_PROVIDER);
       const linkResult: PlaidConnectResult = await runPlaidLink({ accountId: current.accountId });
+      recordEvent(AccountEventName.BANK_LINK_COMPLETED, AccountEventScreen.PAYOUT_METHOD, AccountEventDetail.PLAID_PROVIDER);
       const pm = await client.sdk.paymentMethods.connectPlaidBankAccount({
         account: current.accountId,
         public_token: linkResult.publicToken,
@@ -976,9 +1117,11 @@ export function useOnboardingViewModel({
         subtype: linkResult.subtype,
       });
       if (!pm?.id) {
+        recordEvent(AccountEventName.PAYOUT_METHOD_ADD_FAILED, AccountEventScreen.PAYOUT_METHOD, AccountEventDetail.NO_PAYMENT_METHOD_ID_RETURNED);
         throw frameError(ErrorCodes.PAYMENT_METHOD_FAILED, 'Frame returned no payment method id.');
       }
       dispatch({ type: 'SELECT_PAYOUT_METHOD', id: pm.id });
+      recordEvent(AccountEventName.PAYOUT_METHOD_ADDED, AccountEventScreen.PAYOUT_METHOD, AccountEventDetail.PAYOUT_METHOD_PLAID);
       return pm.id;
     });
   }, [guardedAction]);
@@ -1111,6 +1254,7 @@ export function useOnboardingViewModel({
   // we can later attach to account.create / account.update payloads.
   const generateTermsOfServiceToken = useCallback(async () => {
     if (stateRef.current.termsOfServiceToken) return;
+    recordEvent(AccountEventName.TERMS_OF_SERVICE_SHOWN, AccountEventScreen.TERMS_OF_SERVICE);
     try {
       // terms_of_service is a merchant-level endpoint that rejects the
       // onboarding session token, so force the pk_ even while a session is
@@ -1119,7 +1263,12 @@ export function useOnboardingViewModel({
       if (response?.token) {
         dispatch({ type: 'SET_TERMS_OF_SERVICE_TOKEN', token: response.token });
       }
-    } catch {
+    } catch (err) {
+      recordEvent(
+        AccountEventName.TERMS_OF_SERVICE_TOKEN_FAILED,
+        AccountEventScreen.TERMS_OF_SERVICE,
+        err instanceof Error ? err.message : undefined,
+      );
       // iOS silently `print(error)` and proceeds — the account create/update
       // still goes through, just without the token. Match that behavior.
     }
@@ -1236,6 +1385,28 @@ function existingIntentIdFrom(error: unknown): string | null {
 function dobIso(state: Pick<OnboardingState, 'dobYear' | 'dobMonth' | 'dobDay'>): string | undefined {
   if (!state.dobYear || !state.dobMonth || !state.dobDay) return undefined;
   return `${state.dobYear}-${state.dobMonth.padStart(2, '0')}-${state.dobDay.padStart(2, '0')}`;
+}
+
+// Maps idv.ts's 5-category failure classification to its catalog event.
+function idvCategoryEventName(category: string | undefined): string {
+  switch (category) {
+    case 'review':
+      return 'step_up_needs_review';
+    case 'retriable_with_new_data':
+      return 'step_up_data_mismatch';
+    case 'step_up':
+      return 'step_up_escalated';
+    case 'terminal':
+      return 'step_up_declined';
+    case 'transient':
+      return 'step_up_unavailable';
+    default:
+      return 'step_up_failed';
+  }
+}
+
+function idvCategoryDetail(category: string | undefined): string | undefined {
+  return category ? `category: ${category}` : undefined;
 }
 
 // Mirrors iOS OnboardingContainerViewModel.checkExistingAccount(updateCapabilies:

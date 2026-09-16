@@ -7,6 +7,8 @@ import { setSiftUserId } from '../../../sift';
 import { normalizeSubregion } from '../../../addressSubregions';
 import { __internal as configInternal } from '../../../config';
 import { ErrorCodes, frameError } from '../../../errors';
+import { recordEvent } from '../../../accountEvents';
+import { AccountEventName, AccountEventScreen, AccountEventDetail } from '../../../accountEventCatalog';
 import {
   confirmCharge,
   requiresConfirmation,
@@ -120,6 +122,7 @@ export function useCheckoutViewModel({
     // Set the sync guard immediately. Anything that throws below the guard
     // must clear it in the catch path — otherwise the next tap is wedged.
     performingRef.current = true;
+    recordEvent(AccountEventName.CHECKOUT_STARTED, AccountEventScreen.PAYMENT_SHEET);
 
     try {
       // Checkout tokenizes the card and creates a transfer — both server-only
@@ -132,19 +135,25 @@ export function useCheckoutViewModel({
       const validation = validateForSubmit(current);
       if (!validation.isValid) {
         dispatch({ type: 'SET_FIELD_ERRORS', errors: validation.fieldErrors });
+        const firstField = Object.keys(validation.fieldErrors)[0];
+        recordEvent(AccountEventName.CHECKOUT_VALIDATION_FAILED, AccountEventScreen.PAYMENT_SHEET, firstField);
         throw frameError(ErrorCodes.VALIDATION_FAILED, 'Resolve the highlighted fields and try again.');
       }
 
       const usingSaved = isUsingSavedCard(current);
+      recordEvent(AccountEventName.CHECKOUT_PAYMENT_METHOD_SELECTED, AccountEventScreen.PAYMENT_SHEET, usingSaved ? 'saved' : 'new');
       if (!usingSaved) {
         const cardErrors = cardFieldRef.current?.validate() ?? null;
         if (cardErrors) {
           const firstError =
             cardErrors.pan ?? cardErrors.expiry ?? cardErrors.cvc ?? 'Enter valid card details';
+          const firstField = cardErrors.pan ? 'pan' : cardErrors.expiry ? 'expiry' : 'cvc';
+          recordEvent(AccountEventName.CHECKOUT_VALIDATION_FAILED, AccountEventScreen.PAYMENT_SHEET, firstField);
           throw frameError(ErrorCodes.VALIDATION_FAILED, firstError);
         }
       }
 
+      recordEvent(AccountEventName.CHECKOUT_PAYMENT_STARTED, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.CHECKOUT_PAY_BUTTON_TAPPED);
       dispatch({ type: 'SET_PERFORMING_ACTION', value: true });
       let paymentMethodId: string;
 
@@ -169,18 +178,30 @@ export function useCheckoutViewModel({
             }
           : undefined;
 
-        const pm = await client.sdk.paymentMethods.createCard({
-          type: PaymentMethodType.CARD,
-          account: accountIdRef.current,
-          card_number: encryptedPan,
-          exp_month: card.expirationMonth,
-          exp_year: card.expirationYear,
-          cvc: encryptedCvc,
-          billing,
-        });
+        let pm: Awaited<ReturnType<typeof client.sdk.paymentMethods.createCard>>;
+        try {
+          pm = await client.sdk.paymentMethods.createCard({
+            type: PaymentMethodType.CARD,
+            account: accountIdRef.current,
+            card_number: encryptedPan,
+            exp_month: card.expirationMonth,
+            exp_year: card.expirationYear,
+            cvc: encryptedCvc,
+            billing,
+          });
+        } catch (err) {
+          recordEvent(
+            AccountEventName.CARD_TOKENIZATION_FAILED,
+            AccountEventScreen.PAYMENT_SHEET,
+            err instanceof Error ? err.message : undefined,
+          );
+          throw err;
+        }
         if (!pm || typeof pm.id !== 'string') {
+          recordEvent(AccountEventName.CARD_TOKENIZATION_FAILED, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.NO_PAYMENT_METHOD_ID_RETURNED);
           throw frameError(ErrorCodes.PAYMENT_METHOD_FAILED, 'Frame returned no payment method id.');
         }
+        recordEvent(AccountEventName.CARD_TOKENIZED, AccountEventScreen.PAYMENT_SHEET);
         paymentMethodId = pm.id;
       }
 
@@ -195,6 +216,7 @@ export function useCheckoutViewModel({
         confirm: false,
       } as unknown as Parameters<typeof client.sdk.transfers.create>[0]);
       if (!transfer || typeof transfer.id !== 'string') {
+        recordEvent(AccountEventName.CHECKOUT_PAYMENT_FAILED, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.CHECKOUT_NO_TRANSFER_ID);
         throw frameError(ErrorCodes.PAYMENT_FAILED, 'Frame returned no transfer id.');
       }
 
@@ -208,12 +230,14 @@ export function useCheckoutViewModel({
           presentChallenge,
         });
         if (outcome.status === 'failed') {
+          recordEvent(AccountEventName.CHECKOUT_PAYMENT_DECLINED, AccountEventScreen.PAYMENT_SHEET, outcome.message ?? outcome.code);
           throw frameError(
             ErrorCodes.PAYMENT_FAILED,
             outcome.message ?? 'Your card was declined. Try another payment method.',
           );
         }
         if (outcome.status === 'timed_out') {
+          recordEvent(AccountEventName.CHECKOUT_PAYMENT_FAILED, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.CHECKOUT_CONFIRMATION_TIMED_OUT);
           throw frameError(
             ErrorCodes.PAYMENT_FAILED,
             'We could not confirm this payment. Check your bank before trying again.',
@@ -221,6 +245,7 @@ export function useCheckoutViewModel({
         }
       }
 
+      recordEvent(AccountEventName.CHECKOUT_PAYMENT_SUCCEEDED, AccountEventScreen.PAYMENT_SHEET);
       cardFieldRef.current?.reset();
       return transfer.id;
     } finally {

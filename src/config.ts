@@ -7,6 +7,7 @@ export interface FrameConfig {
   applePayMerchantId?: string;
   googlePayMerchantId?: string;
   theme?: FrameTheme;
+  accountId?: string;
 }
 
 export interface EvervaultConfiguration {
@@ -49,6 +50,7 @@ export function setConfig(config: FrameConfig): void {
   state.applePayMerchantId = config.applePayMerchantId;
   state.googlePayMerchantId = config.googlePayMerchantId;
   state.theme = config.theme === undefined ? undefined : deepFreezeClone(config.theme);
+  state.accountId = config.accountId;
   state.initialized = true;
 }
 
@@ -60,6 +62,7 @@ export function getConfig(): Readonly<FrameConfig> {
     applePayMerchantId: state.applePayMerchantId,
     googlePayMerchantId: state.googlePayMerchantId,
     theme: state.theme,
+    accountId: state.accountId,
   };
 }
 
@@ -91,6 +94,10 @@ export function getGooglePayMerchantId(): string | undefined {
   return state.googlePayMerchantId;
 }
 
+export function getAccountId(): string | undefined {
+  return state.accountId;
+}
+
 export function getEvervaultConfiguration(): EvervaultConfiguration | undefined {
   return state.evervaultConfiguration;
 }
@@ -110,6 +117,7 @@ export function resetConfig(): void {
   state.applePayMerchantId = undefined;
   state.googlePayMerchantId = undefined;
   state.theme = undefined;
+  state.accountId = undefined;
   state.evervaultConfiguration = undefined;
   state.siftConfiguration = undefined;
   state.ipAddress = undefined;

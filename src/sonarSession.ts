@@ -1,6 +1,8 @@
 import { AppState, type AppStateStatus } from 'react-native';
 import { client } from './client';
 import { getFingerprintVisitorId } from './fingerprint';
+import { recordEvent } from './accountEvents';
+import { AccountEventName, AccountEventScreen, AccountEventDetail } from './accountEventCatalog';
 
 const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 
@@ -137,7 +139,9 @@ async function refreshSession(session: string, accountId: string | null): Promis
     return sessionIdFrom(response, 'update');
   } catch {
     await storage.clear(accountId);
-    return createSession(accountId);
+    const created = await createSession(accountId);
+    recordEvent(AccountEventName.FRAUD_SESSION_RECREATED, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.FRAUD_SESSION_REFRESH_FELL_BACK_TO_RECREATE);
+    return created;
   }
 }
 
@@ -156,6 +160,7 @@ async function establishSession(accountId: string): Promise<string> {
   if (existing) {
     const refreshed = await refreshSession(existing, accountId);
     await store(refreshed, accountId);
+    recordEvent(AccountEventName.FRAUD_SESSION_REFRESHED, AccountEventScreen.PAYMENT_SHEET);
     return refreshed;
   }
 
@@ -169,12 +174,14 @@ async function establishSession(accountId: string): Promise<string> {
     const value = await refreshSession(legacy, accountId);
     await store(value, accountId);
     await storage.clear(null);
+    recordEvent(AccountEventName.FRAUD_SESSION_ADOPTED, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.FRAUD_SESSION_ADOPTED_FROM_ANONYMOUS);
     return value;
   });
   if (adopted) return adopted;
 
   const created = await createSession(accountId);
   await store(created, accountId);
+  recordEvent(AccountEventName.FRAUD_SESSION_STARTED, AccountEventScreen.PAYMENT_SHEET);
   return created;
 }
 
@@ -263,7 +270,9 @@ export async function refreshOnFlowEntry(accountId?: string | null): Promise<voi
     if (id) {
       activeAccountId = id;
       startKeepAlive();
-      await runExclusive(id).catch(() => {});
+      await runExclusive(id).catch(() => {
+        recordEvent(AccountEventName.SONAR_SESSION_FAILED, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.SONAR_SESSION_FAILED_ON_ENTRY);
+      });
       return;
     }
     const created = await createSession(null).catch(() => null);

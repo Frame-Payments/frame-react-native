@@ -1,4 +1,6 @@
 import { ErrorCodes, frameError } from './errors';
+import { recordEvent } from './accountEvents';
+import { AccountEventName, AccountEventScreen, AccountEventDetail } from './accountEventCatalog';
 
 export const THREE_DS_CALLBACK_PATH = '/evervault/3ds/callback';
 
@@ -121,7 +123,20 @@ export async function confirmCharge(
         'Card verification could not be started. Please try again.',
       );
     }
-    if ((await presentChallenge(challengeUrl)) === 'unavailable') {
+    recordEvent(AccountEventName.STEP_UP_CHALLENGE_STARTED, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.STEP_UP_CHALLENGE_IS_3DS);
+    const challengeResult = await presentChallenge(challengeUrl);
+    switch (challengeResult) {
+      case 'completed':
+        recordEvent(AccountEventName.STEP_UP_CHALLENGE_COMPLETED, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.STEP_UP_CHALLENGE_COMPLETED_CONTEXT);
+        break;
+      case 'failed':
+        recordEvent(AccountEventName.STEP_UP_CHALLENGE_ABANDONED, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.STEP_UP_CHALLENGE_CARDHOLDER_DISMISSED);
+        break;
+      case 'unavailable':
+        recordEvent(AccountEventName.STEP_UP_CHALLENGE_UNAVAILABLE, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.STEP_UP_CHALLENGE_NEVER_LOADED);
+        break;
+    }
+    if (challengeResult === 'unavailable') {
       throw frameError(
         ErrorCodes.PAYMENT_FAILED,
         'Card verification could not be started. Please try again.',
@@ -150,6 +165,7 @@ async function pollForTerminal(
       }
     } catch (err) {
       if (attempt === maxAttempts) {
+        recordEvent(AccountEventName.CHARGE_POLL_EXHAUSTED, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.CHARGE_POLL_RELOAD_FAILED);
         throw frameError(
           ErrorCodes.API_NETWORK,
           `Could not read the payment status after ${maxAttempts} attempts: ` +
@@ -160,5 +176,6 @@ async function pollForTerminal(
     await sleep(intervalMs);
   }
 
+  recordEvent(AccountEventName.CHARGE_POLL_TIMED_OUT, AccountEventScreen.PAYMENT_SHEET);
   return { status: 'timed_out' };
 }

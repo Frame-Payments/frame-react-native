@@ -32,6 +32,7 @@ import { resetClients, warmClients } from './client';
 import { configureEvervault, resetEvervault } from './evervault';
 import { fetchIpAddress } from './ipAddress';
 import { initializeSession, observeAppLifecycle, refreshOnFlowEntry } from './sonarSession';
+import { observeAccountEventsLifecycle } from './accountEvents';
 import { presentApplePayFlow } from './applePay';
 import { presentGooglePayFlow } from './googlePay';
 import { warnOnce } from './warn';
@@ -178,6 +179,7 @@ async function runInitialize(options: {
     applePayMerchantId: options.applePayMerchantId,
     googlePayMerchantId: options.googlePayMerchantId,
     theme: options.theme,
+    accountId: options.accountId,
   });
   warmClients();
 
@@ -186,6 +188,7 @@ async function runInitialize(options: {
   // — submit-time encryption will re-await this promise via configureEvervault's
   void prefetchServiceConfigs();
   observeAppLifecycle();
+  observeAccountEventsLifecycle();
   void initializeSession(options.accountId);
   if (Platform.OS === 'ios') {
     void ensureAttested().catch(() => {});
