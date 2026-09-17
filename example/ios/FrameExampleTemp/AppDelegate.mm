@@ -1,6 +1,7 @@
 #import "AppDelegate.h"
 
 #import <React/RCTBundleURLProvider.h>
+#import <ReactAppDependencyProvider/RCTAppDependencyProvider.h>
 
 // Preload Frame on main thread before bridge starts - avoids "Helpers are not supported by the default hub" crash.
 // FramePreloader ships inside the FrameReactNative pod (autolinked). Importing the Obj-C header
@@ -13,6 +14,11 @@
 {
   // Load Frame/Evervault/Sift on main thread BEFORE bridge init (which loads modules on bg thread)
   [FramePreloader preloadOnMainThread];
+
+  // Required since RN 0.81: without it the TurboModule lookup never reaches
+  // CoreModulesPlugins' name->class table, so core modules like DeviceInfo
+  // (used by Dimensions during startup) fail with getEnforcing errors.
+  self.dependencyProvider = [RCTAppDependencyProvider new];
 
   self.moduleName = @"FrameExampleTemp";
   // You can add your custom initial props in the dictionary below.
