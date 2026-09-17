@@ -21,19 +21,12 @@ Pod::Spec.new do |s|
 
   s.dependency 'React-Core'
 
-  # Persona2 is a `.binaryTarget` in frame-ios's SPM graph (Frame-Onboarding ->
-  # PersonaInquirySDK2). RN's spm_dependency attaches SPM products to the *Pods*
-  # target, and Xcode's automatic embedding does not walk binary targets across
-  # that boundary — so Persona2.framework builds but never lands in the app's
-  # Frameworks/, and dyld fails at launch on device with
-  # "Library not loaded: @rpath/Persona2.framework/Persona2".
-  #
-  # Declaring it as a normal pod fixes the embed: CocoaPods copies and signs
-  # `vendored_frameworks` into the app bundle on its own. Version tracks the one
-  # resolved by frame-ios's SPM manifest so both routes agree on a single binary.
-  # (The source-target SPM deps — ProveAuth, LinkKit, FingerprintPro — embed
-  # correctly already and are deliberately left on the SPM path.)
-  s.dependency 'PersonaInquirySDK2', '~> 2.52'
+  # frame-ios reaches Persona2, FingerprintPro, LinkKit and the Prove stack through
+  # SPM, and RN's spm_dependency hook attaches those to the Pods target. Nothing
+  # embeds them into the host app, so consumers must copy them out of
+  # BUILT_PRODUCTS_DIR in their Podfile — see example/ios/Podfile. Declaring them as
+  # pods here does not work: the pod copy is staged but the SPM-built one overwrites
+  # it in the bundle, so the pod's version pin has no runtime effect.
 
   # Autolink Frame-iOS (SPM-only) via RN 0.81+'s Podfile SPM hook. spm.rb injects
   # XCRemoteSwiftPackageReferences into Pods.xcodeproj at react_native_post_install;
