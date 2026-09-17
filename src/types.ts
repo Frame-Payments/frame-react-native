@@ -79,7 +79,13 @@ export type OnboardingCapability =
    */
   | 'idv';
 
-export type OnboardingResultStatus = 'completed' | 'cancelled';
+export type OnboardingResultStatus = 'completed' | 'cancelled' | 'unverified';
+
+/**
+ * Why an 'unverified' OnboardingResult ended without every required capability granted.
+ * iOS only (frame-ios >= 4.5.0) — frame-android has no equivalent yet.
+ */
+export type OnboardingOutcome = 'approved' | 'pendingReview' | 'declined' | 'actionRequired';
 
 /** Result returned from presentOnboarding */
 export interface OnboardingResult {
@@ -88,6 +94,10 @@ export interface OnboardingResult {
   accountId?: string;
   /** Android only: the payment method added during the flow. */
   paymentMethodId?: string;
+  /** Present when status === 'unverified': why the flow ended without full verification. */
+  outcome?: OnboardingOutcome;
+  /** Present when status === 'unverified' and outcome is 'declined' or 'actionRequired'. */
+  message?: string;
 }
 
 /** Result returned from presentAddPaymentMethod / presentAddPayoutMethod */

@@ -193,6 +193,10 @@ public class FrameSDKBridge: NSObject {
           delegate.finish(.cancel)
         case .failed:
           delegate.finish(.failure)
+        case .finishedUnverified:
+          // FrameCheckoutView never produces this — onboarding-only case, kept
+          // for FrameResult exhaustiveness.
+          delegate.finish(.failure)
         }
         top?.dismiss(animated: true)
       }
@@ -255,6 +259,10 @@ public class FrameSDKBridge: NSObject {
           delegate.finish(.cancel)
         case .failed:
           delegate.finish(.failure)
+        case .finishedUnverified:
+          // Cart embeds a capability-collection step that can end unverified
+          // (e.g. a KYC decline) before checkout is reached.
+          delegate.finish(.unverified)
         }
         top?.dismiss(animated: true)
       }
@@ -286,6 +294,8 @@ public class FrameSDKBridge: NSObject {
           case .completed(let id):
             // As of frame-ios 4.3.6 this is the account id, not a payment method id.
             delegate.finish(.completed(accountId: id.isEmpty ? nil : id))
+          case .finishedUnverified(let id, let outcome):
+            delegate.finish(.unverified(accountId: id.isEmpty ? nil : id, outcome: outcome))
           case .cancelled:
             delegate.finish(.cancelled)
           case .failed:
@@ -325,7 +335,8 @@ public class FrameSDKBridge: NSObject {
         switch result {
         case .completed(let id):
           delegate.finish(.completed(methodId: id.isEmpty ? nil : id))
-        case .cancelled, .failed:
+        // .finishedUnverified is onboarding/cart-only; this view never produces it.
+        case .cancelled, .failed, .finishedUnverified:
           delegate.finish(.cancelled)
         }
         top?.dismiss(animated: true)
@@ -343,7 +354,7 @@ public class FrameSDKBridge: NSObject {
         switch result {
         case .completed(let id):
           delegate.finish(.completed(methodId: id.isEmpty ? nil : id))
-        case .cancelled, .failed:
+        case .cancelled, .failed, .finishedUnverified:
           delegate.finish(.cancelled)
         }
         top?.dismiss(animated: true)
@@ -362,7 +373,7 @@ public class FrameSDKBridge: NSObject {
         switch result {
         case .completed(let id):
           delegate.finish(.completed(methodId: id.isEmpty ? nil : id))
-        case .cancelled, .failed:
+        case .cancelled, .failed, .finishedUnverified:
           delegate.finish(.cancelled)
         }
         top?.dismiss(animated: true)
@@ -427,6 +438,7 @@ private final class CartDismissDelegate: NSObject, UIAdaptivePresentationControl
   enum Outcome {
     case success(String)
     case failure
+    case unverified
     case cancel
   }
 
@@ -446,6 +458,7 @@ private final class CartDismissDelegate: NSObject, UIAdaptivePresentationControl
       switch outcome {
       case .success(let transferId): resolve(transferId)
       case .failure: reject("PAYMENT_FAILED", "Cart checkout did not produce a transfer id", nil)
+      case .unverified: reject("ACCOUNT_UNVERIFIED", "Cart's onboarding step ended without the account being verified", nil)
       case .cancel: reject("USER_CANCELED", "User dismissed cart without completing checkout", nil)
       }
     }
@@ -459,6 +472,7 @@ private final class CartDismissDelegate: NSObject, UIAdaptivePresentationControl
 private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationControllerDelegate {
   enum Outcome {
     case completed(accountId: String?)
+    case unverified(accountId: String?, outcome: OnboardingOutcome)
     case cancelled
   }
 
@@ -479,9 +493,35 @@ private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationC
         var payload: [String: Any] = ["status": "completed"]
         if let accountId { payload["accountId"] = accountId }
         resolve(payload)
+      case .unverified(let accountId, let onboardingOutcome):
+        var payload: [String: Any] = ["status": "unverified"]
+        if let accountId { payload["accountId"] = accountId }
+        payload["outcome"] = Self.outcomeName(onboardingOutcome)
+        if let message = Self.outcomeMessage(onboardingOutcome) {
+          payload["message"] = message
+        }
+        resolve(payload)
       case .cancelled:
         resolve(["status": "cancelled"])
       }
+    }
+  }
+
+  private static func outcomeName(_ outcome: OnboardingOutcome) -> String {
+    switch outcome {
+    case .approved: return "approved"
+    case .pendingReview: return "pendingReview"
+    case .declined: return "declined"
+    case .actionRequired: return "actionRequired"
+    }
+  }
+
+  private static func outcomeMessage(_ outcome: OnboardingOutcome) -> String? {
+    switch outcome {
+    case .declined(let message), .actionRequired(let message):
+      return message
+    case .approved, .pendingReview:
+      return nil
     }
   }
 

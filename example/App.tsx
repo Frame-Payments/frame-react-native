@@ -177,11 +177,14 @@ export default function App() {
         ? `Account: ${result.accountId}`
         : result.paymentMethodId
           ? `Payment method: ${result.paymentMethodId}`
-          : undefined;
-      Alert.alert(
-        result.status === 'completed' ? 'Onboarding complete' : 'Onboarding cancelled',
-        detail,
-      );
+          : result.message;
+      const title =
+        result.status === 'completed'
+          ? 'Onboarding complete'
+          : result.status === 'unverified'
+            ? `Onboarding unverified (${result.outcome})`
+            : 'Onboarding cancelled';
+      Alert.alert(title, detail);
     } catch (e: any) {
       if (e.code === 'USER_CANCELED') return;
       Alert.alert('Error', e.message ?? String(e));
