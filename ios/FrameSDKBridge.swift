@@ -194,8 +194,6 @@ public class FrameSDKBridge: NSObject {
         case .failed:
           delegate.finish(.failure)
         case .finishedUnverified:
-          // FrameCheckoutView never produces this — onboarding-only case, kept
-          // for FrameResult exhaustiveness.
           delegate.finish(.failure)
         }
         top?.dismiss(animated: true)
@@ -260,8 +258,6 @@ public class FrameSDKBridge: NSObject {
         case .failed:
           delegate.finish(.failure)
         case .finishedUnverified:
-          // Cart embeds a capability-collection step that can end unverified
-          // (e.g. a KYC decline) before checkout is reached.
           delegate.finish(.unverified)
         }
         top?.dismiss(animated: true)
@@ -335,7 +331,6 @@ public class FrameSDKBridge: NSObject {
         switch result {
         case .completed(let id):
           delegate.finish(.completed(methodId: id.isEmpty ? nil : id))
-        // .finishedUnverified is onboarding/cart-only; this view never produces it.
         case .cancelled, .failed, .finishedUnverified:
           delegate.finish(.cancelled)
         }
