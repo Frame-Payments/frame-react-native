@@ -49,7 +49,7 @@ Pod::Spec.new do |s|
   if respond_to?(:spm_dependency, true)
     spm_dependency(s,
       url: 'https://github.com/Frame-Payments/frame-ios',
-      requirement: { kind: 'upToNextMajorVersion', minimumVersion: package['frameNativeVersions']['ios'] },
+      requirement: { kind: 'exactVersion', version: package['frameNativeVersions']['ios'] },
       products: ['Frame-iOS', 'Frame-Onboarding']
     )
   end

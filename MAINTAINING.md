@@ -47,7 +47,7 @@ The Frame iOS and Android SDK versions live in **one place**: the top-level
 - **Android build.gradle** parses `package.json` with `JsonSlurper` and uses
   `frameNativeVersions.android` for `com.framepayments:framesdk*` dependencies.
 - **`Package.swift`** is the one duplicated pin (Swift Package manifests cannot
-  read JSON). Keep the `from: "X.Y.Z"` in `Package.swift` in lock-step with
+  read JSON). Keep the `exact: "X.Y.Z"` in `Package.swift` in lock-step with
   `frameNativeVersions.ios` when you bump.
 
 Bumping a native SDK is therefore a 1- or 2-line edit:

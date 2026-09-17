@@ -30,7 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **frame-ios: `4.4.2` → `4.5.1`** (via `4.5.0`).
+- **frame-ios: `4.4.2` → `4.5.1`** (via `4.5.0`), and the dependency is now pinned
+  **exactly** rather than `upToNextMajorVersion`/`from:`. Previously any 4.x release
+  satisfied the requirement, so `pod install` resolved whatever the newest 4.x was
+  regardless of `frameNativeVersions.ios` — the declared version was a floor, not a
+  pin, and two checkouts of the same commit could build against different SDKs.
+  Picking up a new frame-ios now requires bumping this package. Note this pins only
+  frame-ios itself; its own transitive dependencies still float per its manifest.
 - **KYC/IDV routing and onboarding dead-end fixes land with no RN-side change**
   beyond the `finishedUnverified` case above: capability requirements are now
   gated on capability `status` rather than raw `currently_due` keys (fixes a stuck
