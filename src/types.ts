@@ -79,7 +79,9 @@ export type OnboardingCapability =
    */
   | 'idv';
 
-export type OnboardingResultStatus = 'completed' | 'cancelled';
+export type OnboardingResultStatus = 'completed' | 'cancelled' | 'unverified';
+
+export type OnboardingOutcome = 'approved' | 'pendingReview' | 'declined' | 'actionRequired';
 
 /** Result returned from presentOnboarding */
 export interface OnboardingResult {
@@ -88,6 +90,8 @@ export interface OnboardingResult {
   accountId?: string;
   /** Android only: the payment method added during the flow. */
   paymentMethodId?: string;
+  outcome?: OnboardingOutcome;
+  message?: string;
 }
 
 /** Result returned from presentAddPaymentMethod / presentAddPayoutMethod */

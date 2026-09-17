@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.0] - 2026-09-17
+
+### Added
+
+- **`OnboardingResult.status` can now be `'unverified'`** (iOS only), with new
+  `outcome` (`'approved' | 'pendingReview' | 'declined' | 'actionRequired'`) and
+  `message` fields. Backed by frame-ios 4.5.0's `FrameResult.finishedUnverified(id:outcome:)`,
+  returned when onboarding reaches its last step without every required capability
+  granted — a KYC decline, a pending manual review, or a step-up the applicant can
+  still act on. Previously this case did not exist and the flow reported a bare
+  `FrameResult.completed(id:)` indistinguishable from a real approval; the RN bridge
+  could not distinguish the two either since the case did not exist upstream.
+  `accountId` is still populated so follow-up calls can be scoped to the account.
+  Android is unaffected — frame-android has no equivalent outcome yet, so `status`
+  there remains `'completed' | 'cancelled'`.
+- **`presentCart` can now reject with `ACCOUNT_UNVERIFIED`** (iOS only). `FrameCartView`
+  can also embed a capability-collection step and forward `finishedUnverified` — this
+  previously didn't compile against the case existing at all; now it rejects distinctly
+  from `PAYMENT_FAILED` so callers can tell "never got verified" apart from "payment
+  failed." `presentCheckout` and the add-method/select-payout screens cannot produce
+  this case upstream, so they only needed to compile against it (folded into their
+  existing cancellation/failure handling), not surface it.
+
+### Changed
+
+- **frame-ios: `4.4.2` → `4.5.1`** (via `4.5.0`), and the dependency is now pinned
+  **exactly** rather than `upToNextMajorVersion`/`from:`. Previously any 4.x release
+  satisfied the requirement, so `pod install` resolved whatever the newest 4.x was
+  regardless of `frameNativeVersions.ios` — the declared version was a floor, not a
+  pin, and two checkouts of the same commit could build against different SDKs.
+  Picking up a new frame-ios now requires bumping this package. Note this pins only
+  frame-ios itself; its own transitive dependencies still float per its manifest.
+- **KYC/IDV routing and onboarding dead-end fixes land with no RN-side change**
+  beyond the `finishedUnverified` case above: capability requirements are now
+  gated on capability `status` rather than raw `currently_due` keys (fixes a stuck
+  Continue button when a required capability is `disabled`), and IDV failures
+  route to the correct terminal screen by remediation category instead of a single
+  generic retry toast.
+- Address-line-1 autocomplete now requires a Mapbox-selected suggestion instead of
+  accepting free text, and the suggestion list shows 5 rows instead of 3. Internal
+  to `OnboardingContainerView`; no RN-side change.
+- `account_events` requests now always use the publishable key, even during an
+  active onboarding session (previously could 401). Internal; no RN-side change.
+
 ## [3.4.0] - 2026-08-26
 
 ### Added

@@ -36,6 +36,55 @@ target 'FrameExampleTemp' do
       config[:reactNativePath],
       :mac_catalyst_enabled => false
     )
+
+    # frame-ios pulls in dynamic frameworks (FingerprintPro, LinkKit, the Prove
+    # stack) through SPM. RN's spm_dependency hook attaches those products to the
+    # Pods target, and this app target links only libPods-*.a with no embed phase
+    # of its own, so nothing ever copies them into the bundle: they build into
+    # BUILT_PRODUCTS_DIR and dyld then fails at launch with
+    # "Library not loaded: @rpath/<name>.framework/<name>".
+    #
+    # CocoaPods' generated frameworks script only embeds what CocoaPods manages
+    # (PODS_XCFRAMEWORKS_BUILD_DIR), so append the SPM-built ones here. Its
+    # install_framework helper already resolves paths against BUILT_PRODUCTS_DIR
+    # and handles the code-signing and slice-stripping.
+    spm_frameworks = %w[
+      FingerprintPro
+      LinkKit
+      Persona2
+      ProveAuth
+      ProveBase
+      ProveMobileAuth
+      DeviceAuth
+    ]
+    frameworks_script = File.join(
+      installer.sandbox.root, 'Target Support Files',
+      'Pods-FrameExampleTemp', 'Pods-FrameExampleTemp-frameworks.sh'
+    )
+    if File.exist?(frameworks_script)
+      script = File.read(frameworks_script)
+      # Each is guarded on existence because the script runs under `set -e -u`:
+      # install_framework leaves `source` unset for a framework that has not been
+      # built yet, which aborts the script and silently skips the rest.
+      #
+      # chmod: Plaid ships LinkKit's binary read-only (-r-xr-xr-x) inside its
+      # committed xcframework. rsync preserves that mode, so `codesign --force` on
+      # the copy fails with "Permission denied" and takes the whole phase with it.
+      additions = spm_frameworks
+        .reject { |name| script.include?(%("${BUILT_PRODUCTS_DIR}/#{name}.framework")) }
+        .map do |name|
+          %(  if [ -d "${BUILT_PRODUCTS_DIR}/#{name}.framework" ]; then\n) +
+          %(    chmod -R u+w "${BUILT_PRODUCTS_DIR}/#{name}.framework"\n) +
+          %(    install_framework "${BUILT_PRODUCTS_DIR}/#{name}.framework"\n) +
+          %(  fi\n)
+        end
+        .join
+      unless additions.empty?
+        # Append inside each per-configuration block, before its closing `fi`.
+        patched = script.gsub(/^(  install_framework .*\n)(?!  install_framework)/) { "#{$1}#{additions}" }
+        File.write(frameworks_script, patched)
+      end
+    end
     # fmt requires C++17; ReactCommon and all React-* pods require C++20.
     # FOLLY_CFG_NO_COROUTINES=1 must be set globally — folly/coro headers are not
     # shipped in RN's RCT-Folly and any target that transitively includes Optional.h
