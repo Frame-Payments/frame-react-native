@@ -73,6 +73,10 @@ export default function App() {
       publishableKey: FRAME_PUBLISHABLE_KEY,
       applePayMerchantId: APPLE_PAY_MERCHANT_ID,
       debugMode: __DEV__,
+      // AccountEventEmitter.emit drops every event unless the SDK was initialized
+      // with an accountId, so omitting this silently disables account events.
+      // Skipped while DEMO_ACCOUNT_ID is still the checked-in placeholder.
+      ...(DEMO_ACCOUNT_ID === 'SANDBOX_ACCOUNT_ID' ? {} : { accountId: DEMO_ACCOUNT_ID }),
       // Uncomment to exercise the FrameTheme tokens (iOS + Android).
       // theme: {
       //   colors: {
