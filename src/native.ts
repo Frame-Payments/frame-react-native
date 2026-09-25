@@ -80,8 +80,6 @@ export function initialize(options: {
    * Omit it when the account isn't known yet — the session is created unscoped and
    * adopted onto the account later, keeping the same session ID either way. You still
    * pass accountId to each present* call regardless; this only affects session setup.
-   *
-   * iOS-only today — ignored on Android, which has no Sonar session surface.
    */
   accountId?: string;
 }): Promise<void> {
@@ -201,9 +199,6 @@ export function presentOnboarding(options: {
 /**
  * Presents a standalone "add a payment method" screen, outside the onboarding flow.
  * Use this to prompt an existing user to add a card at an arbitrary point in your app.
- *
- * iOS-only for now — frame-android has no standalone equivalent yet; use
- * `presentOnboarding` with `card_verification` on Android.
  */
 export function presentAddPaymentMethod(options: {
   accountId: string;
@@ -215,9 +210,6 @@ export function presentAddPaymentMethod(options: {
   clientSecret?: string | null;
 }): Promise<AddMethodResult> {
   guardInitialized();
-  if (Platform.OS !== 'ios') {
-    throwCoded('PLATFORM_UNSUPPORTED', 'Frame.presentAddPaymentMethod is iOS-only.');
-  }
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentAddPaymentMethod requires accountId');
   }
@@ -229,9 +221,6 @@ export function presentAddPaymentMethod(options: {
 /**
  * Presents a standalone "add a payout bank account" screen, outside the onboarding flow.
  * Use this to prompt an existing user to add a payout account at an arbitrary point in your app.
- *
- * iOS-only for now — frame-android has no standalone equivalent yet; use
- * `presentOnboarding` with `bank_account_verification` on Android.
  */
 export function presentAddPayoutMethod(options: {
   accountId: string;
@@ -243,9 +232,6 @@ export function presentAddPayoutMethod(options: {
   clientSecret?: string | null;
 }): Promise<AddMethodResult> {
   guardInitialized();
-  if (Platform.OS !== 'ios') {
-    throwCoded('PLATFORM_UNSUPPORTED', 'Frame.presentAddPayoutMethod is iOS-only.');
-  }
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentAddPayoutMethod requires accountId');
   }
@@ -260,9 +246,7 @@ export function presentAddPayoutMethod(options: {
  * new one, and elects the chosen method as the account's payout destination.
  *
  * Where {@link presentAddPayoutMethod} only adds a bank, this also makes it primary.
- * On success `methodId` is the newly *elected* payout method. Requires frame-ios 4.4.1+.
- *
- * iOS-only — frame-android has no standalone equivalent yet.
+ * On success `methodId` is the newly *elected* payout method.
  */
 export function presentSelectPayoutMethod(options: {
   accountId: string;
@@ -275,9 +259,6 @@ export function presentSelectPayoutMethod(options: {
   clientSecret?: string | null;
 }): Promise<AddMethodResult> {
   guardInitialized();
-  if (Platform.OS !== 'ios') {
-    throwCoded('PLATFORM_UNSUPPORTED', 'Frame.presentSelectPayoutMethod is iOS-only.');
-  }
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentSelectPayoutMethod requires accountId');
   }

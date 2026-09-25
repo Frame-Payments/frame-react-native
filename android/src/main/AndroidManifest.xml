@@ -14,6 +14,10 @@
       android:theme="@style/Theme.Frame.NoActionBar"
       android:exported="false" />
     <activity
+      android:name="com.framepayments.reactnativeframe.FrameAddMethodActivity"
+      android:theme="@style/Theme.Frame.NoActionBar"
+      android:exported="false" />
+    <activity
       android:name="com.framepayments.reactnativeframe.FrameGooglePayActivity"
       android:theme="@style/Theme.Frame.GooglePay.Translucent"
       android:exported="false" />

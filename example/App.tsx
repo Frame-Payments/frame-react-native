@@ -358,33 +358,29 @@ export default function App() {
         )}
       </TouchableOpacity>
 
-      {Platform.OS === 'ios' && (
-        <>
-          <TouchableOpacity
-            style={[styles.button, (loading === 'addPaymentMethod' || !!initError) && styles.buttonDisabled]}
-            onPress={handleAddPaymentMethod}
-            disabled={!!loading || !!initError}
-          >
-            {loading === 'addPaymentMethod' ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Add payment method</Text>
-            )}
-          </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.button, (loading === 'addPaymentMethod' || !!initError) && styles.buttonDisabled]}
+        onPress={handleAddPaymentMethod}
+        disabled={!!loading || !!initError}
+      >
+        {loading === 'addPaymentMethod' ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Add payment method</Text>
+        )}
+      </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.button, (loading === 'selectPayoutMethod' || !!initError) && styles.buttonDisabled]}
-            onPress={handleSelectPayoutMethod}
-            disabled={!!loading || !!initError}
-          >
-            {loading === 'selectPayoutMethod' ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Select payout method</Text>
-            )}
-          </TouchableOpacity>
-        </>
-      )}
+      <TouchableOpacity
+        style={[styles.button, (loading === 'selectPayoutMethod' || !!initError) && styles.buttonDisabled]}
+        onPress={handleSelectPayoutMethod}
+        disabled={!!loading || !!initError}
+      >
+        {loading === 'selectPayoutMethod' ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Select payout method</Text>
+        )}
+      </TouchableOpacity>
 
       <TouchableOpacity
         style={[styles.button, styles.buttonSecondary, (loading === 'customers' || !!initError) && styles.buttonDisabled]}

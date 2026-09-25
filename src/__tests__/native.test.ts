@@ -422,16 +422,11 @@ describe('presentAddPaymentMethod', () => {
     expect(mockPresentAddPaymentMethod).not.toHaveBeenCalled();
   });
 
-  it('throws PLATFORM_UNSUPPORTED on Android without touching the native module', async () => {
+  it('calls the native module on Android too', async () => {
     mockPlatform.OS = 'android';
     await initialize({ publishableKey: 'pk_xxx' });
-    try {
-      await presentAddPaymentMethod({ accountId: 'acct_1' });
-      expect(true).toBe(false);
-    } catch (e: any) {
-      expect(e.code).toBe('PLATFORM_UNSUPPORTED');
-    }
-    expect(mockPresentAddPaymentMethod).not.toHaveBeenCalled();
+    await presentAddPaymentMethod({ accountId: 'acct_1' });
+    expect(mockPresentAddPaymentMethod).toHaveBeenCalledWith('acct_1', null);
   });
 
   it('calls native presentAddPaymentMethod with accountId and null clientSecret by default', async () => {
@@ -470,16 +465,11 @@ describe('presentAddPayoutMethod', () => {
     expect(mockPresentAddPayoutMethod).not.toHaveBeenCalled();
   });
 
-  it('throws PLATFORM_UNSUPPORTED on Android without touching the native module', async () => {
+  it('calls the native module on Android too', async () => {
     mockPlatform.OS = 'android';
     await initialize({ publishableKey: 'pk_xxx' });
-    try {
-      await presentAddPayoutMethod({ accountId: 'acct_1' });
-      expect(true).toBe(false);
-    } catch (e: any) {
-      expect(e.code).toBe('PLATFORM_UNSUPPORTED');
-    }
-    expect(mockPresentAddPayoutMethod).not.toHaveBeenCalled();
+    await presentAddPayoutMethod({ accountId: 'acct_1' });
+    expect(mockPresentAddPayoutMethod).toHaveBeenCalledWith('acct_1', null);
   });
 
   it('calls native presentAddPayoutMethod with accountId and null clientSecret by default', async () => {
@@ -518,16 +508,11 @@ describe('presentSelectPayoutMethod', () => {
     expect(mockPresentSelectPayoutMethod).not.toHaveBeenCalled();
   });
 
-  it('throws PLATFORM_UNSUPPORTED on Android without touching the native module', async () => {
+  it('calls the native module on Android too', async () => {
     mockPlatform.OS = 'android';
     await initialize({ publishableKey: 'pk_xxx' });
-    try {
-      await presentSelectPayoutMethod({ accountId: 'acct_1' });
-      expect(true).toBe(false);
-    } catch (e: any) {
-      expect(e.code).toBe('PLATFORM_UNSUPPORTED');
-    }
-    expect(mockPresentSelectPayoutMethod).not.toHaveBeenCalled();
+    await presentSelectPayoutMethod({ accountId: 'acct_1' });
+    expect(mockPresentSelectPayoutMethod).toHaveBeenCalledWith('acct_1', null);
   });
 
   it('calls native presentSelectPayoutMethod with accountId and null clientSecret by default', async () => {
