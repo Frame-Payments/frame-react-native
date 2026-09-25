@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **frame-ios: `4.5.1` → `4.5.3`.** No bridge changes. Onboarding launched without an
+  `accountId` now keeps the account events it emits before the account is created
+  (buffered and flushed once onboarding creates it) instead of dropping them.
+  4.5.2 is skipped: it reported events with platform `"iOS"`, which the backend
+  rejects, so none of its events were recorded.
+
 ## [3.5.0] - 2026-09-17
 
 ### Added
