@@ -14,8 +14,7 @@ import type {
 } from './types';
 import { ErrorCodes } from './errors';
 
-// Sent to the native SDKs so their account events are attributed to this wrapper. Resolves to
-// the package root from both src/ and lib/.
+// Tags the native SDKs' account events as this wrapper's; resolves from both src/ and lib/.
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- package.json is outside rootDir, so it can't be imported
 const PACKAGE_VERSION: string = require('../package.json').version;
 

@@ -48,8 +48,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     // applePayMerchantId is iOS-only; accepted in the bridge signature so the JS Frame.initialize()
     // API stays cross-platform, but ignored here. frame-android has no Apple Pay surface.
     @Suppress("UNUSED_PARAMETER") val ignoredApplePayMerchantId = applePayMerchantId
-    // initializeWithAPIKey registers a ProcessLifecycleOwner observer inline, which throws off the
-    // main thread; @ReactMethod runs on the native-modules thread.
+    // initializeWithAPIKey adds a ProcessLifecycleOwner observer, which throws off the main thread.
     UiThreadUtil.runOnUiThread {
       try {
         val ctx = reactApplicationContext.applicationContext

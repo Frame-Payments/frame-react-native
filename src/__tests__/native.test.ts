@@ -81,7 +81,7 @@ beforeEach(() => {
 });
 
 describe('initialize', () => {
-  it('calls native FrameSDK.initialize with all seven positional args', () => {
+  it('calls native FrameSDK.initialize with all eight positional args', () => {
     initialize({ secretKey: 'sk_test_xxx', publishableKey: 'pk_test_xxx', debugMode: true });
     expect(mockInitialize).toHaveBeenCalledTimes(1);
     expect(mockInitialize).toHaveBeenCalledWith('sk_test_xxx', 'pk_test_xxx', true, null, null, null, null, PKG_VERSION);

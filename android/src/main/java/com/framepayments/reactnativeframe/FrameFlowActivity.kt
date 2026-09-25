@@ -4,7 +4,6 @@ import android.os.Bundle
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import com.framepayments.framesdk.EvervaultConfigurator
 import com.framepayments.framesdk_ui.FrameCartItem
 import com.framepayments.framesdk_ui.FrameCartView
 import com.framepayments.framesdk_ui.FrameCheckoutView
@@ -74,9 +73,8 @@ class FrameFlowActivity : AppCompatActivity() {
   }
 
   private fun showCheckout(accountId: String, amount: Int) {
-    // Same Evervault requirement as FrameCheckoutActivity: the card input can't inflate until it's configured.
     lifecycleScope.launch {
-      if (!EvervaultConfigurator.ensureConfigured()) {
+      if (!FrameCheckoutActivity.isCardEncryptionReady()) {
         FrameCheckoutActivity.finishFailed(this@FrameFlowActivity, "Card encryption is unavailable")
         return@launch
       }

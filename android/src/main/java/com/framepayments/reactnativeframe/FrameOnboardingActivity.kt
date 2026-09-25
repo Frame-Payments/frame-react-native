@@ -25,8 +25,7 @@ class FrameOnboardingActivity : ComponentActivity() {
 
     // OnboardingContainerView begins/ends the onboarding session itself from
     // config.clientSecret, so passing it through here is all that's required.
-    // Theme goes through config: OnboardingContainerView applies config.theme itself and would
-    // override any FrameTheme wrapped around it.
+    // Via config: OnboardingContainerView applies config.theme and overrides any outer FrameTheme.
     val config = OnboardingConfig(
       accountId = accountId,
       clientSecret = clientSecret,

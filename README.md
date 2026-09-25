@@ -444,7 +444,7 @@ On non-Android platforms `Frame.presentGooglePay` rejects synchronously with a n
 
 Customizes colors, fonts, and corner radii on Frame's reusable components — checkout, cart, and the onboarding flow. Supported on iOS (`FrameTheme` in Frame-iOS 2.1.2+) and Android (`FrameTheme` in frame-android 2.0.7+).
 
-Pass an optional `theme` to `Frame.initialize`. On iOS it's stored on `FrameNetworking.shared`; on Android it's stashed in the bridge and applied per-screen on each subsequent `present*` call. Modals already on screen are not re-themed if the theme is changed mid-flow. Omit the field, or pass `{}`, to use SDK defaults; pass a partial dict to override only specific tokens.
+Pass an optional `theme` to `Frame.initialize`. On iOS it's stored on `FrameNetworking.shared`; on Android it's stashed in the bridge and applied per-screen on each subsequent `present*` call. Modals already on screen are not re-themed if the theme is changed mid-flow. On Android, `presentAddPaymentMethod`, `presentAddPayoutMethod` and `presentSelectPayoutMethod` always use the default theme, because frame-android applies it to those screens itself. Omit the field, or pass `{}`, to use SDK defaults; pass a partial dict to override only specific tokens.
 
 ```ts
 import Frame from 'framepayments-react-native';

@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`presentAddPaymentMethod`, `presentAddPayoutMethod` and `presentSelectPayoutMethod`
   now work on Android** (previously they threw `PLATFORM_UNSUPPORTED`). They resolve the
-  same `AddMethodResult` as iOS.
+  same `AddMethodResult` as iOS. On Android these screens don't take the
+  `Frame.initialize({ theme })` theme: frame-android applies its default theme to them.
 - **Android onboarding now resolves `status: 'unverified'`**, with `outcome` and
   `message`, when the flow finishes without the applicant approved. It also resolves
   `accountId` for `completed` and `unverified`. `paymentMethodId` is still set on
@@ -25,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **frame-ios: `4.5.1` → `4.5.3`.** No bridge changes. Onboarding launched without an
+  `accountId` now keeps the account events it emits before the account is created
+  (buffered and flushed once onboarding creates it) instead of dropping them.
+  4.5.2 is skipped: it reported events with platform `"iOS"`, which the backend
+  rejects, so none of its events were recorded.
 - **frame-android: `3.0.2` → `3.1.1`.** Android hosts now need the Fingerprint and
   Prove Maven repositories; see the README's Android setup.
 - **Android checkout and cart reject with `PAYMENT_FAILED`** (was `USER_CANCELED`) when
@@ -37,12 +43,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ignored because the onboarding container applied its default theme over it.
 - **Android cart → checkout waits for card encryption to be configured** before showing
   the card form, as direct checkout already did.
-
-- **frame-ios: `4.5.1` → `4.5.3`.** No bridge changes. Onboarding launched without an
-  `accountId` now keeps the account events it emits before the account is created
-  (buffered and flushed once onboarding creates it) instead of dropping them.
-  4.5.2 is skipped: it reported events with platform `"iOS"`, which the backend
-  rejects, so none of its events were recorded.
 
 ## [3.5.0] - 2026-09-17
 

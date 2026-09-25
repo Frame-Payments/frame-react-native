@@ -1,7 +1,6 @@
 package com.framepayments.reactnativeframe
 
-import android.app.Activity.RESULT_CANCELED
-import android.app.Activity.RESULT_OK
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.widget.FrameLayout
@@ -10,6 +9,7 @@ import androidx.lifecycle.lifecycleScope
 import com.framepayments.framesdk.EvervaultConfigurator
 import com.framepayments.framesdk.FrameResult
 import com.framepayments.framesdk_ui.FrameCheckoutView
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 class FrameCheckoutActivity : AppCompatActivity() {
@@ -33,10 +33,9 @@ class FrameCheckoutActivity : AppCompatActivity() {
       return
     }
 
-    // Evervault must be configured before FrameCheckoutView (EncryptedPaymentCardInput) can inflate,
-    // and on a cold start checkout can open before SDK init has configured it.
+    // The card input can't inflate until Evervault is configured, which may still be in flight on a cold start.
     lifecycleScope.launch {
-      if (EvervaultConfigurator.ensureConfigured()) {
+      if (isCardEncryptionReady()) {
         addCheckoutView(container, accountId, amount)
       } else {
         finishFailed(this@FrameCheckoutActivity, "Card encryption is unavailable")
@@ -58,12 +57,20 @@ class FrameCheckoutActivity : AppCompatActivity() {
     const val EXTRA_FAILURE_MESSAGE = "failure_message"
     const val REQUEST_CODE = 9001
     /** Maps to PAYMENT_FAILED in FrameSDKModule, matching iOS. */
-    const val RESULT_FAILED = android.app.Activity.RESULT_FIRST_USER
+    const val RESULT_FAILED = Activity.RESULT_FIRST_USER
 
-    fun finishWithCheckoutResult(activity: android.app.Activity, result: FrameResult) {
+    suspend fun isCardEncryptionReady(): Boolean = try {
+      EvervaultConfigurator.ensureConfigured()
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      false
+    }
+
+    fun finishWithCheckoutResult(activity: Activity, result: FrameResult) {
       when (result) {
-        is FrameResult.Completed -> activity.setResult(RESULT_OK, Intent().putExtra(EXTRA_TRANSFER_ID, result.id))
-        FrameResult.Cancelled -> activity.setResult(RESULT_CANCELED)
+        is FrameResult.Completed -> activity.setResult(Activity.RESULT_OK, Intent().putExtra(EXTRA_TRANSFER_ID, result.id))
+        FrameResult.Cancelled -> activity.setResult(Activity.RESULT_CANCELED)
         is FrameResult.Failed -> {
           finishFailed(activity, result.error.message ?: "Checkout did not produce a transfer id")
           return
@@ -72,7 +79,7 @@ class FrameCheckoutActivity : AppCompatActivity() {
       activity.finish()
     }
 
-    fun finishFailed(activity: android.app.Activity, message: String) {
+    fun finishFailed(activity: Activity, message: String) {
       activity.setResult(RESULT_FAILED, Intent().putExtra(EXTRA_FAILURE_MESSAGE, message))
       activity.finish()
     }
