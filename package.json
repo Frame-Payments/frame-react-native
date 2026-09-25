@@ -35,8 +35,8 @@
     "react-native": ">=0.81.0"
   },
   "frameNativeVersions": {
-    "ios": "4.5.1",
-    "android": "3.0.2"
+    "ios": "4.5.3",
+    "android": "3.1.1"
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",

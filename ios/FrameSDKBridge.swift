@@ -20,8 +20,10 @@ public class FrameSDKBridge: NSObject {
   }
 
   @objc public
-  func initialize(_ secretKey: NSObject?, publishableKey: String, debugMode: Bool, applePayMerchantId: NSObject?, googlePayMerchantId: NSObject?, theme: NSDictionary?, accountId: NSObject?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+  func initialize(_ secretKey: NSObject?, publishableKey: String, debugMode: Bool, applePayMerchantId: NSObject?, googlePayMerchantId: NSObject?, theme: NSDictionary?, accountId: NSObject?, hostSDKVersion: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     DispatchQueue.main.async {
+      // Must precede initialize so every account event is tagged as this wrapper's traffic.
+      FrameSDK.setHostSDKInfo(platform: "react_native", version: hostSDKVersion)
       let themeDict = theme as? [String: Any] ?? [:]
       let resolvedTheme = themeDict.isEmpty ? FrameTheme.default : FrameRNTheme.parse(themeDict)
       // googlePayMerchantId is iOS-side ignored — frame-iOS has no Google Pay surface today.

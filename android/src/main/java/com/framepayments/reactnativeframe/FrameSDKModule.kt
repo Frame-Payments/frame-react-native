@@ -9,6 +9,7 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.ReadableMap
+import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.bridge.WritableNativeMap
 import com.framepayments.framesdk.FrameNetworking
 
@@ -23,6 +24,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
   private var cartPromise: Promise? = null
   private var onboardingPromise: Promise? = null
   private var googlePayPromise: Promise? = null
+  private var addMethodPromise: Promise? = null
 
   override fun getName(): String = "FrameSDK"
 
@@ -40,26 +42,36 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     googlePayMerchantId: String?,
     theme: ReadableMap?,
     accountId: String?,
+    hostSDKVersion: String,
     promise: Promise
   ) {
-    try {
-      val ctx = reactApplicationContext.applicationContext
-      // applePayMerchantId is iOS-only; accepted in the bridge signature so the JS Frame.initialize()
-      // API stays cross-platform, but ignored here. frame-android has no Apple Pay surface.
-      @Suppress("UNUSED_PARAMETER") val ignoredApplePayMerchantId = applePayMerchantId
-      // accountId is iOS-only; it binds frame-iOS's Sonar session at init. frame-android has no
-      // Sonar session surface, so it's accepted here only to keep Frame.initialize() cross-platform.
-      @Suppress("UNUSED_PARAMETER") val ignoredAccountId = accountId
-      // frame-android still declares secretKey as a non-null String, but only uses a non-empty
-      // value to emit its "you shipped a secret key" warning. Passing "" is the supported
-      // publishable-key-only path, so JS can omit secretKey on Android just like on iOS.
-      FrameNetworking.initializeWithAPIKey(ctx, secretKey ?: "", publishableKey, googlePayMerchantId, debugMode)
-      FrameRNTheme.current = theme?.takeIf { it.keySetIterator().hasNextKey() }?.let {
-        FrameRNTheme.parse(ctx, it)
+    // applePayMerchantId is iOS-only; accepted in the bridge signature so the JS Frame.initialize()
+    // API stays cross-platform, but ignored here. frame-android has no Apple Pay surface.
+    @Suppress("UNUSED_PARAMETER") val ignoredApplePayMerchantId = applePayMerchantId
+    // initializeWithAPIKey adds a ProcessLifecycleOwner observer, which throws off the main thread.
+    UiThreadUtil.runOnUiThread {
+      try {
+        val ctx = reactApplicationContext.applicationContext
+        // Must precede initializeWithAPIKey so every account event is tagged as this wrapper's traffic.
+        FrameNetworking.setHostSDKInfo("react_native", hostSDKVersion)
+        // frame-android still declares secretKey as a non-null String, but only uses a non-empty
+        // value to emit its "you shipped a secret key" warning. Passing "" is the supported
+        // publishable-key-only path, so JS can omit secretKey on Android just like on iOS.
+        FrameNetworking.initializeWithAPIKey(
+          context = ctx,
+          secretKey = secretKey ?: "",
+          publishableKey = publishableKey,
+          accountId = accountId,
+          googlePayMerchantId = googlePayMerchantId,
+          debug = debugMode
+        )
+        FrameRNTheme.current = theme?.takeIf { it.keySetIterator().hasNextKey() }?.let {
+          FrameRNTheme.parse(ctx, it)
+        }
+        promise.resolve(null)
+      } catch (e: Exception) {
+        promise.reject("INIT_FAILED", e.message, e)
       }
-      promise.resolve(null)
-    } catch (e: Exception) {
-      promise.reject("INIT_FAILED", e.message, e)
     }
   }
 
@@ -172,6 +184,38 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  @ReactMethod
+  fun presentAddPaymentMethod(accountId: String, clientSecret: String?, promise: Promise) =
+    presentAddMethod(FrameAddMethodActivity.MODE_ADD_PAYMENT, "presentAddPaymentMethod", accountId, clientSecret, promise)
+
+  @ReactMethod
+  fun presentAddPayoutMethod(accountId: String, clientSecret: String?, promise: Promise) =
+    presentAddMethod(FrameAddMethodActivity.MODE_ADD_PAYOUT, "presentAddPayoutMethod", accountId, clientSecret, promise)
+
+  @ReactMethod
+  fun presentSelectPayoutMethod(accountId: String, clientSecret: String?, promise: Promise) =
+    presentAddMethod(FrameAddMethodActivity.MODE_SELECT_PAYOUT, "presentSelectPayoutMethod", accountId, clientSecret, promise)
+
+  private fun presentAddMethod(mode: String, method: String, accountId: String, clientSecret: String?, promise: Promise) {
+    if (accountId.isEmpty()) {
+      promise.reject("INVALID_ACCOUNT", "Frame.$method requires a non-empty accountId", null)
+      return
+    }
+    val activity = reactApplicationContext.currentActivity ?: run {
+      promise.reject("NO_ACTIVITY", "No current activity", null)
+      return
+    }
+    addMethodPromise = promise
+    activity.runOnUiThread {
+      val intent = Intent(activity, FrameAddMethodActivity::class.java).apply {
+        putExtra(FrameAddMethodActivity.EXTRA_MODE, mode)
+        putExtra(FrameAddMethodActivity.EXTRA_ACCOUNT_ID, accountId)
+        putExtra(FrameAddMethodActivity.EXTRA_CLIENT_SECRET, clientSecret)
+      }
+      activity.startActivityForResult(intent, FrameAddMethodActivity.REQUEST_CODE)
+    }
+  }
+
   private fun readableArrayToJson(items: ReadableArray): String? {
     val arr = org.json.JSONArray()
     for (i in 0 until items.size()) {
@@ -200,37 +244,52 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       FrameFlowActivity.REQUEST_CODE -> handleCartResult(resultCode, data)
       FrameOnboardingActivity.REQUEST_CODE -> handleOnboardingResult(resultCode, data)
       FrameGooglePayActivity.REQUEST_CODE -> handleGooglePayResult(resultCode, data)
+      FrameAddMethodActivity.REQUEST_CODE -> handleAddMethodResult(resultCode, data)
       else -> return
     }
+  }
+
+  private fun handleAddMethodResult(resultCode: Int, data: Intent?) {
+    val promise = addMethodPromise ?: return
+    addMethodPromise = null
+    val map = WritableNativeMap()
+    val methodId = data?.getStringExtra(FrameAddMethodActivity.EXTRA_METHOD_ID)
+    if (resultCode == Activity.RESULT_OK && methodId != null) {
+      map.putString("status", "completed")
+      map.putString("methodId", methodId)
+    } else {
+      map.putString("status", "cancelled")
+    }
+    promise.resolve(map)
   }
 
   private fun handleCheckoutResult(resultCode: Int, data: Intent?) {
     val promise = checkoutPromise ?: return
     checkoutPromise = null
-    if (resultCode == Activity.RESULT_OK && data != null) {
-      val transferId = data.getStringExtra(FrameCheckoutActivity.EXTRA_TRANSFER_ID)
-      if (!transferId.isNullOrEmpty()) {
-        promise.resolve(transferId)
-      } else {
-        promise.reject("NO_RESULT", "No transfer id in result", null)
-      }
-    } else {
-      promise.reject("USER_CANCELED", "User cancelled checkout", null)
-    }
+    settleCheckoutResult(promise, resultCode, data, "User cancelled checkout")
   }
 
   private fun handleCartResult(resultCode: Int, data: Intent?) {
     val promise = cartPromise ?: return
     cartPromise = null
-    if (resultCode == Activity.RESULT_OK && data != null) {
-      val transferId = data.getStringExtra(FrameFlowActivity.EXTRA_TRANSFER_ID)
-      if (!transferId.isNullOrEmpty()) {
-        promise.resolve(transferId)
-      } else {
-        promise.reject("NO_RESULT", "No transfer id in result", null)
+    settleCheckoutResult(promise, resultCode, data, "User cancelled")
+  }
+
+  private fun settleCheckoutResult(promise: Promise, resultCode: Int, data: Intent?, cancelMessage: String) {
+    when (resultCode) {
+      Activity.RESULT_OK -> {
+        val transferId = data?.getStringExtra(FrameCheckoutActivity.EXTRA_TRANSFER_ID)
+        if (!transferId.isNullOrEmpty()) {
+          promise.resolve(transferId)
+        } else {
+          promise.reject("NO_RESULT", "No transfer id in result", null)
+        }
       }
-    } else {
-      promise.reject("USER_CANCELED", "User cancelled", null)
+      FrameCheckoutActivity.RESULT_FAILED -> {
+        val message = data?.getStringExtra(FrameCheckoutActivity.EXTRA_FAILURE_MESSAGE) ?: "Checkout failed"
+        promise.reject("PAYMENT_FAILED", message, null)
+      }
+      else -> promise.reject("USER_CANCELED", cancelMessage, null)
     }
   }
 
@@ -263,17 +322,22 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     val promise = onboardingPromise ?: return
     onboardingPromise = null
     val map = WritableNativeMap()
-    if (resultCode == Activity.RESULT_OK) {
-      map.putString("status", "completed")
-      val paymentMethodId = data?.getStringExtra(FrameOnboardingActivity.EXTRA_PAYMENT_METHOD_ID)
-      if (paymentMethodId != null) {
-        map.putString("paymentMethodId", paymentMethodId)
+    when (resultCode) {
+      Activity.RESULT_OK -> map.putString("status", "completed")
+      FrameOnboardingActivity.RESULT_UNVERIFIED -> {
+        map.putString("status", "unverified")
+        data?.getStringExtra(FrameOnboardingActivity.EXTRA_OUTCOME)?.let { map.putString("outcome", it) }
+        data?.getStringExtra(FrameOnboardingActivity.EXTRA_MESSAGE)?.let { map.putString("message", it) }
       }
-      promise.resolve(map)
-    } else {
-      map.putString("status", "cancelled")
-      promise.resolve(map)
+      else -> {
+        map.putString("status", "cancelled")
+        promise.resolve(map)
+        return
+      }
     }
+    data?.getStringExtra(FrameOnboardingActivity.EXTRA_ACCOUNT_ID)?.let { map.putString("accountId", it) }
+    data?.getStringExtra(FrameOnboardingActivity.EXTRA_PAYMENT_METHOD_ID)?.let { map.putString("paymentMethodId", it) }
+    promise.resolve(map)
   }
 
   override fun onNewIntent(intent: Intent) {}

@@ -1,15 +1,15 @@
 package com.framepayments.reactnativeframe
 
-import android.content.Intent
 import android.os.Bundle
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
-import com.framepayments.framesdk.FrameResult
+import androidx.lifecycle.lifecycleScope
 import com.framepayments.framesdk_ui.FrameCartItem
 import com.framepayments.framesdk_ui.FrameCartView
 import com.framepayments.framesdk_ui.FrameCheckoutView
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.launch
 
 class FrameFlowActivity : AppCompatActivity() {
 
@@ -73,34 +73,26 @@ class FrameFlowActivity : AppCompatActivity() {
   }
 
   private fun showCheckout(accountId: String, amount: Int) {
-    container.removeAllViews()
-    checkoutView = FrameCheckoutView(this).apply {
-      FrameRNTheme.current?.let { setTheme(it) }
-      configure(accountId, amount) { result ->
-        when (result) {
-          is FrameResult.Completed -> {
-            setResult(RESULT_OK, Intent().putExtra(EXTRA_TRANSFER_ID, result.id))
-            finish()
-          }
-          FrameResult.Cancelled -> {
-            setResult(RESULT_CANCELED)
-            finish()
-          }
-          is FrameResult.Failed -> {
-            setResult(RESULT_CANCELED)
-            finish()
-          }
+    lifecycleScope.launch {
+      if (!FrameCheckoutActivity.isCardEncryptionReady()) {
+        FrameCheckoutActivity.finishFailed(this@FrameFlowActivity, "Card encryption is unavailable")
+        return@launch
+      }
+      container.removeAllViews()
+      checkoutView = FrameCheckoutView(this@FrameFlowActivity).apply {
+        FrameRNTheme.current?.let { setTheme(it) }
+        configure(accountId, amount) { result ->
+          FrameCheckoutActivity.finishWithCheckoutResult(this@FrameFlowActivity, result)
         }
       }
+      container.addView(checkoutView)
     }
-    container.addView(checkoutView)
   }
 
   companion object {
     const val EXTRA_ACCOUNT_ID = "account_id"
     const val EXTRA_ITEMS_JSON = "items_json"
     const val EXTRA_SHIPPING_CENTS = "shipping_cents"
-    const val EXTRA_TRANSFER_ID = "transfer_id"
     const val REQUEST_CODE = 9002
   }
 }

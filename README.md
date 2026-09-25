@@ -57,7 +57,18 @@ Required for any onboarding flow that runs KYC (`kyc` or `kyc_prefill`) — an a
 
 ### Android setup
 
-No extra steps required. Autolinking handles the native module automatically and pulls in `com.framepayments:framesdk*` from Maven Central.
+Autolinking handles the native module and pulls in `com.framepayments:framesdk*` from Maven Central. frame-android also depends on Fingerprint and Prove artifacts that aren't on Maven Central, so add their repositories to your app's `android/settings.gradle`:
+
+```gradle
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url "https://maven.fpregistry.io/releases" }
+        maven { url "https://prove.jfrog.io/artifactory/libs-public-maven/" }
+    }
+}
+```
 
 ---
 
@@ -104,7 +115,7 @@ await Frame.initialize({
   secretKey: 'sk_sandbox_...',      // optional — prefer publishable-key-only
   applePayMerchantId: 'merchant.com.yourapp', // optional — see Apple Pay section
   googlePayMerchantId: 'BCR2DN4T...',         // optional — see Google Pay section
-  accountId: 'acct_...',            // optional — pass if known at launch (iOS only)
+  accountId: 'acct_...',            // optional — pass if known at launch
   debugMode: false,                 // set true in development to enable native debug logging
 });
 ```
@@ -115,14 +126,14 @@ await Frame.initialize({
 | `secretKey` | `string` | No | Your Frame secret key (`sk_…`). Optional as of Frame-iOS 4.x and frame-android 3.x — prefer shipping only the publishable key in your app. |
 | `applePayMerchantId` | `string` | No | Apple Pay merchant identifier (`merchant.com.…`). Single source of truth for every Apple Pay surface — `presentApplePay`, the bundled checkout's wallet row, the onboarding wallet attach button. iOS-only; ignored on Android. |
 | `googlePayMerchantId` | `string` | No | Google Pay merchant identifier from the Google Pay & Wallet Console. Single source of truth for every Google Pay surface — `presentGooglePay`, the bundled checkout's wallet row, the onboarding wallet attach button. Android-only; ignored on iOS. |
-| `accountId` | `string` | No | The Frame account this app run belongs to, when your app already knows it at launch (e.g. a signed-in user). The Sonar fraud-detection session is then created already bound to the account, so one session covers the whole app run instead of an unscoped one being created and bound on first flow entry. Omit it when the account isn't known yet — the session is created unscoped and adopted onto the account later, keeping the same session ID either way. You still pass `accountId` to each `present*` call regardless. iOS-only; ignored on Android. |
+| `accountId` | `string` | No | The Frame account this app run belongs to, when your app already knows it at launch (e.g. a signed-in user). The Sonar fraud-detection session is then created already bound to the account, so one session covers the whole app run instead of an unscoped one being created and bound on first flow entry. Omit it when the account isn't known yet — the session is created unscoped and adopted onto the account later, keeping the same session ID either way. You still pass `accountId` to each `present*` call regardless. |
 | `debugMode` | `boolean` | No | Enables native debug logging and routes wallet flows through sandbox/test environments. Default: `false`. |
 
 ---
 
 ### `Frame.presentCheckout(options)`
 
-Opens the native checkout modal. Resolves with the created Transfer's id string when the user completes payment. Rejects with `USER_CANCELED` if the sheet is dismissed.
+Opens the native checkout modal. Resolves with the created Transfer's id string when the user completes payment. Rejects with `USER_CANCELED` if the sheet is dismissed, or `PAYMENT_FAILED` if checkout ends without producing a transfer.
 
 `accountId` is **required**: the bundled checkout creates a `Transfer`, which is account-scoped. If you need a customer/ChargeIntent flow, render your own UI and call `presentApplePay` / `presentGooglePay` directly with a customer owner instead.
 
@@ -193,9 +204,10 @@ const result = await Frame.presentOnboarding({
 });
 
 if (result.status === 'completed') {
-  // iOS resolves the onboarded account id; Android resolves a payment method id.
-  console.log('Onboarded account (iOS):', result.accountId);
-  console.log('Payment method (Android):', result.paymentMethodId);
+  console.log('Onboarded account:', result.accountId);
+} else if (result.status === 'unverified') {
+  // The flow finished but the applicant isn't approved yet (declined, pending review, or needs action).
+  console.log('Outcome:', result.outcome, result.message);
 }
 ```
 
@@ -238,23 +250,21 @@ const result = await Frame.presentOnboarding({
 | `bank_account_verification` | Bank account verification |
 | `bank_account_send` | Enable bank account send |
 | `bank_account_receive` | Enable bank account receive |
-| `idv` | Government-issued photo ID verification (Persona). **iOS only** — frame-android has no matching capability yet and silently ignores the string. |
+| `idv` | Government-issued photo ID verification (Persona). |
 
 **Returns:** `OnboardingResult`
 
 | Field | Type | Description |
 |---|---|---|
-| `status` | `'completed' \| 'cancelled'` | Whether the user finished or dismissed the flow |
-| `accountId` | `string \| undefined` | **iOS only.** The onboarded account's id — whether it pre-existed or was created during the flow. Use it to scope follow-up calls (checkout loads payment methods per account). |
+| `status` | `'completed' \| 'unverified' \| 'cancelled'` | `completed`: finished and approved. `unverified`: finished, but the applicant isn't approved. `cancelled`: dismissed, or the flow failed. |
+| `accountId` | `string \| undefined` | The onboarded account's id — whether it pre-existed or was created during the flow. Set for `completed` and `unverified`. Use it to scope follow-up calls (checkout loads payment methods per account). |
+| `outcome` | `'approved' \| 'pendingReview' \| 'declined' \| 'actionRequired' \| undefined` | Set for `unverified`: the applicant's verification status. |
+| `message` | `string \| undefined` | Set for `unverified` when the outcome is `declined` or `actionRequired`: the reason from the verification provider. |
 | `paymentMethodId` | `string \| undefined` | **Android only.** Set when a payment method was created or verified during the flow. iOS stopped returning this in frame-ios 4.3.6. |
-
-> **Platform difference:** the two SDKs return different resources on completion, so check
-> for the field you need rather than assuming one is present. The fields will converge once
-> frame-android also returns an account id.
 
 ---
 
-### `Frame.presentSelectPayoutMethod(options)` (iOS)
+### `Frame.presentSelectPayoutMethod(options)`
 
 Presents a standalone "choose the primary payout account" screen, outside the onboarding flow. Lists the account's saved ACH payout methods, lets the user add a new one, and elects the chosen method as the account's payout destination.
 
@@ -282,10 +292,6 @@ if (result.status === 'completed') {
 |---|---|---|
 | `status` | `'completed' \| 'cancelled'` | Whether the user finished or dismissed the screen |
 | `methodId` | `string \| undefined` | On completion, the id of the newly **elected** payout method |
-
-> **iOS only.** Requires frame-ios 4.4.1+. frame-android 3.0.2 has no equivalent screen, so this
-> throws `PLATFORM_UNSUPPORTED` on Android — use `Frame.presentOnboarding` with
-> `bank_account_verification` there.
 
 ---
 
@@ -438,7 +444,7 @@ On non-Android platforms `Frame.presentGooglePay` rejects synchronously with a n
 
 Customizes colors, fonts, and corner radii on Frame's reusable components — checkout, cart, and the onboarding flow. Supported on iOS (`FrameTheme` in Frame-iOS 2.1.2+) and Android (`FrameTheme` in frame-android 2.0.7+).
 
-Pass an optional `theme` to `Frame.initialize`. On iOS it's stored on `FrameNetworking.shared`; on Android it's stashed in the bridge and applied per-screen on each subsequent `present*` call. Modals already on screen are not re-themed if the theme is changed mid-flow. Omit the field, or pass `{}`, to use SDK defaults; pass a partial dict to override only specific tokens.
+Pass an optional `theme` to `Frame.initialize`. On iOS it's stored on `FrameNetworking.shared`; on Android it's stashed in the bridge and applied per-screen on each subsequent `present*` call. Modals already on screen are not re-themed if the theme is changed mid-flow. On Android, `presentAddPaymentMethod`, `presentAddPayoutMethod` and `presentSelectPayoutMethod` always use the default theme, because frame-android applies it to those screens itself. Omit the field, or pass `{}`, to use SDK defaults; pass a partial dict to override only specific tokens.
 
 ```ts
 import Frame from 'framepayments-react-native';
@@ -620,7 +626,7 @@ try {
 | `GOOGLE_PAY_UNAVAILABLE` | Android: Google Pay not ready on the device |
 | `NOT_ATTESTED` | iOS: device attestation has not completed yet |
 | `PAYMENT_METHOD_FAILED` | iOS: Apple Pay payment method creation failed |
-| `PAYMENT_FAILED` | Wallet flow failed during Transfer creation |
+| `PAYMENT_FAILED` | Checkout, cart, or a wallet flow ended without producing a Transfer or ChargeIntent |
 | `NETWORK_ERROR` | Network failure in the native SDK |
 | `API_ERROR` | Frame API returned an error |
 

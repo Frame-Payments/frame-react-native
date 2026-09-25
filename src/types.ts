@@ -72,11 +72,7 @@ export type OnboardingCapability =
   | 'bank_account_receive'
   | 'geo_compliance'
   | 'age_verification'
-  /**
-   * Requires government-issued photo ID verification via Persona, added in frame-ios 4.3.0.
-   * iOS-only for now — frame-android has no matching capability yet, so this is a no-op
-   * (silently ignored) when passed on Android.
-   */
+  /** Requires government-issued photo ID verification via Persona. */
   | 'idv';
 
 export type OnboardingResultStatus = 'completed' | 'cancelled' | 'unverified';
@@ -86,7 +82,7 @@ export type OnboardingOutcome = 'approved' | 'pendingReview' | 'declined' | 'act
 /** Result returned from presentOnboarding */
 export interface OnboardingResult {
   status: OnboardingResultStatus;
-  /** iOS only (frame-ios >= 4.3.6): the onboarded account's id. */
+  /** The onboarded account's id. Present when status is 'completed' or 'unverified'. */
   accountId?: string;
   /** Android only: the payment method added during the flow. */
   paymentMethodId?: string;

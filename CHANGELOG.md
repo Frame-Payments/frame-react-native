@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`presentAddPaymentMethod`, `presentAddPayoutMethod` and `presentSelectPayoutMethod`
+  now work on Android** (previously they threw `PLATFORM_UNSUPPORTED`). They resolve the
+  same `AddMethodResult` as iOS. On Android these screens don't take the
+  `Frame.initialize({ theme })` theme: frame-android applies its default theme to them.
+- **Android onboarding now resolves `status: 'unverified'`**, with `outcome` and
+  `message`, when the flow finishes without the applicant approved. It also resolves
+  `accountId` for `completed` and `unverified`. `paymentMethodId` is still set on
+  Android.
+- **`Frame.initialize({ accountId })` is now used on Android.** It binds the Sonar
+  session and account events to the account at init, as on iOS.
+- **Account events from both native SDKs are now attributed to React Native.** They
+  report platform `react_native` and this package's version as `host_sdk_version`,
+  instead of looking like bare iOS or Android traffic.
+- **`OnboardingOutcome` is now exported** from the package entry point.
+
+### Changed
+
+- **frame-ios: `4.5.1` → `4.5.3`.** No bridge changes. Onboarding launched without an
+  `accountId` now keeps the account events it emits before the account is created
+  (buffered and flushed once onboarding creates it) instead of dropping them.
+  4.5.2 is skipped: it reported events with platform `"iOS"`, which the backend
+  rejects, so none of its events were recorded.
+- **frame-android: `3.0.2` → `3.1.1`.** Android hosts now need the Fingerprint and
+  Prove Maven repositories; see the README's Android setup.
+- **Android checkout and cart reject with `PAYMENT_FAILED`** (was `USER_CANCELED`) when
+  they end without a transfer, matching iOS. This includes card encryption failing to
+  configure, which previously cancelled silently after 5 seconds.
+
+### Fixed
+
+- **Android onboarding now applies the `Frame.initialize({ theme })` theme.** It was
+  ignored because the onboarding container applied its default theme over it.
+- **Android cart → checkout waits for card encryption to be configured** before showing
+  the card form, as direct checkout already did.
+
 ## [3.5.0] - 2026-09-17
 
 ### Added
