@@ -29,10 +29,6 @@ const FRAME_PUBLISHABLE_KEY = process.env.FRAME_PUBLISHABLE_KEY ?? '';
 // Apple Pay merchant ID registered in the example app's entitlements. Mirrors the native iOS example.
 const APPLE_PAY_MERCHANT_ID = 'merchant.com.framepayments.example';
 
-// Demo owners. Swap which one the wallet buttons use to exercise either flow:
-// customer → ChargeIntent, account → Transfer.
-const DEMO_CUSTOMER_ID = 'SANDBOX_CUSTOMER_ID';
-const DEMO_ACCOUNT_ID = 'SANDBOX_ACCOUNT_ID';
 
 const frameSDK = new FrameSDK({ apiKey: FRAME_SECRET_KEY });
 
@@ -64,6 +60,8 @@ export default function App() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [initError, setInitError] = useState<string | null>(null);
+  // Set from onboarding's result, then used by every other flow — mirrors FrameExample-iOS.
+  const [accountId, setAccountId] = useState('');
 
   React.useEffect(() => {
     Frame.initialize({
@@ -73,10 +71,6 @@ export default function App() {
       publishableKey: FRAME_PUBLISHABLE_KEY,
       applePayMerchantId: APPLE_PAY_MERCHANT_ID,
       debugMode: __DEV__,
-      // AccountEventEmitter.emit drops every event unless the SDK was initialized
-      // with an accountId, so omitting this silently disables account events.
-      // Skipped while DEMO_ACCOUNT_ID is still the checked-in placeholder.
-      ...(DEMO_ACCOUNT_ID === 'SANDBOX_ACCOUNT_ID' ? {} : { accountId: DEMO_ACCOUNT_ID }),
       // Uncomment to exercise the FrameTheme tokens (iOS + Android).
       // theme: {
       //   colors: {
@@ -98,11 +92,18 @@ export default function App() {
       });
   }, []);
 
+  const requireAccount = (): boolean => {
+    if (accountId) return true;
+    Alert.alert('No account', 'Run onboarding first to create an account.');
+    return false;
+  };
+
   const handleCheckout = async () => {
+    if (!requireAccount()) return;
     setLoading('checkout');
     try {
       const transferId = await Frame.presentCheckout({
-        accountId: DEMO_ACCOUNT_ID,
+        accountId,
         amount: 15000,
       });
       Alert.alert('Success', `Transfer: ${transferId}`);
@@ -115,10 +116,11 @@ export default function App() {
   };
 
   const handleCart = async () => {
+    if (!requireAccount()) return;
     setLoading('cart');
     try {
       const transferId = await Frame.presentCart({
-        accountId: DEMO_ACCOUNT_ID,
+        accountId,
         items: sampleCartItems,
         shippingAmountInCents: 4000,
       });
@@ -132,6 +134,7 @@ export default function App() {
   };
 
   const handleApplePay = async () => {
+    if (!requireAccount()) return;
     setLoading('applePay');
     try {
       // Switch `owner.type` to 'customer' to create a ChargeIntent against a customer
@@ -139,8 +142,7 @@ export default function App() {
       const chargeId = await Frame.presentApplePay({
         amount: 100,
         currency: 'usd',
-        owner: { type: 'account', id: DEMO_ACCOUNT_ID },
-        merchantId: APPLE_PAY_MERCHANT_ID,
+        owner: { type: 'account', id: accountId },
       });
       Alert.alert('Apple Pay', `Charge id: ${chargeId}`);
     } catch (e: any) {
@@ -152,6 +154,7 @@ export default function App() {
   };
 
   const handleGooglePay = async () => {
+    if (!requireAccount()) return;
     setLoading('googlePay');
     try {
       // Switch `owner.type` to 'customer' to create a ChargeIntent against a customer
@@ -159,7 +162,7 @@ export default function App() {
       const chargeId = await Frame.presentGooglePay({
         amountCents: 100,
         currencyCode: 'USD',
-        owner: { type: 'account', id: DEMO_ACCOUNT_ID },
+        owner: { type: 'account', id: accountId },
       });
       Alert.alert('Google Pay', `Charge id: ${chargeId}`);
     } catch (e: any) {
@@ -170,18 +173,34 @@ export default function App() {
     }
   };
 
+  // Demo only: creates the account and mints the onb_sess_ secret with the configured sk_.
+  // Production apps do both on their backend (POST /v1/onboarding_sessions).
   const handleOnboarding = async () => {
+    if (!FRAME_SECRET_KEY) {
+      Alert.alert('Secret key required', 'Set FRAME_SECRET_KEY to create an account and onboarding session.');
+      return;
+    }
     setLoading('onboarding');
     try {
+      const onboardingAccountId = accountId || (await frameSDK.accounts.create({
+        type: 'individual',
+        profile: { individual: { name: { first_name: '', last_name: '' }, email: 'newaccount@example.com' } },
+      })).id;
+      setAccountId(onboardingAccountId);
+      const session = await frameSDK.onboardingSessions.create({
+        account_id: onboardingAccountId,
+        steps: ['id_verification', 'geo_compliance', 'payment_method'],
+      });
       const result = await Frame.presentOnboarding({
+        accountId: onboardingAccountId,
+        clientSecret: session.client_secret,
         capabilities: ['kyc', 'kyc_prefill', 'age_verification', 'phone_verification', 'card_verification', 'bank_account_verification'],
       });
-      // iOS returns the onboarded account id; Android returns a payment method id.
-      const detail = result.accountId
-        ? `Account: ${result.accountId}`
-        : result.paymentMethodId
-          ? `Payment method: ${result.paymentMethodId}`
-          : result.message;
+      // Unverified still keeps the account: it's needed to scope follow-up calls.
+      if (result.status !== 'cancelled' && result.accountId) {
+        setAccountId(result.accountId);
+      }
+      const detail = result.accountId ? `Account: ${result.accountId}` : result.message;
       const title =
         result.status === 'completed'
           ? 'Onboarding complete'
@@ -198,12 +217,29 @@ export default function App() {
   };
 
   const handleAddPaymentMethod = async () => {
+    if (!requireAccount()) return;
     setLoading('addPaymentMethod');
     try {
-      const result = await Frame.presentAddPaymentMethod({ accountId: DEMO_ACCOUNT_ID });
+      const result = await Frame.presentAddPaymentMethod({ accountId });
       Alert.alert(
         result.status === 'completed' ? 'Payment method added' : 'Cancelled',
         result.methodId ? `Payment method: ${result.methodId}` : undefined,
+      );
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? String(e));
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleAddPayoutMethod = async () => {
+    if (!requireAccount()) return;
+    setLoading('addPayoutMethod');
+    try {
+      const result = await Frame.presentAddPayoutMethod({ accountId });
+      Alert.alert(
+        result.status === 'completed' ? 'Payout method added' : 'Cancelled',
+        result.methodId ? `Payout method: ${result.methodId}` : undefined,
       );
     } catch (e: any) {
       Alert.alert('Error', e.message ?? String(e));
@@ -220,9 +256,10 @@ export default function App() {
   // A publishable-key-only integration must pass an `onb_sess_...` secret minted by its
   // server — the election endpoint is account-scoped and rejects a pk_.
   const handleSelectPayoutMethod = async () => {
+    if (!requireAccount()) return;
     setLoading('selectPayoutMethod');
     try {
-      const result = await Frame.presentSelectPayoutMethod({ accountId: DEMO_ACCOUNT_ID });
+      const result = await Frame.presentSelectPayoutMethod({ accountId });
       Alert.alert(
         result.status === 'completed' ? 'Primary payout method set' : 'Cancelled',
         result.methodId ? `Payout method: ${result.methodId}` : undefined,
@@ -276,7 +313,9 @@ export default function App() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Frame RN SDK Example</Text>
-      <Text style={styles.subtitle}>Set FRAME_API_KEY in App.tsx or env, then tap below.</Text>
+      <Text style={styles.subtitle}>
+        {accountId ? `Account: ${accountId}` : 'No account yet — run onboarding first.'}
+      </Text>
 
       {initError && (
         <View style={styles.errorBox}>
@@ -367,6 +406,18 @@ export default function App() {
           <ActivityIndicator color="#fff" />
         ) : (
           <Text style={styles.buttonText}>Add payment method</Text>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, (loading === 'addPayoutMethod' || !!initError) && styles.buttonDisabled]}
+        onPress={handleAddPayoutMethod}
+        disabled={!!loading || !!initError}
+      >
+        {loading === 'addPayoutMethod' ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Add payout method</Text>
         )}
       </TouchableOpacity>
 
