@@ -14,6 +14,11 @@ import type {
 } from './types';
 import { ErrorCodes } from './errors';
 
+// Sent to the native SDKs so their account events are attributed to this wrapper. Resolves to
+// the package root from both src/ and lib/.
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- package.json is outside rootDir, so it can't be imported
+const PACKAGE_VERSION: string = require('../package.json').version;
+
 const LINKING_ERROR =
   `The package 'framepayments-react-native' doesn't seem to be linked. Make sure you have run 'pod install' (iOS) or rebuilt the app (Android).`;
 
@@ -97,7 +102,8 @@ export function initialize(options: {
       options.applePayMerchantId ?? null,
       options.googlePayMerchantId ?? null,
       options.theme ?? null,
-      options.accountId ?? null
+      options.accountId ?? null,
+      PACKAGE_VERSION
     )
   ).then(() => {
     isInitialized = true;

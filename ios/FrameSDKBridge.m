@@ -32,6 +32,7 @@ RCT_EXTERN_METHOD(initialize:(id)secretKey
                   googlePayMerchantId:(id)googlePayMerchantId
                   theme:(NSDictionary *)theme
                   accountId:(id)accountId
+                  hostSDKVersion:(NSString *)hostSDKVersion
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
@@ -90,8 +91,8 @@ RCT_EXTERN_METHOD(presentSelectPayoutMethod:(NSString *)accountId
   return YES;
 }
 
-- (void)initialize:(id)secretKey publishableKey:(NSString *)publishableKey debugMode:(BOOL)debugMode applePayMerchantId:(id)applePayMerchantId googlePayMerchantId:(id)googlePayMerchantId theme:(NSDictionary *)theme accountId:(id)accountId resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
-  [[[ObjCFrameSDKBridge alloc] init] initialize:secretKey publishableKey:publishableKey debugMode:debugMode applePayMerchantId:applePayMerchantId googlePayMerchantId:googlePayMerchantId theme:theme accountId:accountId resolver:resolve rejecter:reject];
+- (void)initialize:(id)secretKey publishableKey:(NSString *)publishableKey debugMode:(BOOL)debugMode applePayMerchantId:(id)applePayMerchantId googlePayMerchantId:(id)googlePayMerchantId theme:(NSDictionary *)theme accountId:(id)accountId hostSDKVersion:(NSString *)hostSDKVersion resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+  [[[ObjCFrameSDKBridge alloc] init] initialize:secretKey publishableKey:publishableKey debugMode:debugMode applePayMerchantId:applePayMerchantId googlePayMerchantId:googlePayMerchantId theme:theme accountId:accountId hostSDKVersion:hostSDKVersion resolver:resolve rejecter:reject];
 }
 
 - (void)presentCheckout:(id)accountId amount:(NSNumber *)amount resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {

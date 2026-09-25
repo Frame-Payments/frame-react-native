@@ -42,6 +42,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     googlePayMerchantId: String?,
     theme: ReadableMap?,
     accountId: String?,
+    hostSDKVersion: String,
     promise: Promise
   ) {
     // applePayMerchantId is iOS-only; accepted in the bridge signature so the JS Frame.initialize()
@@ -52,6 +53,8 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     UiThreadUtil.runOnUiThread {
       try {
         val ctx = reactApplicationContext.applicationContext
+        // Must precede initializeWithAPIKey so every account event is tagged as this wrapper's traffic.
+        FrameNetworking.setHostSDKInfo("react_native", hostSDKVersion)
         // frame-android still declares secretKey as a non-null String, but only uses a non-empty
         // value to emit its "you shipped a secret key" warning. Passing "" is the supported
         // publishable-key-only path, so JS can omit secretKey on Android just like on iOS.

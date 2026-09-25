@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Android.
 - **`Frame.initialize({ accountId })` is now used on Android.** It binds the Sonar
   session and account events to the account at init, as on iOS.
+- **Account events from both native SDKs are now attributed to React Native.** They
+  report platform `react_native` and this package's version as `host_sdk_version`,
+  instead of looking like bare iOS or Android traffic.
+- **`OnboardingOutcome` is now exported** from the package entry point.
 
 ### Changed
 
