@@ -76,10 +76,6 @@ let inflightEnsureAttested: Promise<string> | null = null;
 export function ensureAttested(): Promise<string> {
   if (inflightEnsureAttested) return inflightEnsureAttested;
   inflightEnsureAttested = runEnsureAttested()
-    .then((keyId) => {
-      recordEvent(AccountEventName.ATTESTATION_COMPLETED, AccountEventScreen.PAYMENT_SHEET);
-      return keyId;
-    })
     .catch((err) => {
       recordEvent(AccountEventName.DEVICE_ATTESTATION_FAILED, AccountEventScreen.PAYMENT_SHEET, err instanceof Error ? err.message : undefined);
       throw err;
@@ -164,6 +160,7 @@ async function runEnsureAttested(): Promise<string> {
   }
 
   await FrameAttestation.promoteKey(keyId);
+  recordEvent(AccountEventName.ATTESTATION_COMPLETED, AccountEventScreen.PAYMENT_SHEET);
   return keyId;
 }
 

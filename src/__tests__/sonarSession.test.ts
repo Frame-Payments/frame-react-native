@@ -9,6 +9,11 @@ jest.mock('../fingerprint', () => ({
   getFingerprintVisitorId: () => mockVisitorId(),
 }));
 
+const mockRecordEvent = jest.fn();
+jest.mock('../accountEvents', () => ({
+  recordEvent: (...args: unknown[]) => mockRecordEvent(...args),
+}));
+
 interface Call {
   method: 'POST' | 'PATCH';
   path: string;
@@ -75,6 +80,7 @@ beforeEach(() => {
   setConfig({ publishableKey: 'pk_test_x', debugMode: false });
   calls = [];
   nextSessionId = 1;
+  mockRecordEvent.mockClear();
   mockVisitorId.mockResolvedValue('visitor_1');
   storage = fakeStorage();
   __setSessionStorage(storage);
@@ -135,6 +141,7 @@ describe('ensureSession', () => {
     expect(calls[0]!.method).toBe('PATCH');
     expect(calls[0]!.path).toBe('/v1/charge_sessions/cs_old');
     expect(calls[0]!.body.account_id).toBe('acct_1');
+    expect(mockRecordEvent.mock.calls.map((c) => c[0])).toEqual(['fraud_session_refreshed']);
   });
 
   it('adopts the pre-account session rather than orphaning its device event', async () => {
@@ -183,6 +190,7 @@ describe('ensureSession', () => {
 
     expect(await ensureSession('acct_1')).toBe('cs_1');
     expect(calls.map((c) => c.method)).toEqual(['PATCH', 'POST']);
+    expect(mockRecordEvent.mock.calls.map((c) => c[0])).toEqual(['fraud_session_recreated']);
   });
 
   it('throws when fingerprint yields no visitor id', async () => {

@@ -126,7 +126,7 @@ async function createSession(accountId: string | null): Promise<string> {
   return sessionIdFrom(response, 'create');
 }
 
-async function refreshSession(session: string, accountId: string | null): Promise<string> {
+async function refreshSession(session: string, accountId: string | null, recordRefreshed = false): Promise<string> {
   const visitorId = await getFingerprintVisitorId();
   if (!visitorId) {
     throw new Error('Fingerprint returned no visitor id, so the Sonar session cannot be refreshed.');
@@ -136,7 +136,9 @@ async function refreshSession(session: string, accountId: string | null): Promis
       fingerprint_visitor_id: visitorId,
       ...(accountId ? { account_id: accountId } : {}),
     });
-    return sessionIdFrom(response, 'update');
+    const refreshed = sessionIdFrom(response, 'update');
+    if (recordRefreshed) recordEvent(AccountEventName.FRAUD_SESSION_REFRESHED, AccountEventScreen.PAYMENT_SHEET);
+    return refreshed;
   } catch {
     await storage.clear(accountId);
     const created = await createSession(accountId);
@@ -158,9 +160,8 @@ async function store(session: string, accountId: string | null): Promise<void> {
 async function establishSession(accountId: string): Promise<string> {
   const existing = await storage.get(accountId);
   if (existing) {
-    const refreshed = await refreshSession(existing, accountId);
+    const refreshed = await refreshSession(existing, accountId, true);
     await store(refreshed, accountId);
-    recordEvent(AccountEventName.FRAUD_SESSION_REFRESHED, AccountEventScreen.PAYMENT_SHEET);
     return refreshed;
   }
 

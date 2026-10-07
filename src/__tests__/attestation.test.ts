@@ -25,6 +25,11 @@ jest.mock('react-native', () => ({
   Platform: mockPlatform,
 }));
 
+const mockRecordEvent = jest.fn();
+jest.mock('../accountEvents', () => ({
+  recordEvent: (...args: unknown[]) => mockRecordEvent(...args),
+}));
+
 const getChallenge = jest.fn(() => Promise.resolve({ challenge: 'Y2hhbGxlbmdl' })); // "challenge" base64
 const attest = jest.fn(() => Promise.resolve({ status: 'verified', key_id: 'key_pending_1' }));
 
@@ -58,6 +63,7 @@ beforeEach(() => {
   resetAttestationBridge.mockClear().mockResolvedValue(undefined);
   getChallenge.mockClear().mockResolvedValue({ challenge: 'Y2hhbGxlbmdl' });
   attest.mockClear().mockResolvedValue({ status: 'verified', key_id: 'key_pending_1' });
+  mockRecordEvent.mockClear();
   resetConfig();
   resetClients();
   __resetEnsureAttestedInflight();
@@ -83,6 +89,7 @@ describe('ensureAttested', () => {
     expect(await ensureAttested()).toBe('key_already_attested');
     expect(generateKey).not.toHaveBeenCalled();
     expect(getChallenge).not.toHaveBeenCalled();
+    expect(mockRecordEvent).not.toHaveBeenCalled();
   });
 
   it('runs the full 5-step flow when no attested key exists', async () => {
@@ -97,6 +104,7 @@ describe('ensureAttested', () => {
       { usePublishableKey: true },
     );
     expect(promoteKey).toHaveBeenCalledWith('key_pending_1');
+    expect(mockRecordEvent.mock.calls.map((c) => c[0])).toEqual(['attestation_started', 'attestation_completed']);
   });
 
   it('throws PLATFORM_UNSUPPORTED on Android', async () => {

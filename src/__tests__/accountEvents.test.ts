@@ -8,7 +8,7 @@ jest.mock('react-native', () => ({
   Platform: { OS: 'ios' },
 }));
 
-import { setConfig, setAccountIdIfUnset, getAccountId, resetConfig } from '../config';
+import { setConfig, setAccountIdIfUnset, clearAccountIdIfMatches, getAccountId, resetConfig } from '../config';
 import { SDK_VERSION } from '../client';
 import {
   recordEvent,
@@ -70,6 +70,17 @@ describe('recordEvent', () => {
     setAccountIdIfUnset('acct_second');
     setAccountIdIfUnset('');
     expect(getAccountId()).toBe('acct_first');
+  });
+
+  it('lets a new account claim events once a not-found account id is cleared', () => {
+    setConfig({ publishableKey: 'pk_test', debugMode: false, accountId: 'acct_missing' });
+    clearAccountIdIfMatches('acct_other');
+    expect(getAccountId()).toBe('acct_missing');
+
+    clearAccountIdIfMatches('acct_missing');
+    expect(getAccountId()).toBeUndefined();
+    setAccountIdIfUnset('acct_created');
+    expect(getAccountId()).toBe('acct_created');
   });
 
   it('drops the oldest buffered event once the pre-account buffer is full', () => {

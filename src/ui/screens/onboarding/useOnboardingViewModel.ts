@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { client } from '../../../client';
 import { configureEvervault, encryptWithEvervault } from '../../../evervault';
-import { __internal as configInternal, getIpAddress, setAccountIdIfUnset } from '../../../config';
+import { __internal as configInternal, clearAccountIdIfMatches, getIpAddress, setAccountIdIfUnset } from '../../../config';
 import { ErrorCodes, frameError } from '../../../errors';
 import { addApplePayToOwnerFlow } from '../../../applePay';
 import { openPlaidLink as runPlaidLink, type PlaidConnectResult } from '../../../plaid';
@@ -235,6 +235,7 @@ export function useOnboardingViewModel({
             ownsOnboardingSessionRef.current = false;
           }
           accountNotFound = true;
+          clearAccountIdIfMatches(initialAccountId);
           dispatch({ type: 'SET_ACCOUNT_ID', id: null });
           return;
         }

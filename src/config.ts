@@ -73,6 +73,10 @@ export function setAccountIdIfUnset(accountId: string | null | undefined): void 
   accountIdResolvedHandler?.(accountId);
 }
 
+export function clearAccountIdIfMatches(accountId: string): void {
+  if (state.accountId === accountId) state.accountId = undefined;
+}
+
 export function getConfig(): Readonly<FrameConfig> {
   return {
     secretKey: state.secretKey,
