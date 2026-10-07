@@ -1,6 +1,8 @@
 import { AppState, type AppStateStatus } from 'react-native';
 import { client } from './client';
 import { getFingerprintVisitorId } from './fingerprint';
+import { recordEvent } from './accountEvents';
+import { AccountEventName, AccountEventScreen, AccountEventDetail } from './accountEventCatalog';
 
 const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 
@@ -124,7 +126,7 @@ async function createSession(accountId: string | null): Promise<string> {
   return sessionIdFrom(response, 'create');
 }
 
-async function refreshSession(session: string, accountId: string | null): Promise<string> {
+async function refreshSession(session: string, accountId: string | null, recordRefreshed = false): Promise<string> {
   const visitorId = await getFingerprintVisitorId();
   if (!visitorId) {
     throw new Error('Fingerprint returned no visitor id, so the Sonar session cannot be refreshed.');
@@ -134,10 +136,14 @@ async function refreshSession(session: string, accountId: string | null): Promis
       fingerprint_visitor_id: visitorId,
       ...(accountId ? { account_id: accountId } : {}),
     });
-    return sessionIdFrom(response, 'update');
+    const refreshed = sessionIdFrom(response, 'update');
+    if (recordRefreshed) recordEvent(AccountEventName.FRAUD_SESSION_REFRESHED, AccountEventScreen.PAYMENT_SHEET);
+    return refreshed;
   } catch {
     await storage.clear(accountId);
-    return createSession(accountId);
+    const created = await createSession(accountId);
+    recordEvent(AccountEventName.FRAUD_SESSION_RECREATED, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.FRAUD_SESSION_REFRESH_FELL_BACK_TO_RECREATE);
+    return created;
   }
 }
 
@@ -154,7 +160,7 @@ async function store(session: string, accountId: string | null): Promise<void> {
 async function establishSession(accountId: string): Promise<string> {
   const existing = await storage.get(accountId);
   if (existing) {
-    const refreshed = await refreshSession(existing, accountId);
+    const refreshed = await refreshSession(existing, accountId, true);
     await store(refreshed, accountId);
     return refreshed;
   }
@@ -169,12 +175,14 @@ async function establishSession(accountId: string): Promise<string> {
     const value = await refreshSession(legacy, accountId);
     await store(value, accountId);
     await storage.clear(null);
+    recordEvent(AccountEventName.FRAUD_SESSION_ADOPTED, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.FRAUD_SESSION_ADOPTED_FROM_ANONYMOUS);
     return value;
   });
   if (adopted) return adopted;
 
   const created = await createSession(accountId);
   await store(created, accountId);
+  recordEvent(AccountEventName.FRAUD_SESSION_STARTED, AccountEventScreen.PAYMENT_SHEET);
   return created;
 }
 
@@ -263,7 +271,9 @@ export async function refreshOnFlowEntry(accountId?: string | null): Promise<voi
     if (id) {
       activeAccountId = id;
       startKeepAlive();
-      await runExclusive(id).catch(() => {});
+      await runExclusive(id).catch(() => {
+        recordEvent(AccountEventName.SONAR_SESSION_FAILED, AccountEventScreen.PAYMENT_SHEET, AccountEventDetail.SONAR_SESSION_FAILED_ON_ENTRY);
+      });
       return;
     }
     const created = await createSession(null).catch(() => null);

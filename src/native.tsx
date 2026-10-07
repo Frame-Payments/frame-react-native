@@ -22,6 +22,7 @@ import { isGooglePayReady } from './googlePay';
 import { ErrorCodes, frameError } from './errors';
 import {
   setConfig,
+  setAccountIdIfUnset,
   isInitialized as configIsInitialized,
   resetConfig,
   __internal,
@@ -32,6 +33,7 @@ import { resetClients, warmClients } from './client';
 import { configureEvervault, resetEvervault } from './evervault';
 import { fetchIpAddress } from './ipAddress';
 import { initializeSession, observeAppLifecycle, refreshOnFlowEntry } from './sonarSession';
+import { observeAccountEventsLifecycle } from './accountEvents';
 import { presentApplePayFlow } from './applePay';
 import { presentGooglePayFlow } from './googlePay';
 import { warnOnce } from './warn';
@@ -178,6 +180,7 @@ async function runInitialize(options: {
     applePayMerchantId: options.applePayMerchantId,
     googlePayMerchantId: options.googlePayMerchantId,
     theme: options.theme,
+    accountId: options.accountId,
   });
   warmClients();
 
@@ -186,6 +189,7 @@ async function runInitialize(options: {
   // — submit-time encryption will re-await this promise via configureEvervault's
   void prefetchServiceConfigs();
   observeAppLifecycle();
+  observeAccountEventsLifecycle();
   void initializeSession(options.accountId);
   if (Platform.OS === 'ios') {
     void ensureAttested().catch(() => {});
@@ -312,6 +316,7 @@ export async function presentCheckout(options: PresentCheckoutOptions): Promise<
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentCheckout requires accountId');
   }
+  setAccountIdIfUnset(options.accountId);
   void refreshOnFlowEntry(options.accountId);
   const [applePayReady, googlePayReady] = await Promise.all([
     Platform.OS === 'ios' ? canMakeApplePay() : Promise.resolve(false),
@@ -385,6 +390,7 @@ export async function presentCart(options: PresentCartOptions): Promise<string> 
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentCart requires accountId');
   }
+  setAccountIdIfUnset(options.accountId);
   void refreshOnFlowEntry(options.accountId);
   // Cart screen sums items + shipping, then transitions to Checkout for the
   // actual payment collection. The presenter only ever renders ONE screen at a
@@ -511,6 +517,7 @@ function presentMethodScreen(
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, `Frame.${fnName} requires accountId`);
   }
+  setAccountIdIfUnset(options.accountId);
   void refreshOnFlowEntry(options.accountId);
   return presentScreen<string>((api) => (
     <StandaloneMethodRoot

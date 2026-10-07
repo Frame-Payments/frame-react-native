@@ -7,6 +7,7 @@ export interface FrameConfig {
   applePayMerchantId?: string;
   googlePayMerchantId?: string;
   theme?: FrameTheme;
+  accountId?: string;
 }
 
 export interface EvervaultConfiguration {
@@ -27,6 +28,14 @@ interface InternalState extends FrameConfig {
   ipAddress?: string;
 }
 
+type AccountIdResolvedHandler = (accountId: string) => void;
+
+let accountIdResolvedHandler: AccountIdResolvedHandler | null = null;
+
+export function registerAccountIdResolvedHandler(handler: AccountIdResolvedHandler): void {
+  accountIdResolvedHandler = handler;
+}
+
 const state: InternalState = {
   initialized: false,
   debugMode: false,
@@ -43,13 +52,29 @@ function deepFreezeClone<T>(value: T): T {
 }
 
 export function setConfig(config: FrameConfig): void {
+  const previousAccountId = state.accountId;
   state.secretKey = config.secretKey;
   state.publishableKey = config.publishableKey;
   state.debugMode = config.debugMode;
   state.applePayMerchantId = config.applePayMerchantId;
   state.googlePayMerchantId = config.googlePayMerchantId;
   state.theme = config.theme === undefined ? undefined : deepFreezeClone(config.theme);
+  state.accountId = config.accountId;
   state.initialized = true;
+  if (config.accountId && config.accountId !== previousAccountId) {
+    accountIdResolvedHandler?.(config.accountId);
+  }
+}
+
+/** First account id wins. Onboarding creates the account mid-flow, so a later write must not retarget events already buffered for this run. */
+export function setAccountIdIfUnset(accountId: string | null | undefined): void {
+  if (!accountId || state.accountId) return;
+  state.accountId = accountId;
+  accountIdResolvedHandler?.(accountId);
+}
+
+export function clearAccountIdIfMatches(accountId: string): void {
+  if (state.accountId === accountId) state.accountId = undefined;
 }
 
 export function getConfig(): Readonly<FrameConfig> {
@@ -60,6 +85,7 @@ export function getConfig(): Readonly<FrameConfig> {
     applePayMerchantId: state.applePayMerchantId,
     googlePayMerchantId: state.googlePayMerchantId,
     theme: state.theme,
+    accountId: state.accountId,
   };
 }
 
@@ -91,6 +117,10 @@ export function getGooglePayMerchantId(): string | undefined {
   return state.googlePayMerchantId;
 }
 
+export function getAccountId(): string | undefined {
+  return state.accountId;
+}
+
 export function getEvervaultConfiguration(): EvervaultConfiguration | undefined {
   return state.evervaultConfiguration;
 }
@@ -110,6 +140,7 @@ export function resetConfig(): void {
   state.applePayMerchantId = undefined;
   state.googlePayMerchantId = undefined;
   state.theme = undefined;
+  state.accountId = undefined;
   state.evervaultConfiguration = undefined;
   state.siftConfiguration = undefined;
   state.ipAddress = undefined;

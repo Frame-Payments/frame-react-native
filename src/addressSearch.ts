@@ -2,6 +2,8 @@ import { fetchRemoteConfig } from './remoteConfig';
 import { frameRequestHeaders } from './bespokeRequest';
 import { FRAME_API_BASE_URL } from './client';
 import { subregionsForCountry } from './addressSubregions';
+import { recordEvent } from './accountEvents';
+import { AccountEventName, AccountEventScreen, AccountEventDetail } from './accountEventCatalog';
 import type { BillingAddress } from './types';
 
 const MAPBOX_SEARCH_BASE = 'https://api.mapbox.com/search/searchbox/v1';
@@ -113,10 +115,11 @@ export async function suggestAddresses(
         cachedToken = undefined;
         cachedExpiresAt = undefined;
       }
+      recordEvent(AccountEventName.ADDRESS_SEARCH_FAILED, AccountEventScreen.ADDRESS_SEARCH, `HTTP ${response.status}`);
       return [];
     }
     const body = (await response.json()) as MapboxSuggestResponse;
-    return (body.suggestions ?? [])
+    const results = (body.suggestions ?? [])
       .map((s): AddressSuggestion | null => {
         if (typeof s.mapbox_id !== 'string' || typeof s.name !== 'string') return null;
         return {
@@ -126,7 +129,10 @@ export async function suggestAddresses(
         };
       })
       .filter((s): s is AddressSuggestion => s !== null);
-  } catch {
+    recordEvent(AccountEventName.ADDRESS_SEARCHED, AccountEventScreen.ADDRESS_SEARCH);
+    return results;
+  } catch (err) {
+    recordEvent(AccountEventName.ADDRESS_SEARCH_FAILED, AccountEventScreen.ADDRESS_SEARCH, err instanceof Error ? err.message : undefined);
     return [];
   }
 }
@@ -146,15 +152,21 @@ export async function retrieveAddress(suggestion: AddressSuggestion): Promise<Bi
         cachedToken = undefined;
         cachedExpiresAt = undefined;
       }
+      recordEvent(AccountEventName.ADDRESS_LOOKUP_FAILED, AccountEventScreen.ADDRESS_SEARCH, `HTTP ${response.status}`);
       return null;
     }
     const body = (await response.json()) as MapboxRetrieveResponse;
     const feature = body.features?.[0];
-    if (!feature) return null;
+    if (!feature) {
+      recordEvent(AccountEventName.ADDRESS_LOOKUP_FAILED, AccountEventScreen.ADDRESS_SEARCH, AccountEventDetail.ADDRESS_LOOKUP_NO_FEATURE_RETURNED);
+      return null;
+    }
 
     sessionToken = cryptoRandomUUID();
+    recordEvent(AccountEventName.ADDRESS_SUGGESTION_SELECTED, AccountEventScreen.ADDRESS_SEARCH);
     return billingAddressFromFeature(feature);
-  } catch {
+  } catch (err) {
+    recordEvent(AccountEventName.ADDRESS_LOOKUP_FAILED, AccountEventScreen.ADDRESS_SEARCH, err instanceof Error ? err.message : undefined);
     return null;
   }
 }
