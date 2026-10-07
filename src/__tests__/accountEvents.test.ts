@@ -8,7 +8,7 @@ jest.mock('react-native', () => ({
   Platform: { OS: 'ios' },
 }));
 
-import { setConfig, resetConfig } from '../config';
+import { setConfig, setAccountIdIfUnset, getAccountId, resetConfig } from '../config';
 import { SDK_VERSION } from '../client';
 import {
   recordEvent,
@@ -16,6 +16,7 @@ import {
   observeAccountEventsLifecycle,
   __resetAccountEvents,
   __peekQueue,
+  __peekPending,
 } from '../accountEvents';
 
 function mockFetchOnce(body: unknown, ok = true, status = ok ? 202 : 500) {
@@ -40,9 +41,44 @@ afterEach(() => {
 });
 
 describe('recordEvent', () => {
-  it('does nothing when no accountId is configured', () => {
+  it('buffers events emitted before an account id exists, then stamps and sends them once one resolves', async () => {
     setConfig({ publishableKey: 'pk_test', debugMode: false });
-    recordEvent('checkout_transport_failed', 'PaymentSheet');
+    recordEvent('onboarding_started', 'Onboarding', 'before account');
+    expect(__peekQueue()).toHaveLength(0);
+    expect(__peekPending()).toHaveLength(1);
+    const occurredAt = __peekPending()[0]!.occurred_at;
+
+    mockFetchOnce({ recorded: 1 });
+    setAccountIdIfUnset('acct_created');
+
+    expect(getAccountId()).toBe('acct_created');
+    expect(__peekPending()).toHaveLength(0);
+    await flush();
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const [, init] = (global.fetch as jest.Mock).mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as { events: Array<{ account_id: string; occurred_at: string; detail?: string }> };
+    expect(body.events[0]).toMatchObject({
+      account_id: 'acct_created',
+      occurred_at: occurredAt,
+      detail: 'before account',
+    });
+  });
+
+  it('does not retarget events onto a later account id', () => {
+    setConfig({ publishableKey: 'pk_test', debugMode: false, accountId: 'acct_first' });
+    setAccountIdIfUnset('acct_second');
+    setAccountIdIfUnset('');
+    expect(getAccountId()).toBe('acct_first');
+  });
+
+  it('drops the oldest buffered event once the pre-account buffer is full', () => {
+    setConfig({ publishableKey: 'pk_test', debugMode: false });
+    for (let i = 0; i < 210; i++) recordEvent(`event_${i}`, 'Onboarding');
+    const buffered = __peekPending();
+    expect(buffered).toHaveLength(200);
+    expect(buffered[0]!.name).toBe('event_10');
+    expect(buffered[buffered.length - 1]!.name).toBe('event_209');
     expect(__peekQueue()).toHaveLength(0);
   });
 

@@ -28,6 +28,14 @@ interface InternalState extends FrameConfig {
   ipAddress?: string;
 }
 
+type AccountIdResolvedHandler = (accountId: string) => void;
+
+let accountIdResolvedHandler: AccountIdResolvedHandler | null = null;
+
+export function registerAccountIdResolvedHandler(handler: AccountIdResolvedHandler): void {
+  accountIdResolvedHandler = handler;
+}
+
 const state: InternalState = {
   initialized: false,
   debugMode: false,
@@ -44,6 +52,7 @@ function deepFreezeClone<T>(value: T): T {
 }
 
 export function setConfig(config: FrameConfig): void {
+  const previousAccountId = state.accountId;
   state.secretKey = config.secretKey;
   state.publishableKey = config.publishableKey;
   state.debugMode = config.debugMode;
@@ -52,6 +61,16 @@ export function setConfig(config: FrameConfig): void {
   state.theme = config.theme === undefined ? undefined : deepFreezeClone(config.theme);
   state.accountId = config.accountId;
   state.initialized = true;
+  if (config.accountId && config.accountId !== previousAccountId) {
+    accountIdResolvedHandler?.(config.accountId);
+  }
+}
+
+/** First account id wins. Onboarding creates the account mid-flow, so a later write must not retarget events already buffered for this run. */
+export function setAccountIdIfUnset(accountId: string | null | undefined): void {
+  if (!accountId || state.accountId) return;
+  state.accountId = accountId;
+  accountIdResolvedHandler?.(accountId);
 }
 
 export function getConfig(): Readonly<FrameConfig> {

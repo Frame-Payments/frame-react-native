@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { client } from '../../../client';
 import { configureEvervault, encryptWithEvervault } from '../../../evervault';
-import { __internal as configInternal, getIpAddress } from '../../../config';
+import { __internal as configInternal, getIpAddress, setAccountIdIfUnset } from '../../../config';
 import { ErrorCodes, frameError } from '../../../errors';
 import { addApplePayToOwnerFlow } from '../../../applePay';
 import { openPlaidLink as runPlaidLink, type PlaidConnectResult } from '../../../plaid';
@@ -188,6 +188,7 @@ export function useOnboardingViewModel({
       return;
     }
     let cancelled = false;
+    let accountNotFound = false;
     (async () => {
       try {
         // Host launched against an existing account: mint the onboarding
@@ -233,9 +234,11 @@ export function useOnboardingViewModel({
             endOnboardingSession();
             ownsOnboardingSessionRef.current = false;
           }
+          accountNotFound = true;
           dispatch({ type: 'SET_ACCOUNT_ID', id: null });
           return;
         }
+        setAccountIdIfUnset(initialAccountId);
         const accountInitial = accountResult.account;
 
         // Reconcile the merchant-requested capabilities with the account's
@@ -287,6 +290,7 @@ export function useOnboardingViewModel({
         // catch internally). Flip loaded so the user isn't wedged on the
         // welcome spinner.
       } finally {
+        if (!cancelled && !accountNotFound) setAccountIdIfUnset(initialAccountId);
         if (!cancelled) dispatch({ type: 'SET_ACCOUNT_LOADED', loaded: true });
       }
     })();
@@ -481,10 +485,11 @@ export function useOnboardingViewModel({
           recordEvent(AccountEventName.ONBOARDING_SESSION_START_FAILED, AccountEventScreen.ONBOARDING, AccountEventDetail.ONBOARDING_SESSION_NO_ACCOUNT_ID);
           throw frameError(ErrorCodes.PAYMENT_FAILED, 'Frame returned no account id.');
         }
+        accountId = account.id;
+        setAccountIdIfUnset(accountId);
         if (current.termsOfServiceToken) {
           recordEvent(AccountEventName.TERMS_OF_SERVICE_ACCEPTED, AccountEventScreen.TERMS_OF_SERVICE);
         }
-        accountId = account.id;
         dispatch({ type: 'SET_ACCOUNT_ID', id: accountId });
         setSiftUserId(accountId);
         // Mint the account-scoped onboarding session now so downstream

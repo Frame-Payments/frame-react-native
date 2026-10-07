@@ -1,9 +1,10 @@
 import { AppState, type AppStateStatus } from 'react-native';
-import { getAccountId, getPublishableKey } from './config';
+import { getAccountId, getPublishableKey, registerAccountIdResolvedHandler } from './config';
 import { FRAME_API_BASE_URL, SDK_VERSION, SDK_VERSION_HEADER, frameUserAgent } from './client';
 import type { AccountEventName, AccountEventScreen } from './accountEventCatalog';
 
 const MAX_QUEUE_SIZE = 100;
+const MAX_PENDING = 200;
 const MAX_BATCH_SIZE = 100;
 const FLUSH_SIZE_THRESHOLD = 20;
 const FLUSH_INTERVAL_MS = 20_000;
@@ -19,12 +20,20 @@ interface AccountEvent {
   detail?: string;
 }
 
+interface PendingAccountEvent {
+  name: string;
+  screen: string;
+  occurred_at: string;
+  detail?: string;
+}
+
 interface AccountEventsResponse {
   recorded: number;
   rejected?: { index: number; name: string; error: string }[];
 }
 
 let queue: AccountEvent[] = [];
+let pending: PendingAccountEvent[] = [];
 let flushTimer: ReturnType<typeof setInterval> | null = null;
 let appStateSubscription: { remove: () => void } | null = null;
 let flushing: Promise<void> | null = null;
@@ -36,25 +45,48 @@ let flushing: Promise<void> | null = null;
  * event name) rather than picking a fixed catalog value.
  */
 export function recordEvent(name: AccountEventName | (string & {}), screen: AccountEventScreen | (string & {}), detail?: string): void {
+  const occurredAt = new Date().toISOString();
   const accountId = getAccountId();
-  if (!accountId) return;
+  if (!accountId) {
+    // Onboarding creates the account mid-flow; hold the event until that id exists.
+    if (pending.length >= MAX_PENDING) pending.shift();
+    pending.push({ name, screen, occurred_at: occurredAt, detail });
+    return;
+  }
 
-  // Drop-oldest: telemetry must never block or grow unbounded against a
-  // payment flow, so a full queue silently loses its oldest entry.
-  if (queue.length >= MAX_QUEUE_SIZE) queue.shift();
-  queue.push({
+  enqueue(stamp(accountId, name, screen, occurredAt, detail));
+}
+
+function stamp(accountId: string, name: string, screen: string, occurredAt: string, detail?: string): AccountEvent {
+  return {
     account_id: accountId,
     name,
     screen,
     platform: 'react_native',
     sdk_version: SDK_VERSION,
-    occurred_at: new Date().toISOString(),
+    occurred_at: occurredAt,
     detail,
-  });
+  };
+}
 
+function enqueue(event: AccountEvent): void {
+  // Drop-oldest: telemetry must never block or grow unbounded against a
+  // payment flow, so a full queue silently loses its oldest entry.
+  if (queue.length >= MAX_QUEUE_SIZE) queue.shift();
+  queue.push(event);
   startFlushTimer();
   if (queue.length >= FLUSH_SIZE_THRESHOLD) void flush();
 }
+
+function onAccountIdResolved(accountId: string): void {
+  const flushed = pending.splice(0, pending.length);
+  for (const event of flushed) {
+    enqueue(stamp(accountId, event.name, event.screen, event.occurred_at, event.detail));
+  }
+  if (flushed.length > 0) void flush();
+}
+
+registerAccountIdResolvedHandler(onAccountIdResolved);
 
 function startFlushTimer(): void {
   if (flushTimer !== null) return;
@@ -119,13 +151,18 @@ export function flush(): Promise<void> {
     .catch(() => {})
     .finally(() => {
       flushing = null;
-      if (queue.length === 0) stopFlushTimer();
+      if (queue.length > 0) {
+        void flush();
+      } else {
+        stopFlushTimer();
+      }
     });
   return flushing;
 }
 
 export function __resetAccountEvents(): void {
   queue = [];
+  pending = [];
   stopFlushTimer();
   flushing = null;
   appStateSubscription?.remove();
@@ -134,4 +171,8 @@ export function __resetAccountEvents(): void {
 
 export function __peekQueue(): readonly AccountEvent[] {
   return queue;
+}
+
+export function __peekPending(): readonly PendingAccountEvent[] {
+  return pending;
 }
