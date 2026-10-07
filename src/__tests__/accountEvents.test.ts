@@ -101,21 +101,20 @@ describe('recordEvent', () => {
   });
 
   it('drops the oldest event once the queue is full', () => {
-    // No accountId means recordEvent's own early-return would no-op, so keep
-    // one configured but starve the flush by never letting fetch resolve —
-    // isolates queue-bound behavior from the size-threshold auto-flush.
+    // Starve the flush by never letting fetch resolve so the cap is what
+    // bounds the queue, not the size-threshold auto-flush.
     setConfig({ publishableKey: 'pk_test', debugMode: false, accountId: 'acct_1' });
     (global.fetch as jest.Mock).mockImplementation(() => new Promise(() => {}));
 
-    for (let i = 0; i < 125; i++) recordEvent(`event_${i}`, 'PaymentSheet');
+    for (let i = 0; i < 225; i++) recordEvent(`event_${i}`, 'PaymentSheet');
 
     // The size-threshold flush at event 20 drains [0..19] into an in-flight
     // (never-resolving) request; flush() no-ops while one is in flight, so
-    // the remaining 105 enqueues (20..124) hit the 100-cap and drop-oldest.
+    // the remaining 205 enqueues (20..224) hit the 200-cap and drop-oldest.
     const queue = __peekQueue();
-    expect(queue).toHaveLength(100);
+    expect(queue).toHaveLength(200);
     expect(queue[0]!.name).toBe('event_25');
-    expect(queue[queue.length - 1]!.name).toBe('event_124');
+    expect(queue[queue.length - 1]!.name).toBe('event_224');
   });
 
   it('flushes once the queue reaches the size threshold', () => {

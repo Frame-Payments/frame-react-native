@@ -903,16 +903,30 @@ export function useOnboardingViewModel({
           dispatch({ type: 'SET_FIELD_ERRORS', errors: addressErrors });
           throw frameError(ErrorCodes.VALIDATION_FAILED, 'Resolve the highlighted fields and try again.');
         }
-        await client.sdk.paymentMethods.update(paymentMethodId, {
-          billing: {
-            line_1: current.address.line1,
-            line_2: current.address.line2 || undefined,
-            city: current.address.city,
-            state: normalizedSubregion(current.address),
-            country: current.address.country,
-            postal_code: current.address.postalCode,
-          },
-        });
+        try {
+          await client.sdk.paymentMethods.update(paymentMethodId, {
+            billing: {
+              line_1: current.address.line1,
+              line_2: current.address.line2 || undefined,
+              city: current.address.city,
+              state: normalizedSubregion(current.address),
+              country: current.address.country,
+              postal_code: current.address.postalCode,
+            },
+          });
+        } catch (err) {
+          recordEvent(
+            AccountEventName.BILLING_ADDRESS_UPDATE_FAILED,
+            AccountEventScreen.PAYMENT_METHOD,
+            err instanceof Error ? err.message : undefined,
+          );
+          throw err;
+        }
+        recordEvent(
+          AccountEventName.BILLING_ADDRESS_UPDATED,
+          AccountEventScreen.PAYMENT_METHOD,
+          AccountEventDetail.BILLING_ADDRESS_ONLY_VERIFICATION_PATH,
+        );
       });
     },
     [guardedAction],
@@ -1020,7 +1034,22 @@ export function useOnboardingViewModel({
     if (!current.accountId || !target) {
       throw frameError(ErrorCodes.PAYMENT_FAILED, 'Select a payout method first.');
     }
-    const elected = await electPayoutMethod(current.accountId, target);
+    let elected: string;
+    try {
+      elected = await electPayoutMethod(current.accountId, target);
+    } catch (err) {
+      recordEvent(
+        AccountEventName.PAYOUT_METHOD_ELECTION_FAILED,
+        AccountEventScreen.PAYOUT_METHOD,
+        err instanceof Error ? err.message : undefined,
+      );
+      throw err;
+    }
+    recordEvent(
+      AccountEventName.PAYOUT_METHOD_ELECTED,
+      AccountEventScreen.PAYOUT_METHOD,
+      AccountEventDetail.PAYOUT_METHOD_SET_AS_PRIMARY,
+    );
     dispatch({ type: 'SET_PRIMARY_PAYOUT_METHOD_ID', id: elected });
   }, []);
 
@@ -1112,19 +1141,47 @@ export function useOnboardingViewModel({
       }
       recordEvent(AccountEventName.ADD_PAYOUT_METHOD_STARTED, AccountEventScreen.PAYOUT_METHOD, AccountEventDetail.PAYOUT_METHOD_PLAID);
       recordEvent(AccountEventName.BANK_LINK_STARTED, AccountEventScreen.PAYOUT_METHOD, AccountEventDetail.PLAID_PROVIDER);
-      const linkResult: PlaidConnectResult = await runPlaidLink({ accountId: current.accountId });
-      recordEvent(AccountEventName.BANK_LINK_COMPLETED, AccountEventScreen.PAYOUT_METHOD, AccountEventDetail.PLAID_PROVIDER);
-      const pm = await client.sdk.paymentMethods.connectPlaidBankAccount({
-        account: current.accountId,
-        public_token: linkResult.publicToken,
-        account_id: linkResult.selectedAccountId,
-        institution_name: linkResult.institutionName,
-        subtype: linkResult.subtype,
-      });
+      let linkResult: PlaidConnectResult;
+      try {
+        linkResult = await runPlaidLink({ accountId: current.accountId });
+      } catch (err) {
+        if ((err as { code?: string }).code === ErrorCodes.USER_CANCELED) {
+          recordEvent(
+            AccountEventName.BANK_LINK_CANCELLED,
+            AccountEventScreen.PAYOUT_METHOD,
+            AccountEventDetail.PLAID_USER_DISMISSED,
+          );
+        } else {
+          recordEvent(
+            AccountEventName.BANK_LINK_FAILED,
+            AccountEventScreen.PAYOUT_METHOD,
+            err instanceof Error ? err.message : undefined,
+          );
+        }
+        throw err;
+      }
+      let pm: Awaited<ReturnType<typeof client.sdk.paymentMethods.connectPlaidBankAccount>>;
+      try {
+        pm = await client.sdk.paymentMethods.connectPlaidBankAccount({
+          account: current.accountId,
+          public_token: linkResult.publicToken,
+          account_id: linkResult.selectedAccountId,
+          institution_name: linkResult.institutionName,
+          subtype: linkResult.subtype,
+        });
+      } catch (err) {
+        recordEvent(
+          AccountEventName.BANK_LINK_FAILED,
+          AccountEventScreen.PAYOUT_METHOD,
+          err instanceof Error ? err.message : undefined,
+        );
+        throw err;
+      }
       if (!pm?.id) {
-        recordEvent(AccountEventName.PAYOUT_METHOD_ADD_FAILED, AccountEventScreen.PAYOUT_METHOD, AccountEventDetail.NO_PAYMENT_METHOD_ID_RETURNED);
+        recordEvent(AccountEventName.BANK_LINK_FAILED, AccountEventScreen.PAYOUT_METHOD, AccountEventDetail.NO_PAYMENT_METHOD_ID_RETURNED);
         throw frameError(ErrorCodes.PAYMENT_METHOD_FAILED, 'Frame returned no payment method id.');
       }
+      recordEvent(AccountEventName.BANK_LINK_COMPLETED, AccountEventScreen.PAYOUT_METHOD, AccountEventDetail.PLAID_PROVIDER);
       dispatch({ type: 'SELECT_PAYOUT_METHOD', id: pm.id });
       recordEvent(AccountEventName.PAYOUT_METHOD_ADDED, AccountEventScreen.PAYOUT_METHOD, AccountEventDetail.PAYOUT_METHOD_PLAID);
       return pm.id;

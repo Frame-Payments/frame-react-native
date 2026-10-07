@@ -82,6 +82,8 @@ export const AccountEventName = {
   PAYMENT_METHOD_ADDED: 'payment_method_added',
   PAYMENT_METHOD_ADD_FAILED: 'payment_method_add_failed',
   CARD_VALIDATION_FAILED: 'card_validation_failed',
+  BILLING_ADDRESS_UPDATED: 'billing_address_updated',
+  BILLING_ADDRESS_UPDATE_FAILED: 'billing_address_update_failed',
   SAVED_PAYMENT_METHODS_LOAD_FAILED: 'saved_payment_methods_load_failed',
 
   // Onboarding — Payout Method
@@ -92,6 +94,10 @@ export const AccountEventName = {
   PAYOUT_METHOD_ADD_FAILED: 'payout_method_add_failed',
   BANK_LINK_STARTED: 'bank_link_started',
   BANK_LINK_COMPLETED: 'bank_link_completed',
+  BANK_LINK_CANCELLED: 'bank_link_cancelled',
+  BANK_LINK_FAILED: 'bank_link_failed',
+  PAYOUT_METHOD_ELECTED: 'payout_method_elected',
+  PAYOUT_METHOD_ELECTION_FAILED: 'payout_method_election_failed',
   SAVED_PAYOUT_METHODS_LOAD_FAILED: 'saved_payout_methods_load_failed',
 
   // Onboarding — Compliance Check
@@ -214,6 +220,12 @@ export const AccountEventDetail = {
   PAYOUT_METHOD_MANUAL_ACH: 'manual ACH',
   /** For {@link AccountEventName.ADD_PAYOUT_METHOD_STARTED} and {@link AccountEventName.BANK_LINK_STARTED}/{@link AccountEventName.BANK_LINK_COMPLETED} Plaid path. */
   PLAID_PROVIDER: 'provider: plaid',
+  /** For {@link AccountEventName.BANK_LINK_CANCELLED}. */
+  PLAID_USER_DISMISSED: 'user dismissed Plaid',
+  /** For {@link AccountEventName.PAYOUT_METHOD_ELECTED}. */
+  PAYOUT_METHOD_SET_AS_PRIMARY: 'set as primary',
+  /** For {@link AccountEventName.BILLING_ADDRESS_UPDATED}. */
+  BILLING_ADDRESS_ONLY_VERIFICATION_PATH: 'address-only verification path',
   /** For {@link AccountEventName.ADD_PAYOUT_METHOD_STARTED} Plaid path. */
   PAYOUT_METHOD_PLAID: 'plaid',
   /** For {@link AccountEventName.FRAUD_SESSION_RECREATED}. */

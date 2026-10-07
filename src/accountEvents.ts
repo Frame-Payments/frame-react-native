@@ -3,7 +3,7 @@ import { getAccountId, getPublishableKey, registerAccountIdResolvedHandler } fro
 import { FRAME_API_BASE_URL, SDK_VERSION, SDK_VERSION_HEADER, frameUserAgent } from './client';
 import type { AccountEventName, AccountEventScreen } from './accountEventCatalog';
 
-const MAX_QUEUE_SIZE = 100;
+const MAX_QUEUE_SIZE = 200;
 const MAX_PENDING = 200;
 const MAX_BATCH_SIZE = 100;
 const FLUSH_SIZE_THRESHOLD = 20;
