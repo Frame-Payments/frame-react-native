@@ -185,13 +185,17 @@ final class ApplePayPresenter: NSObject, PKPaymentAuthorizationControllerDelegat
     // `dismiss`'s completion is not guaranteed to run — if the sheet is already
     // gone (backgrounded, torn down out from under us) UIKit can drop it, which
     // would leave the JS promise unsettled forever and leak `retainCycle`.
-    // Settle on the next main-actor turn as a backstop; `deliver`'s
-    // `didDeliverResult` guard makes whichever path runs first the only one
-    // that reaches JS.
+    // Settle after a timeout as a backstop. It must be well past the sheet's
+    // dismiss animation: firing earlier would beat the completion and deliver
+    // while the sheet is still up. `deliver`'s `didDeliverResult` guard makes
+    // whichever path runs first the only one that reaches JS.
     Task { @MainActor [weak self] in
+      try? await Task.sleep(nanoseconds: Self.dismissBackstopNanoseconds)
       self?.settleAndRelease()
     }
   }
+
+  private static let dismissBackstopNanoseconds: UInt64 = 2_000_000_000
 
   /// Settles the JS promise from `pendingResult` and drops the self-retain.
   /// Idempotent — safe to call from both the dismiss completion and the backstop.
