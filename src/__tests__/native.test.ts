@@ -191,6 +191,21 @@ describe('presentCheckout', () => {
     }
     expect(mockPresentCheckout).not.toHaveBeenCalled();
   });
+
+  it('throws INVALID_CLIENT_SECRET when checkoutClientSecret is an array', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    try {
+      await presentCheckout({
+        accountId: 'acct_1',
+        amount: 10000,
+        checkoutClientSecret: Object.assign([], { clientSecret: 'chk_sess_1', expiresAt: 1_700_000_000 }) as any,
+      });
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_CLIENT_SECRET');
+    }
+    expect(mockPresentCheckout).not.toHaveBeenCalled();
+  });
 });
 
 describe('presentCart', () => {

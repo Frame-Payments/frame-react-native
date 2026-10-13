@@ -61,6 +61,7 @@ function normalizeCheckoutClientSecret(
   if (checkoutClientSecret == null) return null;
   if (
     typeof checkoutClientSecret !== 'object' ||
+    Array.isArray(checkoutClientSecret) ||
     typeof checkoutClientSecret.clientSecret !== 'string' ||
     checkoutClientSecret.clientSecret.trim() === '' ||
     typeof checkoutClientSecret.expiresAt !== 'number' ||
