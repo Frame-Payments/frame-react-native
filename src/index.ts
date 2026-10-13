@@ -39,6 +39,7 @@ export {
 } from './native';
 export type {
   FrameCartItem,
+  CheckoutClientSecret,
   FrameError,
   BillingAddress,
   PaymentCard,

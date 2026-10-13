@@ -5,6 +5,7 @@
 import { NativeModules, Platform } from 'react-native';
 import type {
   AddMethodResult,
+  CheckoutClientSecret,
   FrameCartItem,
   FrameTheme,
   OnboardingCapability,
@@ -41,6 +42,39 @@ function throwCoded(code: string, message: string): never {
   const err = new Error(message) as Error & { code: string };
   err.code = code;
   throw err;
+}
+
+function requireClientSecret(clientSecret: string | null | undefined, method: string): string {
+  if (typeof clientSecret !== 'string' || clientSecret.trim() === '') {
+    throwCoded(
+      ErrorCodes.INVALID_CLIENT_SECRET,
+      `Frame.${method} requires clientSecret (onb_sess_… from POST /v1/onboarding_sessions)`
+    );
+  }
+  return clientSecret;
+}
+
+function normalizeCheckoutClientSecret(
+  checkoutClientSecret: CheckoutClientSecret | null | undefined,
+  method: string
+): CheckoutClientSecret | null {
+  if (checkoutClientSecret == null) return null;
+  if (
+    typeof checkoutClientSecret !== 'object' ||
+    typeof checkoutClientSecret.clientSecret !== 'string' ||
+    checkoutClientSecret.clientSecret.trim() === '' ||
+    typeof checkoutClientSecret.expiresAt !== 'number' ||
+    !Number.isFinite(checkoutClientSecret.expiresAt)
+  ) {
+    throwCoded(
+      ErrorCodes.INVALID_CLIENT_SECRET,
+      `Frame.${method}: checkoutClientSecret requires { clientSecret: string, expiresAt: number }`
+    );
+  }
+  return {
+    clientSecret: checkoutClientSecret.clientSecret,
+    expiresAt: checkoutClientSecret.expiresAt,
+  };
 }
 
 let isInitialized = false;
@@ -143,13 +177,23 @@ function wrapPromise<T>(p: Promise<T>): Promise<T> {
 export function presentCheckout(options: {
   accountId: string;
   amount: number;
+  /**
+   * Optional `chk_sess_…` token from `POST /v1/checkout_sessions`. When set,
+   * checkout loads name, email, and saved cards with it. Omit to keep the
+   * secret-key account read (when a secret key is configured).
+   */
+  checkoutClientSecret?: CheckoutClientSecret | null;
 }): Promise<string> {
   guardInitialized();
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentCheckout requires accountId');
   }
+  const checkoutClientSecret = normalizeCheckoutClientSecret(
+    options.checkoutClientSecret,
+    'presentCheckout'
+  );
   return wrapPromise(
-    FrameSDK.presentCheckout(options.accountId, options.amount)
+    FrameSDK.presentCheckout(options.accountId, options.amount, checkoutClientSecret)
   );
 }
 
@@ -163,16 +207,26 @@ export function presentCart(options: {
   accountId: string;
   items: FrameCartItem[];
   shippingAmountInCents: number;
+  /**
+   * Optional `chk_sess_…` token forwarded to the embedded checkout. See
+   * {@link presentCheckout}.
+   */
+  checkoutClientSecret?: CheckoutClientSecret | null;
 }): Promise<string> {
   guardInitialized();
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentCart requires accountId');
   }
+  const checkoutClientSecret = normalizeCheckoutClientSecret(
+    options.checkoutClientSecret,
+    'presentCart'
+  );
   return wrapPromise(
     FrameSDK.presentCart(
       options.accountId,
       options.items,
-      options.shippingAmountInCents
+      options.shippingAmountInCents,
+      checkoutClientSecret
     )
   );
 }
@@ -184,19 +238,20 @@ export function presentOnboarding(options: {
   showCompletionScreen?: boolean;
   /**
    * Onboarding session client secret (`onb_sess_…`) minted server-side via
-   * `POST /v1/onboarding_sessions`. When provided, the onboarding flow
-   * authenticates with this session instead of the legacy secret-key path.
+   * `POST /v1/onboarding_sessions`. Required — the native SDKs no longer mint
+   * a session from a publishable or secret key inside the flow.
    */
-  clientSecret?: string | null;
+  clientSecret: string;
 }): Promise<OnboardingResult> {
   guardInitialized();
+  const clientSecret = requireClientSecret(options?.clientSecret, 'presentOnboarding');
   return wrapPromise(
     FrameSDK.presentOnboarding(
       options.accountId ?? null,
       options.capabilities ?? [],
-      options.showIntroScreen ?? true,
+      options.showIntroScreen ?? false,
       options.showCompletionScreen ?? true,
-      options.clientSecret ?? null
+      clientSecret
     )
   );
 }
@@ -209,18 +264,16 @@ export function presentAddPaymentMethod(options: {
   accountId: string;
   /**
    * Onboarding session client secret (`onb_sess_…`) minted server-side via
-   * `POST /v1/onboarding_sessions`, scoping the request to `accountId`. Omit this
-   * only for legacy integrations that still authenticate with a secret key.
+   * `POST /v1/onboarding_sessions`, scoping the request to `accountId`. Required.
    */
-  clientSecret?: string | null;
+  clientSecret: string;
 }): Promise<AddMethodResult> {
   guardInitialized();
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentAddPaymentMethod requires accountId');
   }
-  return wrapPromise(
-    FrameSDK.presentAddPaymentMethod(options.accountId, options.clientSecret ?? null)
-  );
+  const clientSecret = requireClientSecret(options.clientSecret, 'presentAddPaymentMethod');
+  return wrapPromise(FrameSDK.presentAddPaymentMethod(options.accountId, clientSecret));
 }
 
 /**
@@ -231,18 +284,16 @@ export function presentAddPayoutMethod(options: {
   accountId: string;
   /**
    * Onboarding session client secret (`onb_sess_…`) minted server-side via
-   * `POST /v1/onboarding_sessions`, scoping the request to `accountId`. Omit this
-   * only for legacy integrations that still authenticate with a secret key.
+   * `POST /v1/onboarding_sessions`, scoping the request to `accountId`. Required.
    */
-  clientSecret?: string | null;
+  clientSecret: string;
 }): Promise<AddMethodResult> {
   guardInitialized();
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentAddPayoutMethod requires accountId');
   }
-  return wrapPromise(
-    FrameSDK.presentAddPayoutMethod(options.accountId, options.clientSecret ?? null)
-  );
+  const clientSecret = requireClientSecret(options.clientSecret, 'presentAddPayoutMethod');
+  return wrapPromise(FrameSDK.presentAddPayoutMethod(options.accountId, clientSecret));
 }
 
 /**
@@ -257,19 +308,17 @@ export function presentSelectPayoutMethod(options: {
   accountId: string;
   /**
    * Onboarding session client secret (`onb_sess_…`) minted server-side via
-   * `POST /v1/onboarding_sessions`, scoping the request to `accountId`. Electing a
-   * payout method requires a caller scoped to the account, so a publishable key is
-   * rejected. Omit this only for legacy integrations that authenticate with a secret key.
+   * `POST /v1/onboarding_sessions`, scoping the request to `accountId`. Required —
+   * electing a payout method is an account-scoped write.
    */
-  clientSecret?: string | null;
+  clientSecret: string;
 }): Promise<AddMethodResult> {
   guardInitialized();
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentSelectPayoutMethod requires accountId');
   }
-  return wrapPromise(
-    FrameSDK.presentSelectPayoutMethod(options.accountId, options.clientSecret ?? null)
-  );
+  const clientSecret = requireClientSecret(options.clientSecret, 'presentSelectPayoutMethod');
+  return wrapPromise(FrameSDK.presentSelectPayoutMethod(options.accountId, clientSecret));
 }
 
 /**

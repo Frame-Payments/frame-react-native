@@ -11,6 +11,18 @@ export interface FrameCartItem {
   imageUrl: string;
 }
 
+/**
+ * Short-lived `chk_sess_…` token from `POST /v1/checkout_sessions`. When passed to
+ * `presentCheckout` / `presentCart`, checkout loads the account name, email, and saved
+ * cards with it instead of a secret-key account read.
+ */
+export interface CheckoutClientSecret {
+  /** The `chk_sess_…` bearer token. */
+  clientSecret: string;
+  /** Unix timestamp in seconds when the token stops being accepted. */
+  expiresAt: number;
+}
+
 export interface BillingAddress {
   city?: string;
   country?: string;

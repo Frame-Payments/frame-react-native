@@ -216,11 +216,27 @@ export default function App() {
     }
   };
 
+  // Standalone add/select screens require an onboarding-session secret (frame-ios 4.6 /
+  // frame-android 3.2). Production apps mint this on the server; the demo uses sk_.
+  const mintOnboardingSession = async (forAccountId: string) => {
+    if (!FRAME_SECRET_KEY) {
+      throw Object.assign(new Error('Set FRAME_SECRET_KEY to mint an onboarding session.'), {
+        code: 'INVALID_CLIENT_SECRET',
+      });
+    }
+    const session = await frameSDK.onboardingSessions.create({
+      account_id: forAccountId,
+      steps: ['payment_method'],
+    });
+    return session.client_secret as string;
+  };
+
   const handleAddPaymentMethod = async () => {
     if (!requireAccount()) return;
     setLoading('addPaymentMethod');
     try {
-      const result = await Frame.presentAddPaymentMethod({ accountId });
+      const clientSecret = await mintOnboardingSession(accountId);
+      const result = await Frame.presentAddPaymentMethod({ accountId, clientSecret });
       Alert.alert(
         result.status === 'completed' ? 'Payment method added' : 'Cancelled',
         result.methodId ? `Payment method: ${result.methodId}` : undefined,
@@ -236,7 +252,8 @@ export default function App() {
     if (!requireAccount()) return;
     setLoading('addPayoutMethod');
     try {
-      const result = await Frame.presentAddPayoutMethod({ accountId });
+      const clientSecret = await mintOnboardingSession(accountId);
+      const result = await Frame.presentAddPayoutMethod({ accountId, clientSecret });
       Alert.alert(
         result.status === 'completed' ? 'Payout method added' : 'Cancelled',
         result.methodId ? `Payout method: ${result.methodId}` : undefined,
@@ -251,15 +268,12 @@ export default function App() {
   // Lists the account's saved ACH payout methods and elects the chosen one as the
   // account's payout destination. Where presentAddPayoutMethod only adds a bank, this
   // also makes it primary, so `methodId` is the newly elected method.
-  //
-  // No clientSecret is passed here because this demo authenticates with a secret key.
-  // A publishable-key-only integration must pass an `onb_sess_...` secret minted by its
-  // server — the election endpoint is account-scoped and rejects a pk_.
   const handleSelectPayoutMethod = async () => {
     if (!requireAccount()) return;
     setLoading('selectPayoutMethod');
     try {
-      const result = await Frame.presentSelectPayoutMethod({ accountId });
+      const clientSecret = await mintOnboardingSession(accountId);
+      const result = await Frame.presentSelectPayoutMethod({ accountId, clientSecret });
       Alert.alert(
         result.status === 'completed' ? 'Primary payout method set' : 'Cancelled',
         result.methodId ? `Payout method: ${result.methodId}` : undefined,

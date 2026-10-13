@@ -5,16 +5,16 @@
  */
 
 const mockInitialize = jest.fn((_secretKey: string | null, _publishableKey: string, _debugMode: boolean, _applePayMerchantId: string | null, _googlePayMerchantId: string | null, _theme: unknown, _accountId: string | null, _hostSDKVersion: string) => Promise.resolve());
-const mockPresentCheckout = jest.fn((_accountId: unknown, _amount: number) => Promise.resolve('tr_1'));
-const mockPresentCart = jest.fn((_accountId: unknown, _items: unknown[], _shipping: number) => Promise.resolve('tr_2'));
+const mockPresentCheckout = jest.fn((_accountId: unknown, _amount: number, _checkoutClientSecret: unknown) => Promise.resolve('tr_1'));
+const mockPresentCart = jest.fn((_accountId: unknown, _items: unknown[], _shipping: number, _checkoutClientSecret: unknown) => Promise.resolve('tr_2'));
 const mockPresentApplePay = jest.fn((_ownerType: string, _ownerId: string, _amount: number, _currency: string) => Promise.resolve('tr_3'));
 const mockPresentGooglePay = jest.fn((_amountCents: number, _ownerType: string, _ownerId: string, _currencyCode: string) => Promise.resolve('tr_4'));
 // Mirrors the iOS shape: onboarding resolves accountId as of frame-ios 4.3.6.
 const mockPresentOnboarding = jest.fn((_accountId: unknown, _capabilities: unknown[]) => Promise.resolve({ status: 'completed', accountId: 'acct_1' }));
-const mockPresentAddPaymentMethod = jest.fn((_accountId: string, _clientSecret: string | null) => Promise.resolve({ status: 'completed', methodId: 'pm_2' }));
-const mockPresentAddPayoutMethod = jest.fn((_accountId: string, _clientSecret: string | null) => Promise.resolve({ status: 'completed', methodId: 'ba_1' }));
+const mockPresentAddPaymentMethod = jest.fn((_accountId: string, _clientSecret: string) => Promise.resolve({ status: 'completed', methodId: 'pm_2' }));
+const mockPresentAddPayoutMethod = jest.fn((_accountId: string, _clientSecret: string) => Promise.resolve({ status: 'completed', methodId: 'ba_1' }));
 // On completion the id is the newly *elected* payout method (frame-ios 4.4.1+).
-const mockPresentSelectPayoutMethod = jest.fn((_accountId: string, _clientSecret: string | null) => Promise.resolve({ status: 'completed', methodId: 'ba_2' }));
+const mockPresentSelectPayoutMethod = jest.fn((_accountId: string, _clientSecret: string) => Promise.resolve({ status: 'completed', methodId: 'ba_2' }));
 const mockResetDeviceAttestation = jest.fn(() => Promise.resolve());
 
 const PKG_VERSION: string = require('../../package.json').version;
@@ -40,18 +40,19 @@ jest.mock('react-native', () => ({
 
 // Re-import after mock so we get the mocked NativeModules
 let initialize: (opts: { secretKey?: string; publishableKey: string; debugMode?: boolean; applePayMerchantId?: string; googlePayMerchantId?: string; accountId?: string }) => Promise<void>;
-let presentCheckout: (opts: { accountId: string; amount: number }) => Promise<string>;
+let presentCheckout: (opts: { accountId: string; amount: number; checkoutClientSecret?: { clientSecret: string; expiresAt: number } | null }) => Promise<string>;
 let presentCart: (opts: {
   accountId: string;
   items: Array<{ id: string; title: string; amountInCents: number; imageUrl: string }>;
   shippingAmountInCents: number;
+  checkoutClientSecret?: { clientSecret: string; expiresAt: number } | null;
 }) => Promise<string>;
 let presentApplePay: (opts: { amount: number; currency?: string; owner: { type: 'customer' | 'account'; id: string } }) => Promise<string>;
 let presentGooglePay: (opts: { amountCents: number; owner: { type: 'customer' | 'account'; id: string }; currencyCode?: string }) => Promise<string>;
-let presentOnboarding: (opts: { accountId?: string | null; capabilities?: string[]; showIntroScreen?: boolean; showCompletionScreen?: boolean; clientSecret?: string | null }) => Promise<unknown>;
-let presentAddPaymentMethod: (opts: { accountId: string; clientSecret?: string | null }) => Promise<unknown>;
-let presentAddPayoutMethod: (opts: { accountId: string; clientSecret?: string | null }) => Promise<unknown>;
-let presentSelectPayoutMethod: (opts: { accountId: string; clientSecret?: string | null }) => Promise<unknown>;
+let presentOnboarding: (opts: { accountId?: string | null; capabilities?: string[]; showIntroScreen?: boolean; showCompletionScreen?: boolean; clientSecret: string }) => Promise<unknown>;
+let presentAddPaymentMethod: (opts: { accountId: string; clientSecret: string }) => Promise<unknown>;
+let presentAddPayoutMethod: (opts: { accountId: string; clientSecret: string }) => Promise<unknown>;
+let presentSelectPayoutMethod: (opts: { accountId: string; clientSecret: string }) => Promise<unknown>;
 let resetDeviceAttestation: () => Promise<void>;
 
 beforeEach(() => {
@@ -166,11 +167,29 @@ describe('presentCheckout', () => {
     expect(mockPresentCheckout).not.toHaveBeenCalled();
   });
 
-  it('calls native presentCheckout with accountId and amount; resolves with transfer id string', async () => {
+  it('calls native presentCheckout with accountId, amount, and null checkoutClientSecret by default', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     const result = await presentCheckout({ accountId: 'acct_1', amount: 10000 });
-    expect(mockPresentCheckout).toHaveBeenCalledWith('acct_1', 10000);
+    expect(mockPresentCheckout).toHaveBeenCalledWith('acct_1', 10000, null);
     expect(result).toBe('tr_1');
+  });
+
+  it('passes checkoutClientSecret through when provided', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    const checkoutClientSecret = { clientSecret: 'chk_sess_1', expiresAt: 1_700_000_000 };
+    await presentCheckout({ accountId: 'acct_1', amount: 10000, checkoutClientSecret });
+    expect(mockPresentCheckout).toHaveBeenCalledWith('acct_1', 10000, checkoutClientSecret);
+  });
+
+  it('throws INVALID_CLIENT_SECRET when checkoutClientSecret is malformed', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    try {
+      await presentCheckout({ accountId: 'acct_1', amount: 10000, checkoutClientSecret: { clientSecret: '', expiresAt: 1 } as any });
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_CLIENT_SECRET');
+    }
+    expect(mockPresentCheckout).not.toHaveBeenCalled();
   });
 });
 
@@ -200,15 +219,27 @@ describe('presentCart', () => {
     expect(mockPresentCart).not.toHaveBeenCalled();
   });
 
-  it('calls native presentCart with accountId, items, shipping; resolves with transfer id string', async () => {
+  it('calls native presentCart with accountId, items, shipping, and null checkoutClientSecret by default', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     const result = await presentCart({
       accountId: 'acct_2',
       items,
       shippingAmountInCents: 500,
     });
-    expect(mockPresentCart).toHaveBeenCalledWith('acct_2', items, 500);
+    expect(mockPresentCart).toHaveBeenCalledWith('acct_2', items, 500, null);
     expect(result).toBe('tr_2');
+  });
+
+  it('passes checkoutClientSecret through when provided', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    const checkoutClientSecret = { clientSecret: 'chk_sess_1', expiresAt: 1_700_000_000 };
+    await presentCart({
+      accountId: 'acct_2',
+      items,
+      shippingAmountInCents: 500,
+      checkoutClientSecret,
+    });
+    expect(mockPresentCart).toHaveBeenCalledWith('acct_2', items, 500, checkoutClientSecret);
   });
 });
 
@@ -340,7 +371,7 @@ describe('presentGooglePay', () => {
 describe('presentOnboarding', () => {
   it('throws NOT_INITIALIZED if initialize was not called', async () => {
     try {
-      await presentOnboarding({});
+      await presentOnboarding({ clientSecret: 'onb_sess_123' });
       expect(true).toBe(false);
     } catch (e: any) {
       expect(e.code).toBe('NOT_INITIALIZED');
@@ -349,62 +380,74 @@ describe('presentOnboarding', () => {
     expect(mockPresentOnboarding).not.toHaveBeenCalled();
   });
 
-  it('calls native presentOnboarding with showIntroScreen=true and showCompletionScreen=true by default', async () => {
+  it('throws INVALID_CLIENT_SECRET when clientSecret is missing', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    const result = await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc', 'bank_account_verification'] });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc', 'bank_account_verification'], true, true, null);
+    try {
+      await presentOnboarding({ accountId: 'acct_1' } as any);
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_CLIENT_SECRET');
+    }
+    expect(mockPresentOnboarding).not.toHaveBeenCalled();
+  });
+
+  it('calls native presentOnboarding with showIntroScreen=false and showCompletionScreen=true by default', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    const result = await presentOnboarding({
+      accountId: 'acct_1',
+      capabilities: ['kyc', 'bank_account_verification'],
+      clientSecret: 'onb_sess_123',
+    });
+    expect(mockPresentOnboarding).toHaveBeenCalledWith(
+      'acct_1',
+      ['kyc', 'bank_account_verification'],
+      false,
+      true,
+      'onb_sess_123'
+    );
     expect(result).toEqual({ status: 'completed', accountId: 'acct_1' });
   });
 
-  it('passes null accountId, empty capabilities, and both screen flags=true when options are omitted', async () => {
+  it('passes null accountId and empty capabilities when those options are omitted', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    await presentOnboarding({});
-    expect(mockPresentOnboarding).toHaveBeenCalledWith(null, [], true, true, null);
+    await presentOnboarding({ clientSecret: 'onb_sess_123' });
+    expect(mockPresentOnboarding).toHaveBeenCalledWith(null, [], false, true, 'onb_sess_123');
   });
 
-  it('passes showIntroScreen=false when explicitly set', async () => {
+  it('passes showIntroScreen=true when explicitly set', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], showIntroScreen: false });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], false, true, null);
+    await presentOnboarding({
+      accountId: 'acct_1',
+      capabilities: ['kyc'],
+      clientSecret: 'onb_sess_123',
+      showIntroScreen: true,
+    });
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], true, true, 'onb_sess_123');
   });
 
   it('passes showCompletionScreen=false when explicitly set', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], showCompletionScreen: false });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], true, false, null);
+    await presentOnboarding({
+      accountId: 'acct_1',
+      capabilities: ['kyc'],
+      clientSecret: 'onb_sess_123',
+      showCompletionScreen: false,
+    });
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], false, false, 'onb_sess_123');
   });
 
-  it('passes both screen flags=false when both are explicitly set', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], showIntroScreen: false, showCompletionScreen: false });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], false, false, null);
-  });
-
-  it('passes clientSecret through when provided', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], clientSecret: 'onb_sess_123' });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], true, true, 'onb_sess_123');
-  });
-
-  it('passes clientSecret through on Android — frame-android 3.x honors it', async () => {
+  it('passes clientSecret through on Android', async () => {
     mockPlatform.OS = 'android';
     await initialize({ publishableKey: 'pk_xxx' });
     await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], clientSecret: 'onb_sess_123' });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], true, true, 'onb_sess_123');
-  });
-
-  it('behaves the same on Android — merchant IDs are init-only across both platforms', async () => {
-    mockPlatform.OS = 'android';
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', googlePayMerchantId: 'BCR2DN4T...' });
-    await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'] });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], true, true, null);
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], false, true, 'onb_sess_123');
   });
 });
 
 describe('presentAddPaymentMethod', () => {
   it('throws NOT_INITIALIZED if initialize was not called', async () => {
     try {
-      await presentAddPaymentMethod({ accountId: 'acct_1' });
+      await presentAddPaymentMethod({ accountId: 'acct_1', clientSecret: 'onb_sess_123' });
       expect(true).toBe(false);
     } catch (e: any) {
       expect(e.code).toBe('NOT_INITIALIZED');
@@ -415,7 +458,7 @@ describe('presentAddPaymentMethod', () => {
   it('throws INVALID_ACCOUNT when accountId is missing', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     try {
-      await presentAddPaymentMethod({} as any);
+      await presentAddPaymentMethod({ clientSecret: 'onb_sess_123' } as any);
       expect(true).toBe(false);
     } catch (e: any) {
       expect(e.code).toBe('INVALID_ACCOUNT');
@@ -423,31 +466,36 @@ describe('presentAddPaymentMethod', () => {
     expect(mockPresentAddPaymentMethod).not.toHaveBeenCalled();
   });
 
+  it('throws INVALID_CLIENT_SECRET when clientSecret is missing', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    try {
+      await presentAddPaymentMethod({ accountId: 'acct_1' } as any);
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_CLIENT_SECRET');
+    }
+    expect(mockPresentAddPaymentMethod).not.toHaveBeenCalled();
+  });
+
   it('calls the native module on Android too', async () => {
     mockPlatform.OS = 'android';
     await initialize({ publishableKey: 'pk_xxx' });
-    await presentAddPaymentMethod({ accountId: 'acct_1' });
-    expect(mockPresentAddPaymentMethod).toHaveBeenCalledWith('acct_1', null);
-  });
-
-  it('calls native presentAddPaymentMethod with accountId and null clientSecret by default', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    const result = await presentAddPaymentMethod({ accountId: 'acct_1' });
-    expect(mockPresentAddPaymentMethod).toHaveBeenCalledWith('acct_1', null);
-    expect(result).toEqual({ status: 'completed', methodId: 'pm_2' });
-  });
-
-  it('passes clientSecret through when provided', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     await presentAddPaymentMethod({ accountId: 'acct_1', clientSecret: 'onb_sess_123' });
     expect(mockPresentAddPaymentMethod).toHaveBeenCalledWith('acct_1', 'onb_sess_123');
+  });
+
+  it('calls native presentAddPaymentMethod with accountId and clientSecret', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    const result = await presentAddPaymentMethod({ accountId: 'acct_1', clientSecret: 'onb_sess_123' });
+    expect(mockPresentAddPaymentMethod).toHaveBeenCalledWith('acct_1', 'onb_sess_123');
+    expect(result).toEqual({ status: 'completed', methodId: 'pm_2' });
   });
 });
 
 describe('presentAddPayoutMethod', () => {
   it('throws NOT_INITIALIZED if initialize was not called', async () => {
     try {
-      await presentAddPayoutMethod({ accountId: 'acct_1' });
+      await presentAddPayoutMethod({ accountId: 'acct_1', clientSecret: 'onb_sess_123' });
       expect(true).toBe(false);
     } catch (e: any) {
       expect(e.code).toBe('NOT_INITIALIZED');
@@ -458,7 +506,7 @@ describe('presentAddPayoutMethod', () => {
   it('throws INVALID_ACCOUNT when accountId is missing', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     try {
-      await presentAddPayoutMethod({} as any);
+      await presentAddPayoutMethod({ clientSecret: 'onb_sess_123' } as any);
       expect(true).toBe(false);
     } catch (e: any) {
       expect(e.code).toBe('INVALID_ACCOUNT');
@@ -466,31 +514,36 @@ describe('presentAddPayoutMethod', () => {
     expect(mockPresentAddPayoutMethod).not.toHaveBeenCalled();
   });
 
+  it('throws INVALID_CLIENT_SECRET when clientSecret is missing', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    try {
+      await presentAddPayoutMethod({ accountId: 'acct_1' } as any);
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_CLIENT_SECRET');
+    }
+    expect(mockPresentAddPayoutMethod).not.toHaveBeenCalled();
+  });
+
   it('calls the native module on Android too', async () => {
     mockPlatform.OS = 'android';
     await initialize({ publishableKey: 'pk_xxx' });
-    await presentAddPayoutMethod({ accountId: 'acct_1' });
-    expect(mockPresentAddPayoutMethod).toHaveBeenCalledWith('acct_1', null);
-  });
-
-  it('calls native presentAddPayoutMethod with accountId and null clientSecret by default', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    const result = await presentAddPayoutMethod({ accountId: 'acct_1' });
-    expect(mockPresentAddPayoutMethod).toHaveBeenCalledWith('acct_1', null);
-    expect(result).toEqual({ status: 'completed', methodId: 'ba_1' });
-  });
-
-  it('passes clientSecret through when provided', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     await presentAddPayoutMethod({ accountId: 'acct_1', clientSecret: 'onb_sess_123' });
     expect(mockPresentAddPayoutMethod).toHaveBeenCalledWith('acct_1', 'onb_sess_123');
+  });
+
+  it('calls native presentAddPayoutMethod with accountId and clientSecret', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    const result = await presentAddPayoutMethod({ accountId: 'acct_1', clientSecret: 'onb_sess_123' });
+    expect(mockPresentAddPayoutMethod).toHaveBeenCalledWith('acct_1', 'onb_sess_123');
+    expect(result).toEqual({ status: 'completed', methodId: 'ba_1' });
   });
 });
 
 describe('presentSelectPayoutMethod', () => {
   it('throws NOT_INITIALIZED if initialize was not called', async () => {
     try {
-      await presentSelectPayoutMethod({ accountId: 'acct_1' });
+      await presentSelectPayoutMethod({ accountId: 'acct_1', clientSecret: 'onb_sess_123' });
       expect(true).toBe(false);
     } catch (e: any) {
       expect(e.code).toBe('NOT_INITIALIZED');
@@ -501,7 +554,7 @@ describe('presentSelectPayoutMethod', () => {
   it('throws INVALID_ACCOUNT when accountId is missing', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     try {
-      await presentSelectPayoutMethod({} as any);
+      await presentSelectPayoutMethod({ clientSecret: 'onb_sess_123' } as any);
       expect(true).toBe(false);
     } catch (e: any) {
       expect(e.code).toBe('INVALID_ACCOUNT');
@@ -509,30 +562,35 @@ describe('presentSelectPayoutMethod', () => {
     expect(mockPresentSelectPayoutMethod).not.toHaveBeenCalled();
   });
 
+  it('throws INVALID_CLIENT_SECRET when clientSecret is missing', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    try {
+      await presentSelectPayoutMethod({ accountId: 'acct_1' } as any);
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_CLIENT_SECRET');
+    }
+    expect(mockPresentSelectPayoutMethod).not.toHaveBeenCalled();
+  });
+
   it('calls the native module on Android too', async () => {
     mockPlatform.OS = 'android';
     await initialize({ publishableKey: 'pk_xxx' });
-    await presentSelectPayoutMethod({ accountId: 'acct_1' });
-    expect(mockPresentSelectPayoutMethod).toHaveBeenCalledWith('acct_1', null);
-  });
-
-  it('calls native presentSelectPayoutMethod with accountId and null clientSecret by default', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    const result = await presentSelectPayoutMethod({ accountId: 'acct_1' });
-    expect(mockPresentSelectPayoutMethod).toHaveBeenCalledWith('acct_1', null);
-    expect(result).toEqual({ status: 'completed', methodId: 'ba_2' });
-  });
-
-  it('passes clientSecret through when provided', async () => {
-    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     await presentSelectPayoutMethod({ accountId: 'acct_1', clientSecret: 'onb_sess_123' });
     expect(mockPresentSelectPayoutMethod).toHaveBeenCalledWith('acct_1', 'onb_sess_123');
+  });
+
+  it('calls native presentSelectPayoutMethod with accountId and clientSecret', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    const result = await presentSelectPayoutMethod({ accountId: 'acct_1', clientSecret: 'onb_sess_123' });
+    expect(mockPresentSelectPayoutMethod).toHaveBeenCalledWith('acct_1', 'onb_sess_123');
+    expect(result).toEqual({ status: 'completed', methodId: 'ba_2' });
   });
 
   it('surfaces cancellation as status cancelled with no methodId', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     mockPresentSelectPayoutMethod.mockResolvedValueOnce({ status: 'cancelled' } as any);
-    const result = await presentSelectPayoutMethod({ accountId: 'acct_1' });
+    const result = await presentSelectPayoutMethod({ accountId: 'acct_1', clientSecret: 'onb_sess_123' });
     expect(result).toEqual({ status: 'cancelled' });
   });
 });

@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`presentCheckout` / `presentCart` accept optional `checkoutClientSecret`**
+  (`{ clientSecret: 'chk_sess_…', expiresAt }`) from `POST /v1/checkout_sessions`.
+  When set, checkout loads name, email, and saved cards with that token instead of a
+  secret-key account read. Omit it to keep the previous secret-key path.
+- **`CheckoutClientSecret` is now exported** from the package entry point.
+- **`INVALID_CLIENT_SECRET` error code** for missing/malformed onboarding or checkout
+  session secrets.
 - **`presentAddPaymentMethod`, `presentAddPayoutMethod` and `presentSelectPayoutMethod`
   now work on Android** (previously they threw `PLATFORM_UNSUPPORTED`). They resolve the
   same `AddMethodResult` as iOS. On Android these screens don't take the
@@ -26,6 +33,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **frame-ios: `4.5.3` → `4.6.0`.** Onboarding and the standalone add/select-method
+  screens no longer mint a session from a publishable/secret key; the host must pass
+  `clientSecret`. Checkout can load identity with a `chk_sess_` token. Onboarding UI
+  aligns with FrameOS; client-side account PII reads are removed upstream.
+- **frame-android: `3.1.1` → `3.2.0`.** Same `clientSecret` / checkout-session contract
+  as iOS 4.6.0, plus FrameOS UI polish.
+- **BREAKING: `clientSecret` is required** on `presentOnboarding`,
+  `presentAddPaymentMethod`, `presentAddPayoutMethod`, and `presentSelectPayoutMethod`.
+  Omitting it throws `INVALID_CLIENT_SECRET` (JS) / rejects the same code from native.
+- **BREAKING: `showIntroScreen` defaults to `false`**, matching frame-ios 4.6.0 /
+  frame-android 3.2.0. Pass `showIntroScreen: true` to keep the welcome splash.
 - **frame-ios: `4.5.1` → `4.5.3`.** No bridge changes. Onboarding launched without an
   `accountId` now keeps the account events it emits before the account is created
   (buffered and flushed once onboarding creates it) instead of dropping them.

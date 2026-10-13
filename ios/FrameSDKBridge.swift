@@ -47,16 +47,23 @@ public class FrameSDKBridge: NSObject {
   }
 
   @objc public
-  func presentCheckout(from viewController: UIViewController, accountId: String?, amount: Int, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+  func presentCheckout(from viewController: UIViewController, accountId: String?, amount: Int, checkoutClientSecret: NSDictionary?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     guard let accountId, !accountId.isEmpty else {
       reject("INVALID_ACCOUNT", "Frame.presentCheckout requires a non-empty accountId", nil)
       return
     }
-    presentCheckoutOnMain(from: viewController, accountId: accountId, amount: amount, resolve: resolve, reject: reject)
+    let parsedCheckoutSecret: FrameCheckoutClientSecret?
+    do {
+      parsedCheckoutSecret = try parseCheckoutClientSecret(checkoutClientSecret)
+    } catch {
+      reject("INVALID_CLIENT_SECRET", error.localizedDescription, nil)
+      return
+    }
+    presentCheckoutOnMain(from: viewController, accountId: accountId, amount: amount, checkoutClientSecret: parsedCheckoutSecret, resolve: resolve, reject: reject)
   }
 
   @objc public
-  func presentCart(from viewController: UIViewController, accountId: NSObject?, items: NSArray, shippingAmountInCents: Int, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+  func presentCart(from viewController: UIViewController, accountId: NSObject?, items: NSArray, shippingAmountInCents: Int, checkoutClientSecret: NSDictionary?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     guard let cartItems = parseCartItems(items) else {
       reject("INVALID_ITEMS", "Invalid cart items array", nil)
       return
@@ -65,14 +72,25 @@ public class FrameSDKBridge: NSObject {
       reject("INVALID_ACCOUNT", "Frame.presentCart requires a non-empty accountId", nil)
       return
     }
-    presentCartOnMain(from: viewController, accountId: accountIdString, cartItems: cartItems, shippingAmountInCents: shippingAmountInCents, resolve: resolve, reject: reject)
+    let parsedCheckoutSecret: FrameCheckoutClientSecret?
+    do {
+      parsedCheckoutSecret = try parseCheckoutClientSecret(checkoutClientSecret)
+    } catch {
+      reject("INVALID_CLIENT_SECRET", error.localizedDescription, nil)
+      return
+    }
+    presentCartOnMain(from: viewController, accountId: accountIdString, cartItems: cartItems, shippingAmountInCents: shippingAmountInCents, checkoutClientSecret: parsedCheckoutSecret, resolve: resolve, reject: reject)
   }
 
   @objc public
   func presentOnboarding(from viewController: UIViewController, accountId: NSObject?, capabilities: NSArray, showIntroScreen: Bool, showCompletionScreen: Bool, clientSecret: NSObject?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    guard let clientSecretString = clientSecret as? String, !clientSecretString.isEmpty else {
+      reject("INVALID_CLIENT_SECRET", "Frame.presentOnboarding requires a non-empty clientSecret (onb_sess_… from POST /v1/onboarding_sessions)", nil)
+      return
+    }
     let parsedCapabilities = parseCapabilities(capabilities)
     let accountIdString = accountId as? String
-    presentOnboardingOnMain(from: viewController, accountId: accountIdString, capabilities: parsedCapabilities, showIntroScreen: showIntroScreen, showCompletionScreen: showCompletionScreen, clientSecret: clientSecret as? String, resolve: resolve, reject: reject)
+    presentOnboardingOnMain(from: viewController, accountId: accountIdString, capabilities: parsedCapabilities, showIntroScreen: showIntroScreen, showCompletionScreen: showCompletionScreen, clientSecret: clientSecretString, resolve: resolve, reject: reject)
   }
 
   @objc public
@@ -125,7 +143,11 @@ public class FrameSDKBridge: NSObject {
       reject("INVALID_ACCOUNT", "Frame.presentAddPaymentMethod requires a non-empty accountId", nil)
       return
     }
-    presentAddPaymentMethodOnMain(from: viewController, accountId: accountId, clientSecret: clientSecret as? String, resolve: resolve, reject: reject)
+    guard let clientSecretString = clientSecret as? String, !clientSecretString.isEmpty else {
+      reject("INVALID_CLIENT_SECRET", "Frame.presentAddPaymentMethod requires a non-empty clientSecret (onb_sess_… from POST /v1/onboarding_sessions)", nil)
+      return
+    }
+    presentAddPaymentMethodOnMain(from: viewController, accountId: accountId, clientSecret: clientSecretString, resolve: resolve, reject: reject)
   }
 
   @objc public
@@ -134,7 +156,11 @@ public class FrameSDKBridge: NSObject {
       reject("INVALID_ACCOUNT", "Frame.presentAddPayoutMethod requires a non-empty accountId", nil)
       return
     }
-    presentAddPayoutMethodOnMain(from: viewController, accountId: accountId, clientSecret: clientSecret as? String, resolve: resolve, reject: reject)
+    guard let clientSecretString = clientSecret as? String, !clientSecretString.isEmpty else {
+      reject("INVALID_CLIENT_SECRET", "Frame.presentAddPayoutMethod requires a non-empty clientSecret (onb_sess_… from POST /v1/onboarding_sessions)", nil)
+      return
+    }
+    presentAddPayoutMethodOnMain(from: viewController, accountId: accountId, clientSecret: clientSecretString, resolve: resolve, reject: reject)
   }
 
   /// Presents the standalone "choose the primary payout account" screen. Where
@@ -146,7 +172,11 @@ public class FrameSDKBridge: NSObject {
       reject("INVALID_ACCOUNT", "Frame.presentSelectPayoutMethod requires a non-empty accountId", nil)
       return
     }
-    presentSelectPayoutMethodOnMain(from: viewController, accountId: accountId, clientSecret: clientSecret as? String, resolve: resolve, reject: reject)
+    guard let clientSecretString = clientSecret as? String, !clientSecretString.isEmpty else {
+      reject("INVALID_CLIENT_SECRET", "Frame.presentSelectPayoutMethod requires a non-empty clientSecret (onb_sess_… from POST /v1/onboarding_sessions)", nil)
+      return
+    }
+    presentSelectPayoutMethodOnMain(from: viewController, accountId: accountId, clientSecret: clientSecretString, resolve: resolve, reject: reject)
   }
 
   /// Clears the stored App Attest key so the next attestation performs the full
@@ -178,7 +208,31 @@ public class FrameSDKBridge: NSObject {
 
   // MARK: - Private helpers
 
-  private func presentCheckoutOnMain(from top: UIViewController, accountId: String, amount: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+  private enum BridgeParseError: LocalizedError {
+    case invalidCheckoutClientSecret
+
+    var errorDescription: String? {
+      switch self {
+      case .invalidCheckoutClientSecret:
+        return "checkoutClientSecret requires { clientSecret: string, expiresAt: number }"
+      }
+    }
+  }
+
+  /// Parses an optional JS `{ clientSecret, expiresAt }` map. `nil` / NSNull means omit.
+  private func parseCheckoutClientSecret(_ value: NSDictionary?) throws -> FrameCheckoutClientSecret? {
+    guard let value else { return nil }
+    guard let clientSecret = value["clientSecret"] as? String, !clientSecret.isEmpty,
+          let expiresAtNumber = value["expiresAt"] as? NSNumber else {
+      throw BridgeParseError.invalidCheckoutClientSecret
+    }
+    return FrameCheckoutClientSecret(
+      clientSecret: clientSecret,
+      expiresAt: Date(timeIntervalSince1970: expiresAtNumber.doubleValue)
+    )
+  }
+
+  private func presentCheckoutOnMain(from top: UIViewController, accountId: String, amount: Int, checkoutClientSecret: FrameCheckoutClientSecret?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     // Single dismiss delegate guards against double-resolve. The native FrameCheckoutView now
     // emits `.cancelled` on its own .onDisappear and the bridge's
     // `presentationControllerDidDismiss` ALSO fires on swipe-down — the delegate's `didFinish`
@@ -187,6 +241,7 @@ public class FrameSDKBridge: NSObject {
     let checkoutView = FrameCheckoutView(
       accountId: accountId,
       paymentAmount: amount,
+      checkoutClientSecret: checkoutClientSecret,
       onResult: { [weak top, delegate] result in
         switch result {
         case .completed(let id):
@@ -242,7 +297,7 @@ public class FrameSDKBridge: NSObject {
     return result
   }
 
-  private func presentCartOnMain(from top: UIViewController, accountId: String, cartItems: [RNFrameCartItem], shippingAmountInCents: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+  private func presentCartOnMain(from top: UIViewController, accountId: String, cartItems: [RNFrameCartItem], shippingAmountInCents: Int, checkoutClientSecret: FrameCheckoutClientSecret?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     // Single dismiss delegate guards against double-resolve. The native FrameCartView's own
     // .onDisappear emits `.cancelled`, and the bridge's `presentationControllerDidDismiss`
     // also fires on swipe-down — the delegate's `didFinish` guard prevents re-resolve.
@@ -251,6 +306,7 @@ public class FrameSDKBridge: NSObject {
       accountId: accountId,
       cartItems: cartItems,
       shippingAmountInCents: shippingAmountInCents,
+      checkoutClientSecret: checkoutClientSecret,
       onResult: { [weak top, delegate] result in
         switch result {
         case .completed(let id):
@@ -276,7 +332,7 @@ public class FrameSDKBridge: NSObject {
     }
   }
 
-  private func presentOnboardingOnMain(from top: UIViewController, accountId: String?, capabilities: [FrameObjects.Capabilities], showIntroScreen: Bool, showCompletionScreen: Bool, clientSecret: String?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+  private func presentOnboardingOnMain(from top: UIViewController, accountId: String?, capabilities: [FrameObjects.Capabilities], showIntroScreen: Bool, showCompletionScreen: Bool, clientSecret: String, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     // Build the dismiss delegate up-front so onResult captures a non-nil instance directly.
     let delegate = OnboardingDismissDelegate(resolve: resolve)
 
@@ -324,7 +380,7 @@ public class FrameSDKBridge: NSObject {
       NSLog("[FrameRN][onb] presentation completed; presentationController=\(String(describing: nav.presentationController)) delegate set")
     }
   }
-  private func presentAddPaymentMethodOnMain(from top: UIViewController, accountId: String, clientSecret: String?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+  private func presentAddPaymentMethodOnMain(from top: UIViewController, accountId: String, clientSecret: String, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     let delegate = AddMethodDismissDelegate(resolve: resolve)
     let addPaymentView = FrameAddPaymentMethodView(
       clientSecret: clientSecret,
@@ -342,7 +398,7 @@ public class FrameSDKBridge: NSObject {
     presentAddMethodHosting(UIHostingController(rootView: addPaymentView), from: top, delegate: delegate)
   }
 
-  private func presentAddPayoutMethodOnMain(from top: UIViewController, accountId: String, clientSecret: String?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+  private func presentAddPayoutMethodOnMain(from top: UIViewController, accountId: String, clientSecret: String, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     let delegate = AddMethodDismissDelegate(resolve: resolve)
     let addPayoutView = FrameAddPayoutMethodView(
       clientSecret: clientSecret,
@@ -360,7 +416,7 @@ public class FrameSDKBridge: NSObject {
     presentAddMethodHosting(UIHostingController(rootView: addPayoutView), from: top, delegate: delegate)
   }
 
-  private func presentSelectPayoutMethodOnMain(from top: UIViewController, accountId: String, clientSecret: String?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+  private func presentSelectPayoutMethodOnMain(from top: UIViewController, accountId: String, clientSecret: String, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     let delegate = AddMethodDismissDelegate(resolve: resolve)
     // On `.completed` the id is the newly *elected* payout method, not merely an added one.
     let selectPayoutView = FrameSelectPayoutMethodView(

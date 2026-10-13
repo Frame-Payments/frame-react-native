@@ -97,6 +97,7 @@ const transferId2 = await Frame.presentCart({
 // 4. Present an onboarding flow (KYC, bank account, etc.)
 const onboarding = await Frame.presentOnboarding({
   accountId: 'acct_xxx',
+  clientSecret: onboardingSessionSecret, // 'onb_sess_…' from POST /v1/onboarding_sessions
   capabilities: ['kyc', 'bank_account_verification'],
 });
 ```
@@ -141,6 +142,8 @@ Opens the native checkout modal. Resolves with the created Transfer's id string 
 const transferId = await Frame.presentCheckout({
   accountId: 'acct_xxx',
   amount: 15000, // in cents
+  // optional — from POST /v1/checkout_sessions; loads name/email/saved cards without sk_
+  // checkoutClientSecret: { clientSecret: 'chk_sess_…', expiresAt: 1700000000 },
 });
 ```
 
@@ -148,10 +151,11 @@ const transferId = await Frame.presentCheckout({
 |---|---|---|---|
 | `accountId` | `string` | Yes | Frame account that the resulting Transfer is created against |
 | `amount` | `number` | Yes | Payment amount in cents |
+| `checkoutClientSecret` | `{ clientSecret: string; expiresAt: number }` | No | `chk_sess_…` token from `POST /v1/checkout_sessions`. When set, checkout loads name, email, and saved cards with it. Omit to keep the secret-key account read (when a secret key is configured). |
 
 **Returns:** `Promise<string>` — the created Transfer's `id`.
 
-**Throws synchronously with `code: 'INVALID_ACCOUNT'`** if `accountId` is missing or empty.
+**Throws synchronously with `code: 'INVALID_ACCOUNT'`** if `accountId` is missing or empty. **Throws `INVALID_CLIENT_SECRET`** if `checkoutClientSecret` is provided but malformed.
 
 ---
 
@@ -179,6 +183,7 @@ const transferId = await Frame.presentCart({
 | `accountId` | `string` | Yes | Frame account that the resulting Transfer is created against |
 | `items` | `FrameCartItem[]` | Yes | Array of items to display in the cart |
 | `shippingAmountInCents` | `number` | Yes | Shipping cost in cents |
+| `checkoutClientSecret` | `{ clientSecret: string; expiresAt: number }` | No | Forwarded to the embedded checkout. See `presentCheckout`. |
 
 **Returns:** `Promise<string>` — the created Transfer's `id`.
 
@@ -200,6 +205,7 @@ Opens the native onboarding flow for KYC, identity verification, and payment met
 ```ts
 const result = await Frame.presentOnboarding({
   accountId: 'acct_xxx',
+  clientSecret: onboardingSessionSecret, // 'onb_sess_…' from POST /v1/onboarding_sessions
   capabilities: ['kyc', 'bank_account_verification'],
 });
 
@@ -215,20 +221,21 @@ if (result.status === 'completed') {
 |---|---|---|---|
 | `accountId` | `string` | No | The Frame account to onboard |
 | `capabilities` | `OnboardingCapability[]` | No | Which onboarding steps to include (see below) |
-| `showIntroScreen` | `boolean` | No | Show the "Verify Your Identity" welcome screen before the first step. Default `true`. Set to `false` to skip it and open directly on the first capability step. |
+| `showIntroScreen` | `boolean` | No | Show the "Verify Your Identity" welcome screen before the first step. Default `false` (matches frame-ios 4.6 / frame-android 3.2). Set to `true` to show the splash. |
 | `showCompletionScreen` | `boolean` | No | Show the "Verification Submitted" confirmation screen after the last step. Default `true`. Set to `false` to complete the flow immediately without the final screen. |
-| `clientSecret` | `string` | No | Onboarding session client secret (`onb_sess_…`) minted server-side via `POST /v1/onboarding_sessions`. When provided, the onboarding flow authenticates with this session instead of the legacy secret-key path — recommended when initializing with only a publishable key. |
+| `clientSecret` | `string` | Yes | Onboarding session client secret (`onb_sess_…`) minted server-side via `POST /v1/onboarding_sessions`. Required — the native SDKs no longer mint a session from a publishable or secret key inside the flow. |
 
 The Apple Pay / Google Pay wallet attach steps are rendered automatically when the corresponding merchant ID was passed to `Frame.initialize`. No per-call merchant params here.
 
 **Controlling bookend screens:**
 
 ```ts
-// Skip both bookend screens — jump straight into the flow and complete silently
+// Show the welcome splash and skip the completion screen
 const result = await Frame.presentOnboarding({
   accountId: 'acct_xxx',
+  clientSecret: onboardingSessionSecret,
   capabilities: ['kyc', 'bank_account_verification'],
-  showIntroScreen: false,
+  showIntroScreen: true,
   showCompletionScreen: false,
 });
 ```
@@ -284,7 +291,7 @@ if (result.status === 'completed') {
 | Option | Type | Required | Description |
 |---|---|---|---|
 | `accountId` | `string` | yes | The Frame account whose payout method is being set. |
-| `clientSecret` | `string \| null` | recommended | Onboarding-session secret (`onb_sess_…`) from your server's `POST /v1/onboarding_sessions`. Electing a payout method is an account-scoped write, so a publishable key is rejected by the API. Omit only for legacy integrations that still authenticate with a secret key. |
+| `clientSecret` | `string` | yes | Onboarding-session secret (`onb_sess_…`) from your server's `POST /v1/onboarding_sessions`. Electing a payout method is an account-scoped write, so a publishable key is rejected by the API. |
 
 **Returns:** `AddMethodResult`
 
@@ -617,6 +624,7 @@ try {
 | `NO_ACTIVITY` | Android: no host activity available |
 | `INVALID_ITEMS` | Cart items could not be parsed |
 | `INVALID_ACCOUNT` | `accountId` was missing or empty (presentCheckout, presentCart) |
+| `INVALID_CLIENT_SECRET` | Onboarding/add-method `clientSecret` missing, or `checkoutClientSecret` malformed |
 | `INVALID_OWNER` | Apple Pay / Google Pay `owner` was missing, malformed, or had an empty `id` |
 | `INVALID_MERCHANT_ID` | Apple Pay `merchantId` was missing or empty |
 | `INVALID_AMOUNT` | Google Pay `amountCents` was missing or non-positive |

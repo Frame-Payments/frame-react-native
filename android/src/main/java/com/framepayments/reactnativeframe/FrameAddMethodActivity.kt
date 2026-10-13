@@ -22,6 +22,11 @@ class FrameAddMethodActivity : ComponentActivity() {
       return
     }
     val clientSecret = intent.getStringExtra(EXTRA_CLIENT_SECRET)
+    if (clientSecret.isNullOrBlank()) {
+      setResult(RESULT_CANCELED)
+      finish()
+      return
+    }
 
     // onResult must be non-null: the views only handle system Back when it is.
     val onResult: (FrameResult) -> Unit = { result ->
