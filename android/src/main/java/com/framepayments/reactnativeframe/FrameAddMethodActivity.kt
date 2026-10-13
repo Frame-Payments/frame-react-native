@@ -40,9 +40,24 @@ class FrameAddMethodActivity : ComponentActivity() {
 
     setContent {
       when (mode) {
-        MODE_ADD_PAYMENT -> FrameAddPaymentMethodView(accountId, clientSecret, onResult)
-        MODE_ADD_PAYOUT -> FrameAddPayoutMethodView(accountId, clientSecret, onResult)
-        MODE_SELECT_PAYOUT -> FrameSelectPayoutMethodView(accountId, clientSecret, onResult)
+        // Named onResult: FrameSelectPayoutMethodView gained a payoutMethods param in
+        // frame-android 3.2.0 between clientSecret and onResult; a trailing lambda would
+        // bind to the wrong slot.
+        MODE_ADD_PAYMENT -> FrameAddPaymentMethodView(
+          accountId = accountId,
+          clientSecret = clientSecret,
+          onResult = onResult,
+        )
+        MODE_ADD_PAYOUT -> FrameAddPayoutMethodView(
+          accountId = accountId,
+          clientSecret = clientSecret,
+          onResult = onResult,
+        )
+        MODE_SELECT_PAYOUT -> FrameSelectPayoutMethodView(
+          accountId = accountId,
+          clientSecret = clientSecret,
+          onResult = onResult,
+        )
       }
     }
   }

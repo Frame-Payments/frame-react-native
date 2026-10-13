@@ -84,7 +84,7 @@ public class FrameSDKBridge: NSObject {
 
   @objc public
   func presentOnboarding(from viewController: UIViewController, accountId: NSObject?, capabilities: NSArray, showIntroScreen: Bool, showCompletionScreen: Bool, clientSecret: NSObject?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-    guard let clientSecretString = clientSecret as? String, !clientSecretString.isEmpty else {
+    guard let clientSecretString = clientSecret as? String, !clientSecretString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       reject("INVALID_CLIENT_SECRET", "Frame.presentOnboarding requires a non-empty clientSecret (onb_sess_… from POST /v1/onboarding_sessions)", nil)
       return
     }
@@ -143,7 +143,7 @@ public class FrameSDKBridge: NSObject {
       reject("INVALID_ACCOUNT", "Frame.presentAddPaymentMethod requires a non-empty accountId", nil)
       return
     }
-    guard let clientSecretString = clientSecret as? String, !clientSecretString.isEmpty else {
+    guard let clientSecretString = clientSecret as? String, !clientSecretString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       reject("INVALID_CLIENT_SECRET", "Frame.presentAddPaymentMethod requires a non-empty clientSecret (onb_sess_… from POST /v1/onboarding_sessions)", nil)
       return
     }
@@ -156,7 +156,7 @@ public class FrameSDKBridge: NSObject {
       reject("INVALID_ACCOUNT", "Frame.presentAddPayoutMethod requires a non-empty accountId", nil)
       return
     }
-    guard let clientSecretString = clientSecret as? String, !clientSecretString.isEmpty else {
+    guard let clientSecretString = clientSecret as? String, !clientSecretString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       reject("INVALID_CLIENT_SECRET", "Frame.presentAddPayoutMethod requires a non-empty clientSecret (onb_sess_… from POST /v1/onboarding_sessions)", nil)
       return
     }
@@ -172,7 +172,7 @@ public class FrameSDKBridge: NSObject {
       reject("INVALID_ACCOUNT", "Frame.presentSelectPayoutMethod requires a non-empty accountId", nil)
       return
     }
-    guard let clientSecretString = clientSecret as? String, !clientSecretString.isEmpty else {
+    guard let clientSecretString = clientSecret as? String, !clientSecretString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       reject("INVALID_CLIENT_SECRET", "Frame.presentSelectPayoutMethod requires a non-empty clientSecret (onb_sess_… from POST /v1/onboarding_sessions)", nil)
       return
     }

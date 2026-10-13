@@ -250,8 +250,15 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
 
   private fun parseCheckoutClientSecret(map: ReadableMap?): FrameCheckoutClientSecret? {
     if (map == null) return null
+    if (!map.hasKey("clientSecret") || map.isNull("clientSecret") ||
+      map.getType("clientSecret") != com.facebook.react.bridge.ReadableType.String ||
+      !map.hasKey("expiresAt") || map.isNull("expiresAt") ||
+      map.getType("expiresAt") != com.facebook.react.bridge.ReadableType.Number
+    ) {
+      throw IllegalArgumentException("checkoutClientSecret requires { clientSecret: string, expiresAt: number }")
+    }
     val clientSecret = map.getString("clientSecret")
-    if (clientSecret.isNullOrBlank() || !map.hasKey("expiresAt") || map.isNull("expiresAt")) {
+    if (clientSecret.isNullOrBlank()) {
       throw IllegalArgumentException("checkoutClientSecret requires { clientSecret: string, expiresAt: number }")
     }
     return FrameCheckoutClientSecret(clientSecret, map.getDouble("expiresAt").toLong())

@@ -19,7 +19,7 @@ class FrameOnboardingActivity : ComponentActivity() {
     val accountId = intent.getStringExtra(EXTRA_ACCOUNT_ID)
     val capabilitiesJson = intent.getStringExtra(EXTRA_CAPABILITIES_JSON) ?: "[]"
     val capabilities = parseCapabilities(capabilitiesJson)
-    val showIntroScreen = intent.getBooleanExtra(EXTRA_SHOW_INTRO_SCREEN, true)
+    val showIntroScreen = intent.getBooleanExtra(EXTRA_SHOW_INTRO_SCREEN, false)
     val showCompletionScreen = intent.getBooleanExtra(EXTRA_SHOW_COMPLETION_SCREEN, true)
     val clientSecret = intent.getStringExtra(EXTRA_CLIENT_SECRET)
     if (clientSecret.isNullOrBlank()) {
