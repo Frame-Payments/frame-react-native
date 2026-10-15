@@ -214,11 +214,17 @@ public class FrameSDKBridge: NSObject {
 
   private enum BridgeParseError: LocalizedError {
     case invalidCheckoutClientSecret
+    case invalidCheckoutExpiresAt
+    case invalidCheckoutAmountCents
 
     var errorDescription: String? {
       switch self {
       case .invalidCheckoutClientSecret:
         return "checkoutClientSecret requires { clientSecret: string, expiresAt: number }"
+      case .invalidCheckoutExpiresAt:
+        return "checkoutClientSecret.expiresAt must be an integer unix timestamp"
+      case .invalidCheckoutAmountCents:
+        return "checkoutClientSecret.amountCents must be an integer when set"
       }
     }
   }
@@ -230,12 +236,24 @@ public class FrameSDKBridge: NSObject {
           let expiresAtNumber = value["expiresAt"] as? NSNumber else {
       throw BridgeParseError.invalidCheckoutClientSecret
     }
-    let amountCents = (value["amountCents"] as? NSNumber)?.intValue
+    // Date(timeIntervalSince1970:) keeps fractions; Android's Long conversion drops them.
+    guard let expiresAt = Int64(exactly: expiresAtNumber.doubleValue) else {
+      throw BridgeParseError.invalidCheckoutExpiresAt
+    }
+    let amountCents: Int32?
+    if let amountNumber = value["amountCents"] as? NSNumber {
+      guard let cents = Int32(exactly: amountNumber.doubleValue) else {
+        throw BridgeParseError.invalidCheckoutAmountCents
+      }
+      amountCents = cents
+    } else {
+      amountCents = nil
+    }
     let amountCurrency = value["amountCurrency"] as? String
     return FrameCheckoutClientSecret(
       clientSecret: clientSecret,
-      expiresAt: Date(timeIntervalSince1970: expiresAtNumber.doubleValue),
-      amountCents: amountCents,
+      expiresAt: Date(timeIntervalSince1970: TimeInterval(expiresAt)),
+      amountCents: amountCents.map { Int($0) },
       amountCurrency: amountCurrency
     )
   }

@@ -256,6 +256,29 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  // Long.MAX_VALUE.toDouble() is 2^63, and Double.toLong() saturates that to Long.MAX_VALUE.
+  private fun requireBridgeLong(value: Double): Long {
+    if (!value.isFinite() || value < Long.MIN_VALUE.toDouble() || value >= Long.MAX_VALUE.toDouble()) {
+      throw IllegalArgumentException("checkoutClientSecret.expiresAt must be an integer unix timestamp")
+    }
+    val asLong = value.toLong()
+    if (asLong.toDouble() != value) {
+      throw IllegalArgumentException("checkoutClientSecret.expiresAt must be an integer unix timestamp")
+    }
+    return asLong
+  }
+
+  private fun requireBridgeInt(value: Double): Int {
+    if (!value.isFinite() || value < Int.MIN_VALUE.toDouble() || value > Int.MAX_VALUE.toDouble()) {
+      throw IllegalArgumentException("checkoutClientSecret.amountCents must be an integer when set")
+    }
+    val asInt = value.toInt()
+    if (asInt.toDouble() != value) {
+      throw IllegalArgumentException("checkoutClientSecret.amountCents must be an integer when set")
+    }
+    return asInt
+  }
+
   private fun parseCheckoutClientSecret(map: ReadableMap?): FrameCheckoutClientSecret {
     if (map == null) {
       throw IllegalArgumentException("checkoutClientSecret requires { clientSecret: string, expiresAt: number }")
@@ -271,11 +294,12 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     if (clientSecret.isNullOrBlank()) {
       throw IllegalArgumentException("checkoutClientSecret requires { clientSecret: string, expiresAt: number }")
     }
+    val expiresAt = requireBridgeLong(map.getDouble("expiresAt"))
     val amountCents =
       if (map.hasKey("amountCents") && !map.isNull("amountCents") &&
         map.getType("amountCents") == com.facebook.react.bridge.ReadableType.Number
       ) {
-        map.getDouble("amountCents").toInt()
+        requireBridgeInt(map.getDouble("amountCents"))
       } else {
         null
       }
@@ -289,7 +313,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       }
     return FrameCheckoutClientSecret(
       clientSecret,
-      map.getDouble("expiresAt").toLong(),
+      expiresAt,
       amountCents,
       amountCurrency,
     )

@@ -1,7 +1,7 @@
 /**
  * Frame React Native SDK – Example App
  *
- * 1. Set your API key in FRAME_API_KEY below or via env.
+ * 1. Set FRAME_PUBLISHABLE_KEY and FRAME_SECRET_KEY via example/.env or the shell (see example/README.md).
  * 2. Run: npm install, then cd ios && pod install (iOS), then npm run ios or npm run android.
  */
 

@@ -19,12 +19,12 @@ export interface FrameCartItem {
 export interface CheckoutClientSecret {
   /** The `chk_sess_…` bearer token. */
   clientSecret: string;
-  /** Unix timestamp in seconds when the token stops being accepted. */
+  /** Unix timestamp in seconds when the token stops being accepted. Integer in signed 64-bit range. */
   expiresAt: number;
   /**
    * Locked charge amount in the smallest currency unit. When the session can create a
    * V2 transfer, refresh replays this amount. Optional — checkout stamps it from the
-   * payment amount when omitted.
+   * payment amount when omitted. Integer in signed 32-bit range when set.
    */
   amountCents?: number;
   /** ISO 4217 currency code for `amountCents` (e.g. `"usd"`). */

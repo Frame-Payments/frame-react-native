@@ -585,7 +585,11 @@ All `present*` methods return Promises that reject with an error object containi
 import Frame, { ErrorCodes } from 'framepayments-react-native';
 
 try {
-  const transferId = await Frame.presentCheckout({ amount: 10000, accountId: 'acct_xxx' });
+  const transferId = await Frame.presentCheckout({
+    amount: 10000,
+    accountId: 'acct_xxx',
+    checkoutClientSecret: { clientSecret: 'chk_sess_…', expiresAt: 1700000000 },
+  });
   // handle success
 } catch (e: any) {
   if (e.code === ErrorCodes.USER_CANCELED) {
@@ -626,7 +630,11 @@ You can also use the `isFrameError` and `normalizeToFrameError` utilities for ty
 import { isFrameError, normalizeToFrameError } from 'framepayments-react-native';
 
 try {
-  await Frame.presentCheckout({ accountId: 'acct_xxx', amount: 5000 });
+  await Frame.presentCheckout({
+    accountId: 'acct_xxx',
+    amount: 5000,
+    checkoutClientSecret: { clientSecret: 'chk_sess_…', expiresAt: 1700000000 },
+  });
 } catch (e) {
   const err = normalizeToFrameError(e);
   // err.code, err.message, err.nativeError are all typed strings

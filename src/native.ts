@@ -44,6 +44,20 @@ function throwCoded(code: string, message: string): never {
   throw err;
 }
 
+// 2^63 is not a signed int64. The next-smaller exact JS integer is 2^63 - 1024.
+const MAX_BRIDGE_INT64 = 9223372036854774784;
+const MIN_BRIDGE_INT64 = -9223372036854775808;
+const MAX_BRIDGE_INT32 = 2147483647;
+const MIN_BRIDGE_INT32 = -2147483648;
+
+function isBridgeInt64(value: number): boolean {
+  return Number.isInteger(value) && value >= MIN_BRIDGE_INT64 && value <= MAX_BRIDGE_INT64;
+}
+
+function isBridgeInt32(value: number): boolean {
+  return Number.isInteger(value) && value >= MIN_BRIDGE_INT32 && value <= MAX_BRIDGE_INT32;
+}
+
 function requireClientSecret(clientSecret: string | null | undefined, method: string): string {
   if (typeof clientSecret !== 'string' || clientSecret.trim() === '') {
     throwCoded(
@@ -70,11 +84,11 @@ function normalizeCheckoutClientSecret(
     typeof checkoutClientSecret.clientSecret !== 'string' ||
     checkoutClientSecret.clientSecret.trim() === '' ||
     typeof checkoutClientSecret.expiresAt !== 'number' ||
-    !Number.isFinite(checkoutClientSecret.expiresAt)
+    !isBridgeInt64(checkoutClientSecret.expiresAt)
   ) {
     throwCoded(
       ErrorCodes.INVALID_CLIENT_SECRET,
-      `Frame.${method}: checkoutClientSecret requires { clientSecret: string, expiresAt: number }`
+      `Frame.${method}: checkoutClientSecret requires { clientSecret: string, expiresAt: integer unix timestamp }`
     );
   }
   const normalized: CheckoutClientSecret = {
@@ -84,11 +98,11 @@ function normalizeCheckoutClientSecret(
   if (
     checkoutClientSecret.amountCents !== undefined &&
     (typeof checkoutClientSecret.amountCents !== 'number' ||
-      !Number.isFinite(checkoutClientSecret.amountCents))
+      !isBridgeInt32(checkoutClientSecret.amountCents))
   ) {
     throwCoded(
       ErrorCodes.INVALID_CLIENT_SECRET,
-      `Frame.${method}: checkoutClientSecret.amountCents must be a finite number when set`
+      `Frame.${method}: checkoutClientSecret.amountCents must be an integer when set`
     );
   }
   if (

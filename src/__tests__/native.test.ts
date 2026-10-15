@@ -40,7 +40,7 @@ jest.mock('react-native', () => ({
 
 // Re-import after mock so we get the mocked NativeModules
 let initialize: (opts: { secretKey?: string; publishableKey: string; debugMode?: boolean; applePayMerchantId?: string; googlePayMerchantId?: string; accountId?: string }) => Promise<void>;
-let presentCheckout: (opts: { accountId: string; amount: number; checkoutClientSecret?: { clientSecret: string; expiresAt: number } | null }) => Promise<string>;
+let presentCheckout: (opts: { accountId: string; amount: number; checkoutClientSecret?: { clientSecret: string; expiresAt: number; amountCents?: number } | null }) => Promise<string>;
 let presentCart: (opts: {
   accountId: string;
   items: Array<{ id: string; title: string; amountInCents: number; imageUrl: string }>;
@@ -192,6 +192,25 @@ describe('presentCheckout', () => {
       expect(true).toBe(false);
     } catch (e: any) {
       expect(e.code).toBe('INVALID_CLIENT_SECRET');
+    }
+    expect(mockPresentCheckout).not.toHaveBeenCalled();
+  });
+
+  it('throws INVALID_CLIENT_SECRET when expiresAt or amountCents is not an in-range integer', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    const cases = [
+      { clientSecret: 'chk_sess_1', expiresAt: 1.5 },
+      { clientSecret: 'chk_sess_1', expiresAt: 2 ** 63 },
+      { clientSecret: 'chk_sess_1', expiresAt: 1_700_000_000, amountCents: 1.5 },
+      { clientSecret: 'chk_sess_1', expiresAt: 1_700_000_000, amountCents: 2 ** 31 },
+    ];
+    for (const checkoutClientSecret of cases) {
+      try {
+        await presentCheckout({ accountId: 'acct_1', amount: 10000, checkoutClientSecret });
+        expect(true).toBe(false);
+      } catch (e: any) {
+        expect(e.code).toBe('INVALID_CLIENT_SECRET');
+      }
     }
     expect(mockPresentCheckout).not.toHaveBeenCalled();
   });
