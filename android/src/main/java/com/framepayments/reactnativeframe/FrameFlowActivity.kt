@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.framepayments.framesdk.checkoutsessions.FrameCheckoutClientSecret
 import com.framepayments.framesdk_ui.FrameCartItem
 import com.framepayments.framesdk_ui.FrameCartView
 import com.framepayments.framesdk_ui.FrameCheckoutView
@@ -31,6 +32,7 @@ class FrameFlowActivity : AppCompatActivity() {
     val accountId = intent.getStringExtra(EXTRA_ACCOUNT_ID)
     val itemsJson = intent.getStringExtra(EXTRA_ITEMS_JSON)
     val shippingCents = intent.getIntExtra(EXTRA_SHIPPING_CENTS, 0)
+    val checkoutClientSecret = FrameCheckoutActivity.readCheckoutClientSecret(intent)
     val items: List<FrameCartItem> = parseCartItems(itemsJson) ?: emptyList()
 
     // Bundled cart → checkout always creates a Transfer, which requires an account.
@@ -39,8 +41,12 @@ class FrameFlowActivity : AppCompatActivity() {
       finish()
       return
     }
+    if (checkoutClientSecret == null) {
+      FrameCheckoutActivity.finishFailed(this, "checkoutClientSecret is required")
+      return
+    }
 
-    showCart(accountId, items, shippingCents)
+    showCart(accountId, items, shippingCents, checkoutClientSecret)
   }
 
   private fun parseCartItems(json: String?): List<FrameCartItem>? {
@@ -61,18 +67,27 @@ class FrameFlowActivity : AppCompatActivity() {
     val imageUrl: String
   )
 
-  private fun showCart(accountId: String, items: List<FrameCartItem>, shippingCents: Int) {
+  private fun showCart(
+    accountId: String,
+    items: List<FrameCartItem>,
+    shippingCents: Int,
+    checkoutClientSecret: FrameCheckoutClientSecret?,
+  ) {
     container.removeAllViews()
     cartView = FrameCartView(this).apply {
       FrameRNTheme.current?.let { setTheme(it) }
       configure(accountId, items, shippingCents, { totalCents ->
-        showCheckout(accountId, totalCents)
+        showCheckout(accountId, totalCents, checkoutClientSecret)
       }, null)
     }
     container.addView(cartView)
   }
 
-  private fun showCheckout(accountId: String, amount: Int) {
+  private fun showCheckout(
+    accountId: String,
+    amount: Int,
+    checkoutClientSecret: FrameCheckoutClientSecret?,
+  ) {
     lifecycleScope.launch {
       if (!FrameCheckoutActivity.isCardEncryptionReady()) {
         FrameCheckoutActivity.finishFailed(this@FrameFlowActivity, "Card encryption is unavailable")
@@ -81,7 +96,11 @@ class FrameFlowActivity : AppCompatActivity() {
       container.removeAllViews()
       checkoutView = FrameCheckoutView(this@FrameFlowActivity).apply {
         FrameRNTheme.current?.let { setTheme(it) }
-        configure(accountId, amount) { result ->
+        configure(
+          accountId = accountId,
+          paymentAmount = amount,
+          checkoutClientSecret = checkoutClientSecret,
+        ) { result ->
           FrameCheckoutActivity.finishWithCheckoutResult(this@FrameFlowActivity, result)
         }
       }

@@ -85,18 +85,24 @@ await Frame.initialize({
 });
 
 // 2. Present a checkout modal — resolves with the transfer id string
-const transferId = await Frame.presentCheckout({ amount: 10000, accountId: 'acct_xxx' });
+const transferId = await Frame.presentCheckout({
+  amount: 10000,
+  accountId: 'acct_xxx',
+  checkoutClientSecret, // { clientSecret: 'chk_sess_…', expiresAt } from POST /v1/checkout_sessions
+});
 
 // 3. Present a cart flow — also resolves with the transfer id string
 const transferId2 = await Frame.presentCart({
   accountId: 'acct_xxx',
   items: [{ id: '1', title: 'Hat', amountInCents: 5000, imageUrl: 'https://...' }],
   shippingAmountInCents: 500,
+  checkoutClientSecret,
 });
 
 // 4. Present an onboarding flow (KYC, bank account, etc.)
 const onboarding = await Frame.presentOnboarding({
   accountId: 'acct_xxx',
+  clientSecret: onboardingSessionSecret, // 'onb_sess_…' from POST /v1/onboarding_sessions
   capabilities: ['kyc', 'bank_account_verification'],
 });
 ```
@@ -135,12 +141,13 @@ await Frame.initialize({
 
 Opens the native checkout modal. Resolves with the created Transfer's id string when the user completes payment. Rejects with `USER_CANCELED` if the sheet is dismissed, or `PAYMENT_FAILED` if checkout ends without producing a transfer.
 
-`accountId` is **required**: the bundled checkout creates a `Transfer`, which is account-scoped. If you need a customer/ChargeIntent flow, render your own UI and call `presentApplePay` / `presentGooglePay` directly with a customer owner instead.
+`accountId` is **required**: the bundled checkout creates a V2 `Transfer`, which is account-scoped. Wallet charges (`presentApplePay` / `presentGooglePay`) are likewise account-only under Transfers V2.
 
 ```ts
 const transferId = await Frame.presentCheckout({
   accountId: 'acct_xxx',
   amount: 15000, // in cents
+  checkoutClientSecret: { clientSecret: 'chk_sess_…', expiresAt: 1700000000 },
 });
 ```
 
@@ -148,10 +155,11 @@ const transferId = await Frame.presentCheckout({
 |---|---|---|---|
 | `accountId` | `string` | Yes | Frame account that the resulting Transfer is created against |
 | `amount` | `number` | Yes | Payment amount in cents |
+| `checkoutClientSecret` | `{ clientSecret: string; expiresAt: number; amountCents?: number; amountCurrency?: string }` | Yes | `chk_sess_…` token from `POST /v1/checkout_sessions`. Checkout loads name, email, and saved cards with it. Optional `amountCents` / `amountCurrency` lock the V2 transfer amount on the session. |
 
 **Returns:** `Promise<string>` — the created Transfer's `id`.
 
-**Throws synchronously with `code: 'INVALID_ACCOUNT'`** if `accountId` is missing or empty.
+**Throws synchronously with `code: 'INVALID_ACCOUNT'`** if `accountId` is missing or empty. **Throws `INVALID_CLIENT_SECRET`** if `checkoutClientSecret` is missing or malformed.
 
 ---
 
@@ -171,6 +179,7 @@ const transferId = await Frame.presentCart({
     },
   ],
   shippingAmountInCents: 500,
+  checkoutClientSecret: { clientSecret: 'chk_sess_…', expiresAt: 1700000000 },
 });
 ```
 
@@ -179,6 +188,7 @@ const transferId = await Frame.presentCart({
 | `accountId` | `string` | Yes | Frame account that the resulting Transfer is created against |
 | `items` | `FrameCartItem[]` | Yes | Array of items to display in the cart |
 | `shippingAmountInCents` | `number` | Yes | Shipping cost in cents |
+| `checkoutClientSecret` | `{ clientSecret: string; expiresAt: number; amountCents?: number; amountCurrency?: string }` | Yes | Forwarded to the embedded checkout. See `presentCheckout`. |
 
 **Returns:** `Promise<string>` — the created Transfer's `id`.
 
@@ -200,6 +210,7 @@ Opens the native onboarding flow for KYC, identity verification, and payment met
 ```ts
 const result = await Frame.presentOnboarding({
   accountId: 'acct_xxx',
+  clientSecret: onboardingSessionSecret, // 'onb_sess_…' from POST /v1/onboarding_sessions
   capabilities: ['kyc', 'bank_account_verification'],
 });
 
@@ -215,20 +226,21 @@ if (result.status === 'completed') {
 |---|---|---|---|
 | `accountId` | `string` | No | The Frame account to onboard |
 | `capabilities` | `OnboardingCapability[]` | No | Which onboarding steps to include (see below) |
-| `showIntroScreen` | `boolean` | No | Show the "Verify Your Identity" welcome screen before the first step. Default `true`. Set to `false` to skip it and open directly on the first capability step. |
+| `showIntroScreen` | `boolean` | No | Show the "Verify Your Identity" welcome screen before the first step. Default `false` (matches frame-ios 4.6 / frame-android 3.2). Set to `true` to show the splash. |
 | `showCompletionScreen` | `boolean` | No | Show the "Verification Submitted" confirmation screen after the last step. Default `true`. Set to `false` to complete the flow immediately without the final screen. |
-| `clientSecret` | `string` | No | Onboarding session client secret (`onb_sess_…`) minted server-side via `POST /v1/onboarding_sessions`. When provided, the onboarding flow authenticates with this session instead of the legacy secret-key path — recommended when initializing with only a publishable key. |
+| `clientSecret` | `string` | Yes | Onboarding session client secret (`onb_sess_…`) minted server-side via `POST /v1/onboarding_sessions`. Required — the native SDKs no longer mint a session from a publishable or secret key inside the flow. |
 
 The Apple Pay / Google Pay wallet attach steps are rendered automatically when the corresponding merchant ID was passed to `Frame.initialize`. No per-call merchant params here.
 
 **Controlling bookend screens:**
 
 ```ts
-// Skip both bookend screens — jump straight into the flow and complete silently
+// Show the welcome splash and skip the completion screen
 const result = await Frame.presentOnboarding({
   accountId: 'acct_xxx',
+  clientSecret: onboardingSessionSecret,
   capabilities: ['kyc', 'bank_account_verification'],
-  showIntroScreen: false,
+  showIntroScreen: true,
   showCompletionScreen: false,
 });
 ```
@@ -284,7 +296,7 @@ if (result.status === 'completed') {
 | Option | Type | Required | Description |
 |---|---|---|---|
 | `accountId` | `string` | yes | The Frame account whose payout method is being set. |
-| `clientSecret` | `string \| null` | recommended | Onboarding-session secret (`onb_sess_…`) from your server's `POST /v1/onboarding_sessions`. Electing a payout method is an account-scoped write, so a publishable key is rejected by the API. Omit only for legacy integrations that still authenticate with a secret key. |
+| `clientSecret` | `string` | yes | Onboarding-session secret (`onb_sess_…`) from your server's `POST /v1/onboarding_sessions`. Electing a payout method is an account-scoped write, so a publishable key is rejected by the API. |
 
 **Returns:** `AddMethodResult`
 
@@ -297,32 +309,19 @@ if (result.status === 'completed') {
 
 ### `Frame.presentApplePay(options)` (iOS)
 
-Launches the native Apple Pay sheet, creates a Frame payment method from the authorized payment, and creates a charge against the owner. Resolves with the resulting resource's id string. Render your own button — Apple's `PKPaymentButton`, a community wrapper, or your own design-system component — and call this from its `onPress`.
+Launches the native Apple Pay sheet, creates a Frame payment method from the authorized payment, and creates a V2 Transfer charged into the account. Resolves with the Transfer's id string. Render your own button — Apple's `PKPaymentButton`, a community wrapper, or your own design-system component — and call this from its `onPress`.
 
 The Apple Pay merchant ID is configured **once** at `Frame.initialize({ applePayMerchantId })`; there is no per-call merchant parameter.
 
-The `owner` determines which downstream resource is created:
-
-- `owner.type === 'customer'` → creates a `ChargeIntent` against the customer; resolves with the ChargeIntent's `id`.
-- `owner.type === 'account'`  → creates a `Transfer` charged into the account; resolves with the Transfer's `id`.
-
-In both cases the resolved value is a `string`; the caller knows which resource the id refers to based on the owner passed in.
+Under Transfers V2 (frame-ios 4.7+), charges require `owner.type === 'account'`. Passing `owner.type === 'customer'` rejects with `INVALID_OWNER` — customer ChargeIntents were removed from the wallet charge path.
 
 ```tsx
 import Frame from 'framepayments-react-native';
 
-// Account → Transfer
 const transferId = await Frame.presentApplePay({
   amount: 15000,
   currency: 'usd',
   owner: { type: 'account', id: 'acct_xxx' },
-});
-
-// Customer → ChargeIntent
-const chargeIntentId = await Frame.presentApplePay({
-  amount: 15000,
-  currency: 'usd',
-  owner: { type: 'customer', id: 'cus_xxx' },
 });
 ```
 
@@ -330,11 +329,11 @@ const chargeIntentId = await Frame.presentApplePay({
 |---|---|---|---|
 | `amount` | `number` | Yes | Payment amount in cents |
 | `currency` | `string` | No | ISO 4217 currency code. Default `'usd'` |
-| `owner` | `{ type: 'customer' \| 'account', id: string }` | Yes | Customer or account that owns the resulting payment method and charge |
+| `owner` | `{ type: 'account', id: string }` | Yes | Account that owns the resulting payment method and V2 Transfer |
 
-**Returns:** `Promise<string>` — the created `ChargeIntent`'s `id` (for customer owners) or the `Transfer`'s `id` (for account owners).
+**Returns:** `Promise<string>` — the created Transfer's `id`.
 
-The promise rejects with `code: 'USER_CANCELED'` when the user dismisses the sheet, `'INVALID_OWNER'` if the owner is missing or malformed, `'INVALID_MERCHANT_ID'` if `applePayMerchantId` was not configured at `Frame.initialize`, `'APPLE_PAY_UNAVAILABLE'` if the device cannot make Apple Pay payments, `'NOT_ATTESTED'` if device attestation has not completed yet (try again in a moment), `'PAYMENT_METHOD_FAILED'` when the wallet payment method could not be persisted, and `'PAYMENT_FAILED'` when the downstream ChargeIntent or Transfer could not be created.
+The promise rejects with `code: 'USER_CANCELED'` when the user dismisses the sheet, `'INVALID_OWNER'` if the owner is missing, malformed, or a customer, `'INVALID_MERCHANT_ID'` if `applePayMerchantId` was not configured at `Frame.initialize`, `'APPLE_PAY_UNAVAILABLE'` if the device cannot make Apple Pay payments, `'NOT_ATTESTED'` if device attestation has not completed yet (try again in a moment), `'PAYMENT_METHOD_FAILED'` when the wallet payment method could not be persisted, and `'PAYMENT_FAILED'` when the downstream Transfer could not be created.
 
 #### Required iOS setup
 
@@ -374,41 +373,31 @@ On non-iOS platforms `Frame.presentApplePay` rejects synchronously with a not-su
 
 ### `Frame.presentGooglePay(options)` (Android)
 
-Launches the native Google Pay sheet, creates a Frame payment method from the wallet token, and creates a charge against the owner. Resolves with the resulting resource's id string. Render your own button (Google's `PayButton` from `play-services-pay`, a community wrapper, or your own component) and call this from its `onPress`.
+Launches the native Google Pay sheet, creates a Frame payment method from the wallet token, and creates a V2 Transfer charged into the account. Resolves with the Transfer's id string. Render your own button (Google's `PayButton` from `play-services-pay`, a community wrapper, or your own component) and call this from its `onPress`.
 
 The Google Pay merchant ID is configured **once** at `Frame.initialize({ googlePayMerchantId })`; there is no per-call merchant parameter.
 
-The `owner` mirrors `presentApplePay` and determines which downstream resource is created:
-
-- `owner.type === 'customer'` → creates a `ChargeIntent` against the customer; resolves with the ChargeIntent's `id`.
-- `owner.type === 'account'`  → creates a `Transfer` charged into the account; resolves with the Transfer's `id`.
+Under Transfers V2 (frame-android 3.3+), charges require `owner.type === 'account'`. Passing `owner.type === 'customer'` rejects with `INVALID_OWNER` — the same contract as `presentApplePay`.
 
 ```tsx
 import Frame from 'framepayments-react-native';
 
-// Account → Transfer
 const transferId = await Frame.presentGooglePay({
   amountCents: 15000,
   currencyCode: 'USD',
   owner: { type: 'account', id: 'acct_xxx' },
-});
-
-// Customer → ChargeIntent
-const chargeIntentId = await Frame.presentGooglePay({
-  amountCents: 15000,
-  owner: { type: 'customer', id: 'cus_xxx' },
 });
 ```
 
 | Option | Type | Required | Description |
 |---|---|---|---|
 | `amountCents` | `number` | Yes | Payment amount in cents |
-| `owner` | `{ type: 'customer' \| 'account', id: string }` | Yes | Customer or account that owns the resulting payment method and charge |
+| `owner` | `{ type: 'account', id: string }` | Yes | Account that owns the resulting payment method and V2 Transfer |
 | `currencyCode` | `string` | No | ISO 4217 currency code. Default `'USD'` |
 
-**Returns:** `Promise<string>` — the created `ChargeIntent`'s `id` (for customer owners) or the `Transfer`'s `id` (for account owners).
+**Returns:** `Promise<string>` — the created Transfer's `id`.
 
-The promise rejects with `code: 'USER_CANCELED'` when the user dismisses the sheet, `'INVALID_OWNER'` if the owner is missing or malformed, `'GOOGLE_PAY_UNAVAILABLE'` if Google Pay is not ready on the device (no signed-in account, no test card, no `googlePayMerchantId` configured at `Frame.initialize`, or Wallet API disabled in the manifest), and `'PAYMENT_FAILED'` for backend failures.
+The promise rejects with `code: 'USER_CANCELED'` when the user dismisses the sheet, `'INVALID_OWNER'` if the owner is missing, malformed, or a customer, `'GOOGLE_PAY_UNAVAILABLE'` if Google Pay is not ready on the device (no signed-in account, no test card, no `googlePayMerchantId` configured at `Frame.initialize`, or Wallet API disabled in the manifest), and `'PAYMENT_FAILED'` for backend failures.
 
 #### Required Android setup
 
@@ -584,7 +573,7 @@ A complete working example (including loading-state handling) lives in [example/
 
 ### Inspecting the full resource
 
-The `present*` flows resolve with a string id only. If you need the full `Transfer` or `ChargeIntent` object after a checkout completes, fetch it server-side from the Frame API using the returned id — see [https://docs.framepayments.com/frameos/transfers](https://docs.framepayments.com/frameos/transfers) and the corresponding ChargeIntent docs for the response schemas. (This SDK doesn't ship TypeScript types for those objects; use the [`framepayments`](https://www.npmjs.com/package/framepayments) Node package if you want typed access from JS.)
+The `present*` flows resolve with a string id only. If you need the full `Transfer` object after a checkout or wallet charge completes, fetch it server-side from the Frame API using the returned id — see [https://docs.framepayments.com/frameos/transfers](https://docs.framepayments.com/frameos/transfers). (This SDK doesn't ship TypeScript types for those objects; use the [`framepayments`](https://www.npmjs.com/package/framepayments) Node package if you want typed access from JS.)
 
 ---
 
@@ -596,7 +585,11 @@ All `present*` methods return Promises that reject with an error object containi
 import Frame, { ErrorCodes } from 'framepayments-react-native';
 
 try {
-  const transferId = await Frame.presentCheckout({ amount: 10000, accountId: 'acct_xxx' });
+  const transferId = await Frame.presentCheckout({
+    amount: 10000,
+    accountId: 'acct_xxx',
+    checkoutClientSecret: { clientSecret: 'chk_sess_…', expiresAt: 1700000000 },
+  });
   // handle success
 } catch (e: any) {
   if (e.code === ErrorCodes.USER_CANCELED) {
@@ -617,7 +610,8 @@ try {
 | `NO_ACTIVITY` | Android: no host activity available |
 | `INVALID_ITEMS` | Cart items could not be parsed |
 | `INVALID_ACCOUNT` | `accountId` was missing or empty (presentCheckout, presentCart) |
-| `INVALID_OWNER` | Apple Pay / Google Pay `owner` was missing, malformed, or had an empty `id` |
+| `INVALID_CLIENT_SECRET` | Onboarding/add-method `clientSecret` missing, or `checkoutClientSecret` missing or malformed |
+| `INVALID_OWNER` | Apple Pay / Google Pay `owner` was missing, malformed, a customer, or had an empty `id` |
 | `INVALID_MERCHANT_ID` | Apple Pay `merchantId` was missing or empty |
 | `INVALID_AMOUNT` | Google Pay `amountCents` was missing or non-positive |
 | `NO_RESULT` | Native activity returned OK but no payload |
@@ -626,7 +620,7 @@ try {
 | `GOOGLE_PAY_UNAVAILABLE` | Android: Google Pay not ready on the device |
 | `NOT_ATTESTED` | iOS: device attestation has not completed yet |
 | `PAYMENT_METHOD_FAILED` | iOS: Apple Pay payment method creation failed |
-| `PAYMENT_FAILED` | Checkout, cart, or a wallet flow ended without producing a Transfer or ChargeIntent |
+| `PAYMENT_FAILED` | Checkout, cart, or a wallet flow ended without producing a Transfer |
 | `NETWORK_ERROR` | Network failure in the native SDK |
 | `API_ERROR` | Frame API returned an error |
 
@@ -636,7 +630,11 @@ You can also use the `isFrameError` and `normalizeToFrameError` utilities for ty
 import { isFrameError, normalizeToFrameError } from 'framepayments-react-native';
 
 try {
-  await Frame.presentCheckout({ accountId: 'acct_xxx', amount: 5000 });
+  await Frame.presentCheckout({
+    accountId: 'acct_xxx',
+    amount: 5000,
+    checkoutClientSecret: { clientSecret: 'chk_sess_…', expiresAt: 1700000000 },
+  });
 } catch (e) {
   const err = normalizeToFrameError(e);
   // err.code, err.message, err.nativeError are all typed strings

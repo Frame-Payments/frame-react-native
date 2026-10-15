@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`presentCheckout` / `presentCart` take `checkoutClientSecret`**
+  (`{ clientSecret: 'chk_sess_…', expiresAt, amountCents?, amountCurrency? }`) from
+  `POST /v1/checkout_sessions`. Checkout loads name, email, and saved cards with that
+  token. Optional amount fields lock the V2 transfer amount on the session.
+- **`CheckoutClientSecret` is now exported** from the package entry point.
+- **`INVALID_CLIENT_SECRET` error code** for missing/malformed onboarding or checkout
+  session secrets.
 - **`presentAddPaymentMethod`, `presentAddPayoutMethod` and `presentSelectPayoutMethod`
   now work on Android** (previously they threw `PLATFORM_UNSUPPORTED`). They resolve the
   same `AddMethodResult` as iOS. On Android these screens don't take the
@@ -26,6 +33,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **frame-ios: `4.5.3` → `4.7.0`.** Includes the 4.6.0 session-secret contract, plus
+  Transfers V2 (checkout/wallet charges create V2 Transfers; `TransfersV2API` /
+  `TransferV2Requests` replace the ChargeIntent wallet path).
+- **frame-android: `3.1.1` → `3.3.0`.** Same progression as iOS: 3.2.0 session secrets,
+  then 3.3.0 Transfers V2 for checkout and Google Pay charges.
+- **BREAKING: wallet charges are account-only.** `presentApplePay` / `presentGooglePay`
+  require `owner.type === 'account'` and resolve with a V2 Transfer id. Passing
+  `owner.type === 'customer'` throws/rejects `INVALID_OWNER` — customer ChargeIntents
+  were removed from the wallet charge path with Transfers V2.
+- **`CheckoutClientSecret` may include optional `amountCents` / `amountCurrency`** so
+  a `chk_sess_…` session can lock the V2 transfer amount for refresh/replay.
+- **BREAKING: `checkoutClientSecret` is required** on `presentCheckout` and
+  `presentCart`. Omitting it throws `INVALID_CLIENT_SECRET`. frame-ios 4.7 /
+  frame-android 3.3 do not load saved cards without a `chk_sess_` token.
+- **BREAKING: `clientSecret` is required** on `presentOnboarding`,
+  `presentAddPaymentMethod`, `presentAddPayoutMethod`, and `presentSelectPayoutMethod`.
+  Omitting it throws `INVALID_CLIENT_SECRET` (JS) / rejects the same code from native.
+- **BREAKING: `showIntroScreen` defaults to `false`**, matching frame-ios 4.6.0+ /
+  frame-android 3.2.0+. Pass `showIntroScreen: true` to keep the welcome splash.
 - **frame-ios: `4.5.1` → `4.5.3`.** No bridge changes. Onboarding launched without an
   `accountId` now keeps the account events it emits before the account is created
   (buffered and flushed once onboarding creates it) instead of dropping them.

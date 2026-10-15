@@ -5,6 +5,7 @@
 import { NativeModules, Platform } from 'react-native';
 import type {
   AddMethodResult,
+  CheckoutClientSecret,
   FrameCartItem,
   FrameTheme,
   OnboardingCapability,
@@ -41,6 +42,108 @@ function throwCoded(code: string, message: string): never {
   const err = new Error(message) as Error & { code: string };
   err.code = code;
   throw err;
+}
+
+// 2^63 is not a signed int64. The next-smaller exact JS integer is 2^63 - 1024.
+const MAX_BRIDGE_INT64 = 9223372036854774784;
+const MIN_BRIDGE_INT64 = -9223372036854775808;
+const MAX_BRIDGE_INT32 = 2147483647;
+const MIN_BRIDGE_INT32 = -2147483648;
+
+function isBridgeInt64(value: number): boolean {
+  return Number.isInteger(value) && value >= MIN_BRIDGE_INT64 && value <= MAX_BRIDGE_INT64;
+}
+
+function isBridgeInt32(value: number): boolean {
+  return Number.isInteger(value) && value >= MIN_BRIDGE_INT32 && value <= MAX_BRIDGE_INT32;
+}
+
+function requireClientSecret(clientSecret: string | null | undefined, method: string): string {
+  if (typeof clientSecret !== 'string' || clientSecret.trim() === '') {
+    throwCoded(
+      ErrorCodes.INVALID_CLIENT_SECRET,
+      `Frame.${method} requires clientSecret (onb_sess_… from POST /v1/onboarding_sessions)`
+    );
+  }
+  return clientSecret;
+}
+
+function normalizeCheckoutClientSecret(
+  checkoutClientSecret: CheckoutClientSecret | null | undefined,
+  method: string
+): CheckoutClientSecret {
+  if (checkoutClientSecret == null) {
+    throwCoded(
+      ErrorCodes.INVALID_CLIENT_SECRET,
+      `Frame.${method} requires checkoutClientSecret (chk_sess_… from POST /v1/checkout_sessions)`
+    );
+  }
+  if (
+    typeof checkoutClientSecret !== 'object' ||
+    Array.isArray(checkoutClientSecret) ||
+    typeof checkoutClientSecret.clientSecret !== 'string' ||
+    checkoutClientSecret.clientSecret.trim() === '' ||
+    typeof checkoutClientSecret.expiresAt !== 'number' ||
+    !isBridgeInt64(checkoutClientSecret.expiresAt)
+  ) {
+    throwCoded(
+      ErrorCodes.INVALID_CLIENT_SECRET,
+      `Frame.${method}: checkoutClientSecret requires { clientSecret: string, expiresAt: integer unix timestamp }`
+    );
+  }
+  const normalized: CheckoutClientSecret = {
+    clientSecret: checkoutClientSecret.clientSecret,
+    expiresAt: checkoutClientSecret.expiresAt,
+  };
+  if (
+    checkoutClientSecret.amountCents !== undefined &&
+    (typeof checkoutClientSecret.amountCents !== 'number' ||
+      !isBridgeInt32(checkoutClientSecret.amountCents))
+  ) {
+    throwCoded(
+      ErrorCodes.INVALID_CLIENT_SECRET,
+      `Frame.${method}: checkoutClientSecret.amountCents must be an integer when set`
+    );
+  }
+  if (
+    checkoutClientSecret.amountCurrency !== undefined &&
+    typeof checkoutClientSecret.amountCurrency !== 'string'
+  ) {
+    throwCoded(
+      ErrorCodes.INVALID_CLIENT_SECRET,
+      `Frame.${method}: checkoutClientSecret.amountCurrency must be a string when set`
+    );
+  }
+  if (checkoutClientSecret.amountCents !== undefined) {
+    normalized.amountCents = checkoutClientSecret.amountCents;
+  }
+  if (checkoutClientSecret.amountCurrency !== undefined) {
+    normalized.amountCurrency = checkoutClientSecret.amountCurrency;
+  }
+  return normalized;
+}
+
+function requireAccountWalletOwner(
+  owner: { type: string; id: string } | undefined,
+  method: string
+): { type: 'account'; id: string } {
+  if (!owner || (owner.type !== 'customer' && owner.type !== 'account')) {
+    throwCoded(
+      ErrorCodes.INVALID_OWNER,
+      `Frame.${method} requires owner: { type: "account", id: string }`
+    );
+  }
+  if (!owner.id) {
+    throwCoded(ErrorCodes.INVALID_OWNER, `Frame.${method} requires owner.id`);
+  }
+  // Transfers V2: wallet charges are account-scoped only (no ChargeIntent path).
+  if (owner.type === 'customer') {
+    throwCoded(
+      ErrorCodes.INVALID_OWNER,
+      `Frame.${method} charges require owner.type "account" (customer charges were removed with Transfers V2)`
+    );
+  }
+  return { type: 'account', id: owner.id };
 }
 
 let isInitialized = false;
@@ -136,20 +239,29 @@ function wrapPromise<T>(p: Promise<T>): Promise<T> {
  * created Transfer's id string on success, or rejects with `USER_CANCELED` if
  * the user dismisses the sheet.
  *
- * `accountId` is required: the bundled checkout creates a `Transfer`, which is
- * account-scoped. Callers needing a customer/ChargeIntent flow should use
- * `presentApplePay` / `presentGooglePay` directly with a customer owner.
+ * `accountId` is required: the bundled checkout creates a V2 Transfer, which is
+ * account-scoped. `checkoutClientSecret` is required: frame-ios 4.7 /
+ * frame-android 3.3 load the payer and saved cards only with a `chk_sess_` token.
  */
 export function presentCheckout(options: {
   accountId: string;
   amount: number;
+  /**
+   * `chk_sess_…` token from `POST /v1/checkout_sessions`. Required. Checkout
+   * loads name, email, and saved cards with it.
+   */
+  checkoutClientSecret: CheckoutClientSecret;
 }): Promise<string> {
   guardInitialized();
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentCheckout requires accountId');
   }
+  const checkoutClientSecret = normalizeCheckoutClientSecret(
+    options.checkoutClientSecret,
+    'presentCheckout'
+  );
   return wrapPromise(
-    FrameSDK.presentCheckout(options.accountId, options.amount)
+    FrameSDK.presentCheckout(options.accountId, options.amount, checkoutClientSecret)
   );
 }
 
@@ -157,22 +269,33 @@ export function presentCheckout(options: {
  * Presents the Frame cart UI; tapping checkout routes through the same flow
  * as `presentCheckout` and resolves with the created Transfer's id string.
  *
- * `accountId` is required for the same reason as `presentCheckout`.
+ * `accountId` and `checkoutClientSecret` are required for the same reason as
+ * `presentCheckout`.
  */
 export function presentCart(options: {
   accountId: string;
   items: FrameCartItem[];
   shippingAmountInCents: number;
+  /**
+   * `chk_sess_…` token forwarded to the embedded checkout. Required. See
+   * {@link presentCheckout}.
+   */
+  checkoutClientSecret: CheckoutClientSecret;
 }): Promise<string> {
   guardInitialized();
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentCart requires accountId');
   }
+  const checkoutClientSecret = normalizeCheckoutClientSecret(
+    options.checkoutClientSecret,
+    'presentCart'
+  );
   return wrapPromise(
     FrameSDK.presentCart(
       options.accountId,
       options.items,
-      options.shippingAmountInCents
+      options.shippingAmountInCents,
+      checkoutClientSecret
     )
   );
 }
@@ -184,19 +307,20 @@ export function presentOnboarding(options: {
   showCompletionScreen?: boolean;
   /**
    * Onboarding session client secret (`onb_sess_…`) minted server-side via
-   * `POST /v1/onboarding_sessions`. When provided, the onboarding flow
-   * authenticates with this session instead of the legacy secret-key path.
+   * `POST /v1/onboarding_sessions`. Required — the native SDKs no longer mint
+   * a session from a publishable or secret key inside the flow.
    */
-  clientSecret?: string | null;
+  clientSecret: string;
 }): Promise<OnboardingResult> {
   guardInitialized();
+  const clientSecret = requireClientSecret(options?.clientSecret, 'presentOnboarding');
   return wrapPromise(
     FrameSDK.presentOnboarding(
       options.accountId ?? null,
       options.capabilities ?? [],
-      options.showIntroScreen ?? true,
+      options.showIntroScreen ?? false,
       options.showCompletionScreen ?? true,
-      options.clientSecret ?? null
+      clientSecret
     )
   );
 }
@@ -209,18 +333,16 @@ export function presentAddPaymentMethod(options: {
   accountId: string;
   /**
    * Onboarding session client secret (`onb_sess_…`) minted server-side via
-   * `POST /v1/onboarding_sessions`, scoping the request to `accountId`. Omit this
-   * only for legacy integrations that still authenticate with a secret key.
+   * `POST /v1/onboarding_sessions`, scoping the request to `accountId`. Required.
    */
-  clientSecret?: string | null;
+  clientSecret: string;
 }): Promise<AddMethodResult> {
   guardInitialized();
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentAddPaymentMethod requires accountId');
   }
-  return wrapPromise(
-    FrameSDK.presentAddPaymentMethod(options.accountId, options.clientSecret ?? null)
-  );
+  const clientSecret = requireClientSecret(options.clientSecret, 'presentAddPaymentMethod');
+  return wrapPromise(FrameSDK.presentAddPaymentMethod(options.accountId, clientSecret));
 }
 
 /**
@@ -231,18 +353,16 @@ export function presentAddPayoutMethod(options: {
   accountId: string;
   /**
    * Onboarding session client secret (`onb_sess_…`) minted server-side via
-   * `POST /v1/onboarding_sessions`, scoping the request to `accountId`. Omit this
-   * only for legacy integrations that still authenticate with a secret key.
+   * `POST /v1/onboarding_sessions`, scoping the request to `accountId`. Required.
    */
-  clientSecret?: string | null;
+  clientSecret: string;
 }): Promise<AddMethodResult> {
   guardInitialized();
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentAddPayoutMethod requires accountId');
   }
-  return wrapPromise(
-    FrameSDK.presentAddPayoutMethod(options.accountId, options.clientSecret ?? null)
-  );
+  const clientSecret = requireClientSecret(options.clientSecret, 'presentAddPayoutMethod');
+  return wrapPromise(FrameSDK.presentAddPayoutMethod(options.accountId, clientSecret));
 }
 
 /**
@@ -257,73 +377,56 @@ export function presentSelectPayoutMethod(options: {
   accountId: string;
   /**
    * Onboarding session client secret (`onb_sess_…`) minted server-side via
-   * `POST /v1/onboarding_sessions`, scoping the request to `accountId`. Electing a
-   * payout method requires a caller scoped to the account, so a publishable key is
-   * rejected. Omit this only for legacy integrations that authenticate with a secret key.
+   * `POST /v1/onboarding_sessions`, scoping the request to `accountId`. Required —
+   * electing a payout method is an account-scoped write.
    */
-  clientSecret?: string | null;
+  clientSecret: string;
 }): Promise<AddMethodResult> {
   guardInitialized();
   if (!options?.accountId) {
     throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentSelectPayoutMethod requires accountId');
   }
-  return wrapPromise(
-    FrameSDK.presentSelectPayoutMethod(options.accountId, options.clientSecret ?? null)
-  );
+  const clientSecret = requireClientSecret(options.clientSecret, 'presentSelectPayoutMethod');
+  return wrapPromise(FrameSDK.presentSelectPayoutMethod(options.accountId, clientSecret));
 }
 
 /**
- * Presents the Apple Pay sheet and creates a charge from the resulting wallet
- * payment method. Resolves with the created resource's id string on success,
- * or rejects with `USER_CANCELED` if the sheet is dismissed.
+ * Presents the Apple Pay sheet and creates a V2 Transfer from the resulting
+ * wallet payment method. Resolves with the Transfer id on success, or rejects
+ * with `USER_CANCELED` if the sheet is dismissed.
  *
- *  - `owner.type === 'customer'` → creates a `ChargeIntent`; resolves with its id.
- *  - `owner.type === 'account'`  → creates a `Transfer`;     resolves with its id.
+ * Charges require `owner.type === 'account'`. Customer owners are rejected —
+ * ChargeIntents were removed with Transfers V2 (frame-ios 4.7 / frame-android 3.3).
  */
 export function presentApplePay(options: PresentApplePayOptions): Promise<string> {
   guardInitialized();
   if (Platform.OS !== 'ios') {
     throwCoded('PLATFORM_UNSUPPORTED', 'Frame.presentApplePay is iOS-only; use presentGooglePay on Android.');
   }
-  if (!options?.owner || (options.owner.type !== 'customer' && options.owner.type !== 'account')) {
-    throwCoded(ErrorCodes.INVALID_OWNER, 'Frame.presentApplePay requires owner: { type: "customer" | "account", id: string }');
-  }
-  if (!options.owner.id) {
-    throwCoded(ErrorCodes.INVALID_OWNER, 'Frame.presentApplePay requires owner.id');
-  }
+  const owner = requireAccountWalletOwner(options?.owner, 'presentApplePay');
   return wrapPromise(
-    FrameSDK.presentApplePay(
-      options.owner.type,
-      options.owner.id,
-      options.amount,
-      options.currency ?? 'usd'
-    )
+    FrameSDK.presentApplePay(owner.type, owner.id, options.amount, options.currency ?? 'usd')
   );
 }
 
 /**
- * Presents Google Pay and creates a charge from the resulting wallet payment method.
- * Resolves with the created resource's id string on success.
+ * Presents Google Pay and creates a V2 Transfer from the resulting wallet
+ * payment method. Resolves with the Transfer id on success.
  *
- *  - `owner.type === 'customer'` → creates a `ChargeIntent`; resolves with its id.
- *  - `owner.type === 'account'`  → creates a `Transfer`;     resolves with its id.
+ * Charges require `owner.type === 'account'`. Customer owners are rejected —
+ * ChargeIntents were removed with Transfers V2 (frame-ios 4.7 / frame-android 3.3).
  */
 export function presentGooglePay(options: PresentGooglePayOptions): Promise<string> {
   guardInitialized();
   if (Platform.OS !== 'android') {
     throwCoded('PLATFORM_UNSUPPORTED', 'Frame.presentGooglePay is Android-only; use presentApplePay on iOS.');
   }
-  if (!options?.owner || (options.owner.type !== 'customer' && options.owner.type !== 'account')) {
-    throwCoded(ErrorCodes.INVALID_OWNER, 'Frame.presentGooglePay requires owner: { type: "customer" | "account", id: string }');
-  }
-  if (!options.owner.id) {
-    throwCoded(ErrorCodes.INVALID_OWNER, 'Frame.presentGooglePay requires owner.id');
-  }
+  const owner = requireAccountWalletOwner(options?.owner, 'presentGooglePay');
   return wrapPromise(
     FrameSDK.presentGooglePay(
       options.amountCents,
-      options.owner.type,
-      options.owner.id,
+      owner.type,
+      owner.id,
       options.currencyCode ?? 'USD'
     )
   );

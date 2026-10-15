@@ -12,6 +12,7 @@ import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.bridge.WritableNativeMap
 import com.framepayments.framesdk.FrameNetworking
+import com.framepayments.framesdk.checkoutsessions.FrameCheckoutClientSecret
 
 class FrameSDKModule(reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext), ActivityEventListener {
@@ -76,9 +77,15 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
-  fun presentCheckout(accountId: String?, amount: Double, promise: Promise) {
+  fun presentCheckout(accountId: String?, amount: Double, checkoutClientSecret: ReadableMap?, promise: Promise) {
     val activity = reactApplicationContext.currentActivity ?: run {
       promise.reject("NO_ACTIVITY", "No current activity", null)
+      return
+    }
+    val secret = try {
+      parseCheckoutClientSecret(checkoutClientSecret)
+    } catch (e: IllegalArgumentException) {
+      promise.reject("INVALID_CLIENT_SECRET", e.message, null)
       return
     }
     checkoutPromise = promise
@@ -86,6 +93,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       val intent = Intent(activity, FrameCheckoutActivity::class.java).apply {
         putExtra(FrameCheckoutActivity.EXTRA_ACCOUNT_ID, accountId)
         putExtra(FrameCheckoutActivity.EXTRA_AMOUNT, amount.toInt())
+        putCheckoutClientSecret(this, secret)
       }
       activity.startActivityForResult(intent, FrameCheckoutActivity.REQUEST_CODE)
     }
@@ -96,6 +104,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     accountId: String?,
     items: ReadableArray,
     shippingAmountInCents: Double,
+    checkoutClientSecret: ReadableMap?,
     promise: Promise
   ) {
     val activity = reactApplicationContext.currentActivity ?: run {
@@ -106,12 +115,19 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       promise.reject("INVALID_ITEMS", "Invalid cart items", null)
       return
     }
+    val secret = try {
+      parseCheckoutClientSecret(checkoutClientSecret)
+    } catch (e: IllegalArgumentException) {
+      promise.reject("INVALID_CLIENT_SECRET", e.message, null)
+      return
+    }
     cartPromise = promise
     activity.runOnUiThread {
       val intent = Intent(activity, FrameFlowActivity::class.java).apply {
         putExtra(FrameFlowActivity.EXTRA_ACCOUNT_ID, accountId)
         putExtra(FrameFlowActivity.EXTRA_ITEMS_JSON, itemsJson)
         putExtra(FrameFlowActivity.EXTRA_SHIPPING_CENTS, shippingAmountInCents.toInt())
+        putCheckoutClientSecret(this, secret)
       }
       activity.startActivityForResult(intent, FrameFlowActivity.REQUEST_CODE)
     }
@@ -134,8 +150,16 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       promise.reject("INVALID_AMOUNT", "amountCents must be positive", null)
       return
     }
-    if (ownerType != "customer" && ownerType != "account") {
-      promise.reject("INVALID_OWNER", "owner.type must be 'customer' or 'account'", null)
+    if (ownerType == "customer") {
+      promise.reject(
+        "INVALID_OWNER",
+        "Google Pay charges require owner.type \"account\" (customer charges were removed with Transfers V2)",
+        null
+      )
+      return
+    }
+    if (ownerType != "account") {
+      promise.reject("INVALID_OWNER", "owner.type must be 'account'", null)
       return
     }
     if (ownerId.isNullOrEmpty()) {
@@ -166,6 +190,14 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     clientSecret: String?,
     promise: Promise
   ) {
+    if (clientSecret.isNullOrBlank()) {
+      promise.reject(
+        "INVALID_CLIENT_SECRET",
+        "Frame.presentOnboarding requires a non-empty clientSecret (onb_sess_… from POST /v1/onboarding_sessions)",
+        null
+      )
+      return
+    }
     val activity = reactApplicationContext.currentActivity ?: run {
       promise.reject("NO_ACTIVITY", "No current activity", null)
       return
@@ -201,6 +233,14 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       promise.reject("INVALID_ACCOUNT", "Frame.$method requires a non-empty accountId", null)
       return
     }
+    if (clientSecret.isNullOrBlank()) {
+      promise.reject(
+        "INVALID_CLIENT_SECRET",
+        "Frame.$method requires a non-empty clientSecret (onb_sess_… from POST /v1/onboarding_sessions)",
+        null
+      )
+      return
+    }
     val activity = reactApplicationContext.currentActivity ?: run {
       promise.reject("NO_ACTIVITY", "No current activity", null)
       return
@@ -214,6 +254,77 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       }
       activity.startActivityForResult(intent, FrameAddMethodActivity.REQUEST_CODE)
     }
+  }
+
+  // Long.MAX_VALUE.toDouble() is 2^63, and Double.toLong() saturates that to Long.MAX_VALUE.
+  private fun requireBridgeLong(value: Double): Long {
+    if (!value.isFinite() || value < Long.MIN_VALUE.toDouble() || value >= Long.MAX_VALUE.toDouble()) {
+      throw IllegalArgumentException("checkoutClientSecret.expiresAt must be an integer unix timestamp")
+    }
+    val asLong = value.toLong()
+    if (asLong.toDouble() != value) {
+      throw IllegalArgumentException("checkoutClientSecret.expiresAt must be an integer unix timestamp")
+    }
+    return asLong
+  }
+
+  private fun requireBridgeInt(value: Double): Int {
+    if (!value.isFinite() || value < Int.MIN_VALUE.toDouble() || value > Int.MAX_VALUE.toDouble()) {
+      throw IllegalArgumentException("checkoutClientSecret.amountCents must be an integer when set")
+    }
+    val asInt = value.toInt()
+    if (asInt.toDouble() != value) {
+      throw IllegalArgumentException("checkoutClientSecret.amountCents must be an integer when set")
+    }
+    return asInt
+  }
+
+  private fun parseCheckoutClientSecret(map: ReadableMap?): FrameCheckoutClientSecret {
+    if (map == null) {
+      throw IllegalArgumentException("checkoutClientSecret requires { clientSecret: string, expiresAt: number }")
+    }
+    if (!map.hasKey("clientSecret") || map.isNull("clientSecret") ||
+      map.getType("clientSecret") != com.facebook.react.bridge.ReadableType.String ||
+      !map.hasKey("expiresAt") || map.isNull("expiresAt") ||
+      map.getType("expiresAt") != com.facebook.react.bridge.ReadableType.Number
+    ) {
+      throw IllegalArgumentException("checkoutClientSecret requires { clientSecret: string, expiresAt: number }")
+    }
+    val clientSecret = map.getString("clientSecret")
+    if (clientSecret.isNullOrBlank()) {
+      throw IllegalArgumentException("checkoutClientSecret requires { clientSecret: string, expiresAt: number }")
+    }
+    val expiresAt = requireBridgeLong(map.getDouble("expiresAt"))
+    val amountCents =
+      if (map.hasKey("amountCents") && !map.isNull("amountCents") &&
+        map.getType("amountCents") == com.facebook.react.bridge.ReadableType.Number
+      ) {
+        requireBridgeInt(map.getDouble("amountCents"))
+      } else {
+        null
+      }
+    val amountCurrency =
+      if (map.hasKey("amountCurrency") && !map.isNull("amountCurrency") &&
+        map.getType("amountCurrency") == com.facebook.react.bridge.ReadableType.String
+      ) {
+        map.getString("amountCurrency")
+      } else {
+        null
+      }
+    return FrameCheckoutClientSecret(
+      clientSecret,
+      expiresAt,
+      amountCents,
+      amountCurrency,
+    )
+  }
+
+  private fun putCheckoutClientSecret(intent: Intent, secret: FrameCheckoutClientSecret?) {
+    if (secret == null) return
+    intent.putExtra(FrameCheckoutActivity.EXTRA_CHECKOUT_CLIENT_SECRET, secret.clientSecret)
+    intent.putExtra(FrameCheckoutActivity.EXTRA_CHECKOUT_EXPIRES_AT, secret.expiresAt)
+    secret.amountCents?.let { intent.putExtra(FrameCheckoutActivity.EXTRA_CHECKOUT_AMOUNT_CENTS, it) }
+    secret.amountCurrency?.let { intent.putExtra(FrameCheckoutActivity.EXTRA_CHECKOUT_AMOUNT_CURRENCY, it) }
   }
 
   private fun readableArrayToJson(items: ReadableArray): String? {

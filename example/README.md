@@ -2,16 +2,16 @@
 
 This example demonstrates:
 
-- **Initialize** – `Frame.initialize({ apiKey })` on app load
-- **Checkout** – `Frame.presentCheckout({ amount })` to open the native checkout modal
-- **Cart** – `Frame.presentCart({ items, shippingAmountInCents })` for the cart → checkout flow
-- **API via frame-node** – "View customers" uses the `framepayments` (frame-node) package to list customers
+- **Initialize** – `Frame.initialize({ publishableKey })` on app load
+- **Checkout** – `Frame.presentCheckout({ accountId, amount, checkoutClientSecret })` to open the native checkout modal
+- **Cart** – `Frame.presentCart({ accountId, items, shippingAmountInCents, checkoutClientSecret })` for the cart → checkout flow
+- **Onboarding and checkout sessions** – the demo mints `onb_sess_` and `chk_sess_` tokens with the secret key. Saved cards on checkout require the checkout session.
 
 ## Prerequisites
 
 - Node 16+
 - React Native environment (Xcode for iOS, Android Studio / SDK for Android)
-- A [Frame](https://framepayments.com) account and **secret** API key
+- A [Frame](https://framepayments.com) account, a **publishable** key (`pk_…`), and a **secret** key (`sk_…`) for the demo's session minting
 
 ## Setup
 
@@ -22,9 +22,16 @@ This example demonstrates:
    npm install
    ```
 
-2. **Set your API key**
+2. **Set your API keys**
 
-   Edit `App.tsx` and set `FRAME_API_KEY` to your Frame secret key, or set the `FRAME_API_KEY` environment variable. Do not commit real keys.
+   `App.tsx` reads `FRAME_PUBLISHABLE_KEY` (`pk_…`, passed to `Frame.initialize`) and `FRAME_SECRET_KEY` (`sk_…`, used to mint `onb_sess_` and `chk_sess_` tokens). Put them in `example/.env` (gitignored):
+
+   ```bash
+   FRAME_PUBLISHABLE_KEY=pk_sandbox_...
+   FRAME_SECRET_KEY=sk_sandbox_...
+   ```
+
+   `metro.config.js` loads that file into `process.env`. `babel.config.js` inlines `FRAME_*` into the bundle. A shell variable wins over `.env` (`FRAME_PUBLISHABLE_KEY=pk_sandbox_... npm run ios`). Restart Metro with `--reset-cache` after changing keys. Do not commit real keys. Leave `FRAME_SECRET_KEY` unset to run the publishable-key-only path.
 
 3. **iOS only**: Add the Frame iOS SDK via Swift Package Manager in Xcode (**File → Add Package Dependencies** → `https://github.com/Frame-Payments/frame-ios`). Add `[FramePreloader preloadOnMainThread]` to `AppDelegate.m`/`.mm` **before** `[super application:didFinishLaunchingWithOptions:]` (see main README). Then:
 

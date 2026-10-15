@@ -38,12 +38,14 @@ RCT_EXTERN_METHOD(initialize:(id)secretKey
 
 RCT_EXTERN_METHOD(presentCheckout:(id)accountId
                   amount:(nonnull NSNumber *)amount
+                  checkoutClientSecret:(id)checkoutClientSecret
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
 RCT_EXTERN_METHOD(presentCart:(id)accountId
                   items:(NSArray *)items
                   shippingAmountInCents:(nonnull NSNumber *)shippingAmountInCents
+                  checkoutClientSecret:(id)checkoutClientSecret
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
@@ -95,7 +97,7 @@ RCT_EXTERN_METHOD(presentSelectPayoutMethod:(NSString *)accountId
   [[[ObjCFrameSDKBridge alloc] init] initialize:secretKey publishableKey:publishableKey debugMode:debugMode applePayMerchantId:applePayMerchantId googlePayMerchantId:googlePayMerchantId theme:theme accountId:accountId hostSDKVersion:hostSDKVersion resolver:resolve rejecter:reject];
 }
 
-- (void)presentCheckout:(id)accountId amount:(NSNumber *)amount resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+- (void)presentCheckout:(id)accountId amount:(NSNumber *)amount checkoutClientSecret:(id)checkoutClientSecret resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
   dispatch_async(dispatch_get_main_queue(), ^{
     UIViewController *topVC = FrameGetTopViewController();
     if (!topVC) {
@@ -103,18 +105,20 @@ RCT_EXTERN_METHOD(presentSelectPayoutMethod:(NSString *)accountId
       return;
     }
     NSString *aId = [accountId isKindOfClass:[NSString class]] ? (NSString *)accountId : nil;
-    [[[ObjCFrameSDKBridge alloc] init] presentCheckoutFrom:topVC accountId:aId amount:amount.intValue resolver:resolve rejecter:reject];
+    NSDictionary *secret = [checkoutClientSecret isKindOfClass:[NSDictionary class]] ? (NSDictionary *)checkoutClientSecret : nil;
+    [[[ObjCFrameSDKBridge alloc] init] presentCheckoutFrom:topVC accountId:aId amount:amount.intValue checkoutClientSecret:secret resolver:resolve rejecter:reject];
   });
 }
 
-- (void)presentCart:(id)accountId items:(NSArray *)items shippingAmountInCents:(NSNumber *)shippingAmountInCents resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+- (void)presentCart:(id)accountId items:(NSArray *)items shippingAmountInCents:(NSNumber *)shippingAmountInCents checkoutClientSecret:(id)checkoutClientSecret resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
   dispatch_async(dispatch_get_main_queue(), ^{
     UIViewController *topVC = FrameGetTopViewController();
     if (!topVC) {
       reject(@"NO_ROOT_VC", @"Could not find root view controller to present cart", nil);
       return;
     }
-    [[[ObjCFrameSDKBridge alloc] init] presentCartFrom:topVC accountId:accountId items:items shippingAmountInCents:shippingAmountInCents.integerValue resolver:resolve rejecter:reject];
+    NSDictionary *secret = [checkoutClientSecret isKindOfClass:[NSDictionary class]] ? (NSDictionary *)checkoutClientSecret : nil;
+    [[[ObjCFrameSDKBridge alloc] init] presentCartFrom:topVC accountId:accountId items:items shippingAmountInCents:shippingAmountInCents.integerValue checkoutClientSecret:secret resolver:resolve rejecter:reject];
   });
 }
 
