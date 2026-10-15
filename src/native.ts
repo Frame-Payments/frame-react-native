@@ -72,10 +72,59 @@ function normalizeCheckoutClientSecret(
       `Frame.${method}: checkoutClientSecret requires { clientSecret: string, expiresAt: number }`
     );
   }
-  return {
+  const normalized: CheckoutClientSecret = {
     clientSecret: checkoutClientSecret.clientSecret,
     expiresAt: checkoutClientSecret.expiresAt,
   };
+  if (
+    checkoutClientSecret.amountCents !== undefined &&
+    (typeof checkoutClientSecret.amountCents !== 'number' ||
+      !Number.isFinite(checkoutClientSecret.amountCents))
+  ) {
+    throwCoded(
+      ErrorCodes.INVALID_CLIENT_SECRET,
+      `Frame.${method}: checkoutClientSecret.amountCents must be a finite number when set`
+    );
+  }
+  if (
+    checkoutClientSecret.amountCurrency !== undefined &&
+    typeof checkoutClientSecret.amountCurrency !== 'string'
+  ) {
+    throwCoded(
+      ErrorCodes.INVALID_CLIENT_SECRET,
+      `Frame.${method}: checkoutClientSecret.amountCurrency must be a string when set`
+    );
+  }
+  if (checkoutClientSecret.amountCents !== undefined) {
+    normalized.amountCents = checkoutClientSecret.amountCents;
+  }
+  if (checkoutClientSecret.amountCurrency !== undefined) {
+    normalized.amountCurrency = checkoutClientSecret.amountCurrency;
+  }
+  return normalized;
+}
+
+function requireAccountWalletOwner(
+  owner: { type: string; id: string } | undefined,
+  method: string
+): { type: 'account'; id: string } {
+  if (!owner || (owner.type !== 'customer' && owner.type !== 'account')) {
+    throwCoded(
+      ErrorCodes.INVALID_OWNER,
+      `Frame.${method} requires owner: { type: "account", id: string }`
+    );
+  }
+  if (!owner.id) {
+    throwCoded(ErrorCodes.INVALID_OWNER, `Frame.${method} requires owner.id`);
+  }
+  // Transfers V2: wallet charges are account-scoped only (no ChargeIntent path).
+  if (owner.type === 'customer') {
+    throwCoded(
+      ErrorCodes.INVALID_OWNER,
+      `Frame.${method} charges require owner.type "account" (customer charges were removed with Transfers V2)`
+    );
+  }
+  return { type: 'account', id: owner.id };
 }
 
 let isInitialized = false;
@@ -171,9 +220,9 @@ function wrapPromise<T>(p: Promise<T>): Promise<T> {
  * created Transfer's id string on success, or rejects with `USER_CANCELED` if
  * the user dismisses the sheet.
  *
- * `accountId` is required: the bundled checkout creates a `Transfer`, which is
- * account-scoped. Callers needing a customer/ChargeIntent flow should use
- * `presentApplePay` / `presentGooglePay` directly with a customer owner.
+ * `accountId` is required: the bundled checkout creates a V2 Transfer, which is
+ * account-scoped. Wallet charges (`presentApplePay` / `presentGooglePay`) are
+ * likewise account-only under Transfers V2.
  */
 export function presentCheckout(options: {
   accountId: string;
@@ -323,57 +372,42 @@ export function presentSelectPayoutMethod(options: {
 }
 
 /**
- * Presents the Apple Pay sheet and creates a charge from the resulting wallet
- * payment method. Resolves with the created resource's id string on success,
- * or rejects with `USER_CANCELED` if the sheet is dismissed.
+ * Presents the Apple Pay sheet and creates a V2 Transfer from the resulting
+ * wallet payment method. Resolves with the Transfer id on success, or rejects
+ * with `USER_CANCELED` if the sheet is dismissed.
  *
- *  - `owner.type === 'customer'` → creates a `ChargeIntent`; resolves with its id.
- *  - `owner.type === 'account'`  → creates a `Transfer`;     resolves with its id.
+ * Charges require `owner.type === 'account'`. Customer owners are rejected —
+ * ChargeIntents were removed with Transfers V2 (frame-ios 4.7 / frame-android 3.3).
  */
 export function presentApplePay(options: PresentApplePayOptions): Promise<string> {
   guardInitialized();
   if (Platform.OS !== 'ios') {
     throwCoded('PLATFORM_UNSUPPORTED', 'Frame.presentApplePay is iOS-only; use presentGooglePay on Android.');
   }
-  if (!options?.owner || (options.owner.type !== 'customer' && options.owner.type !== 'account')) {
-    throwCoded(ErrorCodes.INVALID_OWNER, 'Frame.presentApplePay requires owner: { type: "customer" | "account", id: string }');
-  }
-  if (!options.owner.id) {
-    throwCoded(ErrorCodes.INVALID_OWNER, 'Frame.presentApplePay requires owner.id');
-  }
+  const owner = requireAccountWalletOwner(options?.owner, 'presentApplePay');
   return wrapPromise(
-    FrameSDK.presentApplePay(
-      options.owner.type,
-      options.owner.id,
-      options.amount,
-      options.currency ?? 'usd'
-    )
+    FrameSDK.presentApplePay(owner.type, owner.id, options.amount, options.currency ?? 'usd')
   );
 }
 
 /**
- * Presents Google Pay and creates a charge from the resulting wallet payment method.
- * Resolves with the created resource's id string on success.
+ * Presents Google Pay and creates a V2 Transfer from the resulting wallet
+ * payment method. Resolves with the Transfer id on success.
  *
- *  - `owner.type === 'customer'` → creates a `ChargeIntent`; resolves with its id.
- *  - `owner.type === 'account'`  → creates a `Transfer`;     resolves with its id.
+ * Charges require `owner.type === 'account'`. Customer owners are rejected —
+ * ChargeIntents were removed with Transfers V2 (frame-ios 4.7 / frame-android 3.3).
  */
 export function presentGooglePay(options: PresentGooglePayOptions): Promise<string> {
   guardInitialized();
   if (Platform.OS !== 'android') {
     throwCoded('PLATFORM_UNSUPPORTED', 'Frame.presentGooglePay is Android-only; use presentApplePay on iOS.');
   }
-  if (!options?.owner || (options.owner.type !== 'customer' && options.owner.type !== 'account')) {
-    throwCoded(ErrorCodes.INVALID_OWNER, 'Frame.presentGooglePay requires owner: { type: "customer" | "account", id: string }');
-  }
-  if (!options.owner.id) {
-    throwCoded(ErrorCodes.INVALID_OWNER, 'Frame.presentGooglePay requires owner.id');
-  }
+  const owner = requireAccountWalletOwner(options?.owner, 'presentGooglePay');
   return wrapPromise(
     FrameSDK.presentGooglePay(
       options.amountCents,
-      options.owner.type,
-      options.owner.id,
+      owner.type,
+      owner.id,
       options.currencyCode ?? 'USD'
     )
   );

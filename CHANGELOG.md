@@ -10,9 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **`presentCheckout` / `presentCart` accept optional `checkoutClientSecret`**
-  (`{ clientSecret: 'chk_sess_…', expiresAt }`) from `POST /v1/checkout_sessions`.
-  When set, checkout loads name, email, and saved cards with that token instead of a
-  secret-key account read. Omit it to keep the previous secret-key path.
+  (`{ clientSecret: 'chk_sess_…', expiresAt, amountCents?, amountCurrency? }`) from
+  `POST /v1/checkout_sessions`. When set, checkout loads name, email, and saved cards
+  with that token instead of a secret-key account read. Optional amount fields lock the
+  V2 transfer amount on the session. Omit the secret to keep the previous secret-key path.
 - **`CheckoutClientSecret` is now exported** from the package entry point.
 - **`INVALID_CLIENT_SECRET` error code** for missing/malformed onboarding or checkout
   session secrets.
@@ -33,17 +34,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **frame-ios: `4.5.3` → `4.6.0`.** Onboarding and the standalone add/select-method
-  screens no longer mint a session from a publishable/secret key; the host must pass
-  `clientSecret`. Checkout can load identity with a `chk_sess_` token. Onboarding UI
-  aligns with FrameOS; client-side account PII reads are removed upstream.
-- **frame-android: `3.1.1` → `3.2.0`.** Same `clientSecret` / checkout-session contract
-  as iOS 4.6.0, plus FrameOS UI polish.
+- **frame-ios: `4.5.3` → `4.7.0`.** Includes the 4.6.0 session-secret contract, plus
+  Transfers V2 (checkout/wallet charges create V2 Transfers; `TransfersV2API` /
+  `TransferV2Requests` replace the ChargeIntent wallet path).
+- **frame-android: `3.1.1` → `3.3.0`.** Same progression as iOS: 3.2.0 session secrets,
+  then 3.3.0 Transfers V2 for checkout and Google Pay charges.
+- **BREAKING: wallet charges are account-only.** `presentApplePay` / `presentGooglePay`
+  require `owner.type === 'account'` and resolve with a V2 Transfer id. Passing
+  `owner.type === 'customer'` throws/rejects `INVALID_OWNER` — customer ChargeIntents
+  were removed from the wallet charge path with Transfers V2.
+- **`CheckoutClientSecret` may include optional `amountCents` / `amountCurrency`** so
+  a `chk_sess_…` session can lock the V2 transfer amount for refresh/replay.
 - **BREAKING: `clientSecret` is required** on `presentOnboarding`,
   `presentAddPaymentMethod`, `presentAddPayoutMethod`, and `presentSelectPayoutMethod`.
   Omitting it throws `INVALID_CLIENT_SECRET` (JS) / rejects the same code from native.
-- **BREAKING: `showIntroScreen` defaults to `false`**, matching frame-ios 4.6.0 /
-  frame-android 3.2.0. Pass `showIntroScreen: true` to keep the welcome splash.
+- **BREAKING: `showIntroScreen` defaults to `false`**, matching frame-ios 4.6.0+ /
+  frame-android 3.2.0+. Pass `showIntroScreen: true` to keep the welcome splash.
 - **frame-ios: `4.5.1` → `4.5.3`.** No bridge changes. Onboarding launched without an
   `accountId` now keeps the account events it emits before the account is created
   (buffered and flushed once onboarding creates it) instead of dropping them.

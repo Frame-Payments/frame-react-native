@@ -302,13 +302,19 @@ describe('presentApplePay', () => {
     expect(result).toBe('tr_3');
   });
 
-  it('forwards customer owner; resolves with charge intent id string', async () => {
+  it('throws INVALID_OWNER for customer charges (Transfers V2 is account-only)', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', applePayMerchantId: 'merchant.test' });
-    await presentApplePay({
-      amount: 9999,
-      owner: { type: 'customer', id: 'cus_1' },
-    });
-    expect(mockPresentApplePay).toHaveBeenCalledWith('customer', 'cus_1', 9999, 'usd');
+    try {
+      await presentApplePay({
+        amount: 9999,
+        owner: { type: 'customer', id: 'cus_1' },
+      });
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_OWNER');
+      expect(e.message).toMatch(/account/);
+    }
+    expect(mockPresentApplePay).not.toHaveBeenCalled();
   });
 
   it('defaults currency to usd', async () => {
@@ -367,13 +373,19 @@ describe('presentGooglePay', () => {
     expect(result).toBe('tr_4');
   });
 
-  it('forwards customer owner; resolves with charge intent id string', async () => {
+  it('throws INVALID_OWNER for customer charges (Transfers V2 is account-only)', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx', googlePayMerchantId: 'BCR2DN4T...' });
-    await presentGooglePay({
-      amountCents: 4242,
-      owner: { type: 'customer', id: 'cus_1' },
-    });
-    expect(mockPresentGooglePay).toHaveBeenCalledWith(4242, 'customer', 'cus_1', 'USD');
+    try {
+      await presentGooglePay({
+        amountCents: 4242,
+        owner: { type: 'customer', id: 'cus_1' },
+      });
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_OWNER');
+      expect(e.message).toMatch(/account/);
+    }
+    expect(mockPresentGooglePay).not.toHaveBeenCalled();
   });
 
   it('defaults currencyCode to USD', async () => {

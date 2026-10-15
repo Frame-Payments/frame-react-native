@@ -137,14 +137,13 @@ export default function App() {
     if (!requireAccount()) return;
     setLoading('applePay');
     try {
-      // Switch `owner.type` to 'customer' to create a ChargeIntent against a customer
-      // instead of a Transfer against an account. The resolved id type matches the owner.
-      const chargeId = await Frame.presentApplePay({
+      // Transfers V2: wallet charges require an account owner and resolve with a Transfer id.
+      const transferId = await Frame.presentApplePay({
         amount: 100,
         currency: 'usd',
         owner: { type: 'account', id: accountId },
       });
-      Alert.alert('Apple Pay', `Charge id: ${chargeId}`);
+      Alert.alert('Apple Pay', `Transfer id: ${transferId}`);
     } catch (e: any) {
       if (e.code === 'USER_CANCELED') return;
       Alert.alert('Apple Pay error', e.message ?? String(e));
@@ -157,14 +156,13 @@ export default function App() {
     if (!requireAccount()) return;
     setLoading('googlePay');
     try {
-      // Switch `owner.type` to 'customer' to create a ChargeIntent against a customer
-      // instead of a Transfer against an account. The resolved id type matches the owner.
-      const chargeId = await Frame.presentGooglePay({
+      // Transfers V2: wallet charges require an account owner and resolve with a Transfer id.
+      const transferId = await Frame.presentGooglePay({
         amountCents: 100,
         currencyCode: 'USD',
         owner: { type: 'account', id: accountId },
       });
-      Alert.alert('Google Pay', `Charge id: ${chargeId}`);
+      Alert.alert('Google Pay', `Transfer id: ${transferId}`);
     } catch (e: any) {
       if (e.code === 'USER_CANCELED') return;
       Alert.alert('Google Pay error', e.message ?? String(e));

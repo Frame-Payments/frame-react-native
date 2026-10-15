@@ -3,15 +3,14 @@
 //  FrameReactNative
 //
 //  Programmatic Apple Pay presentation for Frame.presentApplePay(). Wraps
-//  PKPaymentAuthorizationController + ApplePayAPI + (ChargeIntentsAPI | TransfersAPI)
+//  PKPaymentAuthorizationController + ApplePayAPI + TransfersV2API
 //  directly so we can detect the user-cancel path — PKPaymentAuthorizationController's
 //  didFinish fires for both success and cancel, and the underlying SDK's view
 //  model only delivers success, so we re-implement that flow here. Mirrors
-//  FrameApplePayViewModel step-for-step otherwise.
+//  FrameApplePayViewModel step-for-step otherwise (frame-ios 4.7+).
 //
-//  Supports both:
-//   - `.customer(id)` owner → creates a `ChargeIntent`; resolves with the ChargeIntent id.
-//   - `.account(id)`  owner → creates a `Transfer`;     resolves with the Transfer id.
+//  Charges require an account owner and create a V2 Transfer. Customer owners are
+//  rejected — ChargeIntents were removed with Transfers V2.
 //
 
 import Foundation
@@ -55,6 +54,10 @@ final class ApplePayPresenter: NSObject, PKPaymentAuthorizationControllerDelegat
   private static let supportedNetworks: [PKPaymentNetwork] = [
     .visa, .masterCard, .amex, .discover, .JCB
   ]
+
+  /// Backstop delay when `dismiss`'s completion never fires. Must be well past
+  /// the sheet animation so the dismiss path wins in the common case.
+  private static let dismissBackstopNanoseconds: UInt64 = 2_000_000_000
 
   init(amount: Int,
        currency: String,
@@ -100,19 +103,22 @@ final class ApplePayPresenter: NSObject, PKPaymentAuthorizationControllerDelegat
     didAuthorizePayment payment: PKPayment
   ) async -> PKPaymentAuthorizationResult {
     do {
-      // 1. Create the Frame PaymentMethod from the Apple Pay token, scoped to
-      //    whichever owner the caller asked for.
-      let (paymentMethod, methodError): (FrameObjects.PaymentMethod?, NetworkingError?)
-      switch owner {
-      case .customer(let customerId):
-        (paymentMethod, methodError) = try await ApplePayAPI.createPaymentMethodWithCustomerId(
-          from: payment, customerId: customerId
+      // Charges require an account — Transfers V2 has no customer ChargeIntent path.
+      guard case .account(let accountId) = owner else {
+        pendingResult = .failure(
+          code: "INVALID_OWNER",
+          error: NSError(
+            domain: "FrameReactNative",
+            code: 400,
+            userInfo: [NSLocalizedDescriptionKey: "Apple Pay charges require an account owner."]
+          )
         )
-      case .account(let accountId):
-        (paymentMethod, methodError) = try await ApplePayAPI.createPaymentMethodWithAccountId(
-          from: payment, accountId: accountId
-        )
+        return PKPaymentAuthorizationResult(status: .failure, errors: nil)
       }
+
+      let (paymentMethod, methodError) = try await ApplePayAPI.createPaymentMethodWithAccountId(
+        from: payment, accountId: accountId
+      )
 
       guard let paymentMethodId = paymentMethod?.id else {
         if methodError?.isAssertionRejection == true {
@@ -122,48 +128,25 @@ final class ApplePayPresenter: NSObject, PKPaymentAuthorizationControllerDelegat
         return PKPaymentAuthorizationResult(status: .failure, errors: nil)
       }
 
-      // 2. Create the charge. Customer owners produce a ChargeIntent; account
-      //    owners produce a Transfer. Both surface the resulting id to JS — the
-      //    caller knows which resource the id refers to based on the owner.
-      switch owner {
-      case .customer(let customerId):
-        let request = ChargeIntentsRequests.CreateChargeIntentRequest(
-          amount: amount,
-          currency: currency,
-          customer: customerId,
-          paymentMethod: paymentMethodId,
-          confirm: true,
-          authorizationMode: .automatic
-        )
-        let (chargeIntent, chargeError) = try await ChargeIntentsAPI.createChargeIntent(request: request)
+      // Apple Pay already carries a cryptogram — confirm inline (same as frame-ios 4.7).
+      try await SessionManager.shared.ensureSession(accountId: accountId)
+      let request = TransferV2Requests.CreateTransferRequest(
+        amount: .init(value: amount, currency: currency),
+        source: .init(paymentMethodId: paymentMethodId),
+        confirm: true,
+        authorizationMode: "automatic"
+      )
+      let (transfer, transferError) = try await TransfersV2API.createTransfer(
+        request: request,
+        accountId: accountId
+      )
 
-        if let chargeIntent {
-          pendingResult = .success(chargeIntent.id)
-          return PKPaymentAuthorizationResult(status: .success, errors: nil)
-        } else {
-          pendingResult = .failure(code: "PAYMENT_FAILED", error: chargeError)
-          return PKPaymentAuthorizationResult(status: .failure, errors: nil)
-        }
-
-      case .account(let accountId):
-        // The server rejects the transfer outright without a live session for this account.
-        try await SessionManager.shared.ensureSession(accountId: accountId)
-
-        let request = TransferRequests.CreateTransferRequest(
-          amount: amount,
-          accountId: accountId,
-          currency: currency,
-          sourcePaymentMethodId: paymentMethodId
-        )
-        let (transfer, transferError) = try await TransfersAPI.createTransfer(request: request)
-
-        if let transfer {
-          pendingResult = .success(transfer.id)
-          return PKPaymentAuthorizationResult(status: .success, errors: nil)
-        } else {
-          pendingResult = .failure(code: "PAYMENT_FAILED", error: transferError)
-          return PKPaymentAuthorizationResult(status: .failure, errors: nil)
-        }
+      if let transfer {
+        pendingResult = .success(transfer.id)
+        return PKPaymentAuthorizationResult(status: .success, errors: nil)
+      } else {
+        pendingResult = .failure(code: "PAYMENT_FAILED", error: transferError)
+        return PKPaymentAuthorizationResult(status: .failure, errors: nil)
       }
     } catch {
       pendingResult = .failure(code: "PAYMENT_FAILED", error: error)
@@ -194,8 +177,6 @@ final class ApplePayPresenter: NSObject, PKPaymentAuthorizationControllerDelegat
       self?.settleAndRelease()
     }
   }
-
-  private static let dismissBackstopNanoseconds: UInt64 = 2_000_000_000
 
   /// Settles the JS promise from `pendingResult` and drops the self-retain.
   /// Idempotent — safe to call from both the dismiss completion and the backstop.

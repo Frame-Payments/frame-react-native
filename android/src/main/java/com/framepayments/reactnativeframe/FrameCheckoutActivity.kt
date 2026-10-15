@@ -66,6 +66,8 @@ class FrameCheckoutActivity : AppCompatActivity() {
     const val EXTRA_AMOUNT = "amount"
     const val EXTRA_CHECKOUT_CLIENT_SECRET = "checkout_client_secret"
     const val EXTRA_CHECKOUT_EXPIRES_AT = "checkout_expires_at"
+    const val EXTRA_CHECKOUT_AMOUNT_CENTS = "checkout_amount_cents"
+    const val EXTRA_CHECKOUT_AMOUNT_CURRENCY = "checkout_amount_currency"
     const val EXTRA_TRANSFER_ID = "transfer_id"
     const val EXTRA_FAILURE_MESSAGE = "failure_message"
     const val REQUEST_CODE = 9001
@@ -75,7 +77,15 @@ class FrameCheckoutActivity : AppCompatActivity() {
     fun readCheckoutClientSecret(intent: Intent): FrameCheckoutClientSecret? {
       val clientSecret = intent.getStringExtra(EXTRA_CHECKOUT_CLIENT_SECRET) ?: return null
       if (!intent.hasExtra(EXTRA_CHECKOUT_EXPIRES_AT)) return null
-      return FrameCheckoutClientSecret(clientSecret, intent.getLongExtra(EXTRA_CHECKOUT_EXPIRES_AT, 0L))
+      val amountCents =
+        if (intent.hasExtra(EXTRA_CHECKOUT_AMOUNT_CENTS)) intent.getIntExtra(EXTRA_CHECKOUT_AMOUNT_CENTS, 0) else null
+      val amountCurrency = intent.getStringExtra(EXTRA_CHECKOUT_AMOUNT_CURRENCY)
+      return FrameCheckoutClientSecret(
+        clientSecret,
+        intent.getLongExtra(EXTRA_CHECKOUT_EXPIRES_AT, 0L),
+        amountCents,
+        amountCurrency,
+      )
     }
 
     suspend fun isCardEncryptionReady(): Boolean = try {

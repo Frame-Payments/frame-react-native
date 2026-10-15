@@ -49,11 +49,15 @@ class FrameGooglePayActivity : AppCompatActivity() {
       deliverFailure("owner.id is required")
       return
     }
+    // Charges require Owner.Account — Transfers V2 has no customer ChargeIntent path.
     val owner: FrameGooglePayButton.Owner = when (ownerType) {
-      "customer" -> FrameGooglePayButton.Owner.Customer(ownerId)
-      "account"  -> FrameGooglePayButton.Owner.Account(ownerId)
+      "account" -> FrameGooglePayButton.Owner.Account(ownerId)
+      "customer" -> {
+        deliverFailure("Google Pay charges require an account owner")
+        return
+      }
       else -> {
-        deliverFailure("owner.type must be 'customer' or 'account'")
+        deliverFailure("owner.type must be 'account'")
         return
       }
     }
@@ -103,8 +107,7 @@ class FrameGooglePayActivity : AppCompatActivity() {
     didDeliverResult = true
     when (result) {
       is FrameGooglePayButton.Result.Success -> {
-        // `result.id` is a Transfer id (for Owner.Account) or a ChargeIntent id
-        // (for Owner.Customer). JS knows which it is because it passed the owner.
+        // `result.id` is a V2 Transfer id. Charges require Owner.Account (Transfers V2).
         deliverViaCallback(android.app.Activity.RESULT_OK, Intent().putExtra(EXTRA_CHARGE_ID, result.id))
       }
       is FrameGooglePayButton.Result.PaymentMethodCreated -> {
@@ -151,11 +154,7 @@ class FrameGooglePayActivity : AppCompatActivity() {
     const val EXTRA_OWNER_TYPE = "owner_type"
     const val EXTRA_OWNER_ID = "owner_id"
     const val EXTRA_CURRENCY = "currency"
-    /**
-     * The id of the resource created by the wallet flow. Holds a Transfer id when
-     * the owner was an account, or a ChargeIntent id when the owner was a customer.
-     * JS knows which by inspecting the owner it passed in.
-     */
+    /** The id of the V2 Transfer created by the wallet charge flow. */
     const val EXTRA_CHARGE_ID = "charge_id"
     const val EXTRA_FAILURE_MESSAGE = "failure_message"
 

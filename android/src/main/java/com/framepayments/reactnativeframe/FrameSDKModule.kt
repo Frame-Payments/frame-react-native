@@ -150,8 +150,16 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       promise.reject("INVALID_AMOUNT", "amountCents must be positive", null)
       return
     }
-    if (ownerType != "customer" && ownerType != "account") {
-      promise.reject("INVALID_OWNER", "owner.type must be 'customer' or 'account'", null)
+    if (ownerType == "customer") {
+      promise.reject(
+        "INVALID_OWNER",
+        "Google Pay charges require owner.type \"account\" (customer charges were removed with Transfers V2)",
+        null
+      )
+      return
+    }
+    if (ownerType != "account") {
+      promise.reject("INVALID_OWNER", "owner.type must be 'account'", null)
       return
     }
     if (ownerId.isNullOrEmpty()) {
@@ -261,13 +269,36 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     if (clientSecret.isNullOrBlank()) {
       throw IllegalArgumentException("checkoutClientSecret requires { clientSecret: string, expiresAt: number }")
     }
-    return FrameCheckoutClientSecret(clientSecret, map.getDouble("expiresAt").toLong())
+    val amountCents =
+      if (map.hasKey("amountCents") && !map.isNull("amountCents") &&
+        map.getType("amountCents") == com.facebook.react.bridge.ReadableType.Number
+      ) {
+        map.getDouble("amountCents").toInt()
+      } else {
+        null
+      }
+    val amountCurrency =
+      if (map.hasKey("amountCurrency") && !map.isNull("amountCurrency") &&
+        map.getType("amountCurrency") == com.facebook.react.bridge.ReadableType.String
+      ) {
+        map.getString("amountCurrency")
+      } else {
+        null
+      }
+    return FrameCheckoutClientSecret(
+      clientSecret,
+      map.getDouble("expiresAt").toLong(),
+      amountCents,
+      amountCurrency,
+    )
   }
 
   private fun putCheckoutClientSecret(intent: Intent, secret: FrameCheckoutClientSecret?) {
     if (secret == null) return
     intent.putExtra(FrameCheckoutActivity.EXTRA_CHECKOUT_CLIENT_SECRET, secret.clientSecret)
     intent.putExtra(FrameCheckoutActivity.EXTRA_CHECKOUT_EXPIRES_AT, secret.expiresAt)
+    secret.amountCents?.let { intent.putExtra(FrameCheckoutActivity.EXTRA_CHECKOUT_AMOUNT_CENTS, it) }
+    secret.amountCurrency?.let { intent.putExtra(FrameCheckoutActivity.EXTRA_CHECKOUT_AMOUNT_CURRENCY, it) }
   }
 
   private fun readableArrayToJson(items: ReadableArray): String? {

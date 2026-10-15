@@ -21,6 +21,14 @@ export interface CheckoutClientSecret {
   clientSecret: string;
   /** Unix timestamp in seconds when the token stops being accepted. */
   expiresAt: number;
+  /**
+   * Locked charge amount in the smallest currency unit. When the session can create a
+   * V2 transfer, refresh replays this amount. Optional — checkout stamps it from the
+   * payment amount when omitted.
+   */
+  amountCents?: number;
+  /** ISO 4217 currency code for `amountCents` (e.g. `"usd"`). */
+  amountCurrency?: string;
 }
 
 export interface BillingAddress {
@@ -110,15 +118,12 @@ export interface AddMethodResult {
 }
 
 /**
- * Identifies who the wallet payment method belongs to and which downstream
- * resource is created when the user authorizes payment. Used by both
+ * Identifies who the wallet payment method belongs to. Used by both
  * `presentApplePay` and `presentGooglePay`.
  *
- *  - `{ type: 'customer', id }` → creates a `ChargeIntent`; promise resolves with the ChargeIntent id.
- *  - `{ type: 'account',  id }` → creates a `Transfer`;     promise resolves with the Transfer id.
- *
- * The promise always resolves with a string id; the caller knows which resource
- * it refers to based on the owner type they passed in.
+ * Charges require `{ type: 'account', id }` and create a V2 Transfer.
+ * `{ type: 'customer', id }` is rejected — ChargeIntents were removed with
+ * Transfers V2 (frame-ios 4.7 / frame-android 3.3).
  */
 export type WalletOwner =
   | { type: 'customer'; id: string }
@@ -138,7 +143,7 @@ export interface PresentApplePayOptions {
   amount: number;
   /** ISO 4217 currency code. Defaults to 'usd'. */
   currency?: string;
-  /** Customer or account that owns the resulting payment method and charge. */
+  /** Account that owns the resulting payment method and V2 Transfer. Customer owners are rejected. */
   owner: WalletOwner;
 }
 
@@ -151,7 +156,7 @@ export interface PresentApplePayOptions {
 export interface PresentGooglePayOptions {
   /** Payment amount in cents. */
   amountCents: number;
-  /** Customer or account that owns the resulting payment method and charge. */
+  /** Account that owns the resulting payment method and V2 Transfer. Customer owners are rejected. */
   owner: WalletOwner;
   /** ISO 4217 currency code. Defaults to 'USD'. */
   currencyCode?: string;

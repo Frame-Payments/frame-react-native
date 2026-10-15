@@ -97,12 +97,16 @@ public class FrameSDKBridge: NSObject {
   func presentApplePay(_ ownerType: String, ownerId: String, amount: Int, currency: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     DispatchQueue.main.async {
       Task { @MainActor in
+        // Charges require an account — Transfers V2 has no customer ChargeIntent path.
         let owner: ApplePayPresenter.Owner
         switch ownerType {
-        case "customer": owner = .customer(ownerId)
-        case "account":  owner = .account(ownerId)
+        case "account":
+          owner = .account(ownerId)
+        case "customer":
+          reject("INVALID_OWNER", "Apple Pay charges require owner.type \"account\" (customer charges were removed with Transfers V2)", nil)
+          return
         default:
-          reject("INVALID_OWNER", "owner.type must be 'customer' or 'account'", nil)
+          reject("INVALID_OWNER", "owner.type must be 'account'", nil)
           return
         }
         guard !ownerId.isEmpty else {
@@ -226,9 +230,13 @@ public class FrameSDKBridge: NSObject {
           let expiresAtNumber = value["expiresAt"] as? NSNumber else {
       throw BridgeParseError.invalidCheckoutClientSecret
     }
+    let amountCents = (value["amountCents"] as? NSNumber)?.intValue
+    let amountCurrency = value["amountCurrency"] as? String
     return FrameCheckoutClientSecret(
       clientSecret: clientSecret,
-      expiresAt: Date(timeIntervalSince1970: expiresAtNumber.doubleValue)
+      expiresAt: Date(timeIntervalSince1970: expiresAtNumber.doubleValue),
+      amountCents: amountCents,
+      amountCurrency: amountCurrency
     )
   }
 
