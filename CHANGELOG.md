@@ -9,11 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`presentCheckout` / `presentCart` accept optional `checkoutClientSecret`**
+- **`presentCheckout` / `presentCart` take `checkoutClientSecret`**
   (`{ clientSecret: 'chk_sess_…', expiresAt, amountCents?, amountCurrency? }`) from
-  `POST /v1/checkout_sessions`. When set, checkout loads name, email, and saved cards
-  with that token instead of a secret-key account read. Optional amount fields lock the
-  V2 transfer amount on the session. Omit the secret to keep the previous secret-key path.
+  `POST /v1/checkout_sessions`. Checkout loads name, email, and saved cards with that
+  token. Optional amount fields lock the V2 transfer amount on the session.
 - **`CheckoutClientSecret` is now exported** from the package entry point.
 - **`INVALID_CLIENT_SECRET` error code** for missing/malformed onboarding or checkout
   session secrets.
@@ -45,6 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   were removed from the wallet charge path with Transfers V2.
 - **`CheckoutClientSecret` may include optional `amountCents` / `amountCurrency`** so
   a `chk_sess_…` session can lock the V2 transfer amount for refresh/replay.
+- **BREAKING: `checkoutClientSecret` is required** on `presentCheckout` and
+  `presentCart`. Omitting it throws `INVALID_CLIENT_SECRET`. frame-ios 4.7 /
+  frame-android 3.3 do not load saved cards without a `chk_sess_` token.
 - **BREAKING: `clientSecret` is required** on `presentOnboarding`,
   `presentAddPaymentMethod`, `presentAddPayoutMethod`, and `presentSelectPayoutMethod`.
   Omitting it throws `INVALID_CLIENT_SECRET` (JS) / rejects the same code from native.

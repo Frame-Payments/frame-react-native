@@ -34,6 +34,10 @@ class FrameCheckoutActivity : AppCompatActivity() {
       finish()
       return
     }
+    if (checkoutClientSecret == null) {
+      finishFailed(this, "checkoutClientSecret is required")
+      return
+    }
 
     // The card input can't inflate until Evervault is configured, which may still be in flight on a cold start.
     lifecycleScope.launch {

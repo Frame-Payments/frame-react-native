@@ -167,11 +167,15 @@ describe('presentCheckout', () => {
     expect(mockPresentCheckout).not.toHaveBeenCalled();
   });
 
-  it('calls native presentCheckout with accountId, amount, and null checkoutClientSecret by default', async () => {
+  it('throws INVALID_CLIENT_SECRET when checkoutClientSecret is missing', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    const result = await presentCheckout({ accountId: 'acct_1', amount: 10000 });
-    expect(mockPresentCheckout).toHaveBeenCalledWith('acct_1', 10000, null);
-    expect(result).toBe('tr_1');
+    try {
+      await presentCheckout({ accountId: 'acct_1', amount: 10000 } as any);
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_CLIENT_SECRET');
+    }
+    expect(mockPresentCheckout).not.toHaveBeenCalled();
   });
 
   it('passes checkoutClientSecret through when provided', async () => {
@@ -234,15 +238,19 @@ describe('presentCart', () => {
     expect(mockPresentCart).not.toHaveBeenCalled();
   });
 
-  it('calls native presentCart with accountId, items, shipping, and null checkoutClientSecret by default', async () => {
+  it('throws INVALID_CLIENT_SECRET when checkoutClientSecret is missing', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
-    const result = await presentCart({
-      accountId: 'acct_2',
-      items,
-      shippingAmountInCents: 500,
-    });
-    expect(mockPresentCart).toHaveBeenCalledWith('acct_2', items, 500, null);
-    expect(result).toBe('tr_2');
+    try {
+      await presentCart({
+        accountId: 'acct_2',
+        items,
+        shippingAmountInCents: 500,
+      } as any);
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_CLIENT_SECRET');
+    }
+    expect(mockPresentCart).not.toHaveBeenCalled();
   });
 
   it('passes checkoutClientSecret through when provided', async () => {

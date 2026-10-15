@@ -85,13 +85,18 @@ await Frame.initialize({
 });
 
 // 2. Present a checkout modal — resolves with the transfer id string
-const transferId = await Frame.presentCheckout({ amount: 10000, accountId: 'acct_xxx' });
+const transferId = await Frame.presentCheckout({
+  amount: 10000,
+  accountId: 'acct_xxx',
+  checkoutClientSecret, // { clientSecret: 'chk_sess_…', expiresAt } from POST /v1/checkout_sessions
+});
 
 // 3. Present a cart flow — also resolves with the transfer id string
 const transferId2 = await Frame.presentCart({
   accountId: 'acct_xxx',
   items: [{ id: '1', title: 'Hat', amountInCents: 5000, imageUrl: 'https://...' }],
   shippingAmountInCents: 500,
+  checkoutClientSecret,
 });
 
 // 4. Present an onboarding flow (KYC, bank account, etc.)
@@ -142,8 +147,7 @@ Opens the native checkout modal. Resolves with the created Transfer's id string 
 const transferId = await Frame.presentCheckout({
   accountId: 'acct_xxx',
   amount: 15000, // in cents
-  // optional — from POST /v1/checkout_sessions; loads name/email/saved cards without sk_
-  // checkoutClientSecret: { clientSecret: 'chk_sess_…', expiresAt: 1700000000 },
+  checkoutClientSecret: { clientSecret: 'chk_sess_…', expiresAt: 1700000000 },
 });
 ```
 
@@ -151,11 +155,11 @@ const transferId = await Frame.presentCheckout({
 |---|---|---|---|
 | `accountId` | `string` | Yes | Frame account that the resulting Transfer is created against |
 | `amount` | `number` | Yes | Payment amount in cents |
-| `checkoutClientSecret` | `{ clientSecret: string; expiresAt: number; amountCents?: number; amountCurrency?: string }` | No | `chk_sess_…` token from `POST /v1/checkout_sessions`. When set, checkout loads name, email, and saved cards with it. Optional `amountCents` / `amountCurrency` lock the V2 transfer amount on the session. Omit to keep the secret-key account read (when a secret key is configured). |
+| `checkoutClientSecret` | `{ clientSecret: string; expiresAt: number; amountCents?: number; amountCurrency?: string }` | Yes | `chk_sess_…` token from `POST /v1/checkout_sessions`. Checkout loads name, email, and saved cards with it. Optional `amountCents` / `amountCurrency` lock the V2 transfer amount on the session. |
 
 **Returns:** `Promise<string>` — the created Transfer's `id`.
 
-**Throws synchronously with `code: 'INVALID_ACCOUNT'`** if `accountId` is missing or empty. **Throws `INVALID_CLIENT_SECRET`** if `checkoutClientSecret` is provided but malformed.
+**Throws synchronously with `code: 'INVALID_ACCOUNT'`** if `accountId` is missing or empty. **Throws `INVALID_CLIENT_SECRET`** if `checkoutClientSecret` is missing or malformed.
 
 ---
 
@@ -175,6 +179,7 @@ const transferId = await Frame.presentCart({
     },
   ],
   shippingAmountInCents: 500,
+  checkoutClientSecret: { clientSecret: 'chk_sess_…', expiresAt: 1700000000 },
 });
 ```
 
@@ -183,7 +188,7 @@ const transferId = await Frame.presentCart({
 | `accountId` | `string` | Yes | Frame account that the resulting Transfer is created against |
 | `items` | `FrameCartItem[]` | Yes | Array of items to display in the cart |
 | `shippingAmountInCents` | `number` | Yes | Shipping cost in cents |
-| `checkoutClientSecret` | `{ clientSecret: string; expiresAt: number; amountCents?: number; amountCurrency?: string }` | No | Forwarded to the embedded checkout. See `presentCheckout`. |
+| `checkoutClientSecret` | `{ clientSecret: string; expiresAt: number; amountCents?: number; amountCurrency?: string }` | Yes | Forwarded to the embedded checkout. See `presentCheckout`. |
 
 **Returns:** `Promise<string>` — the created Transfer's `id`.
 
@@ -601,7 +606,7 @@ try {
 | `NO_ACTIVITY` | Android: no host activity available |
 | `INVALID_ITEMS` | Cart items could not be parsed |
 | `INVALID_ACCOUNT` | `accountId` was missing or empty (presentCheckout, presentCart) |
-| `INVALID_CLIENT_SECRET` | Onboarding/add-method `clientSecret` missing, or `checkoutClientSecret` malformed |
+| `INVALID_CLIENT_SECRET` | Onboarding/add-method `clientSecret` missing, or `checkoutClientSecret` missing or malformed |
 | `INVALID_OWNER` | Apple Pay / Google Pay `owner` was missing, malformed, a customer, or had an empty `id` |
 | `INVALID_MERCHANT_ID` | Apple Pay `merchantId` was missing or empty |
 | `INVALID_AMOUNT` | Google Pay `amountCents` was missing or non-positive |

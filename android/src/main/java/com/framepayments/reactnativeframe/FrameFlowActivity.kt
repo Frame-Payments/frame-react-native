@@ -41,6 +41,10 @@ class FrameFlowActivity : AppCompatActivity() {
       finish()
       return
     }
+    if (checkoutClientSecret == null) {
+      FrameCheckoutActivity.finishFailed(this, "checkoutClientSecret is required")
+      return
+    }
 
     showCart(accountId, items, shippingCents, checkoutClientSecret)
   }

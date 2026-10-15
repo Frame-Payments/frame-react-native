@@ -5,7 +5,7 @@ This example demonstrates:
 - **Initialize** – `Frame.initialize({ apiKey })` on app load
 - **Checkout** – `Frame.presentCheckout({ amount })` to open the native checkout modal
 - **Cart** – `Frame.presentCart({ items, shippingAmountInCents })` for the cart → checkout flow
-- **API via frame-node** – "View customers" uses the `framepayments` (frame-node) package to list customers
+- **Onboarding and checkout sessions** – the demo mints `onb_sess_` and `chk_sess_` tokens with the secret key. Saved cards on checkout require the checkout session.
 
 ## Prerequisites
 

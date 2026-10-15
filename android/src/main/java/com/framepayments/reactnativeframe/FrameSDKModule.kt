@@ -256,8 +256,10 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     }
   }
 
-  private fun parseCheckoutClientSecret(map: ReadableMap?): FrameCheckoutClientSecret? {
-    if (map == null) return null
+  private fun parseCheckoutClientSecret(map: ReadableMap?): FrameCheckoutClientSecret {
+    if (map == null) {
+      throw IllegalArgumentException("checkoutClientSecret requires { clientSecret: string, expiresAt: number }")
+    }
     if (!map.hasKey("clientSecret") || map.isNull("clientSecret") ||
       map.getType("clientSecret") != com.facebook.react.bridge.ReadableType.String ||
       !map.hasKey("expiresAt") || map.isNull("expiresAt") ||

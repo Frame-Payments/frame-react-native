@@ -57,8 +57,13 @@ function requireClientSecret(clientSecret: string | null | undefined, method: st
 function normalizeCheckoutClientSecret(
   checkoutClientSecret: CheckoutClientSecret | null | undefined,
   method: string
-): CheckoutClientSecret | null {
-  if (checkoutClientSecret == null) return null;
+): CheckoutClientSecret {
+  if (checkoutClientSecret == null) {
+    throwCoded(
+      ErrorCodes.INVALID_CLIENT_SECRET,
+      `Frame.${method} requires checkoutClientSecret (chk_sess_… from POST /v1/checkout_sessions)`
+    );
+  }
   if (
     typeof checkoutClientSecret !== 'object' ||
     Array.isArray(checkoutClientSecret) ||
@@ -221,18 +226,17 @@ function wrapPromise<T>(p: Promise<T>): Promise<T> {
  * the user dismisses the sheet.
  *
  * `accountId` is required: the bundled checkout creates a V2 Transfer, which is
- * account-scoped. Wallet charges (`presentApplePay` / `presentGooglePay`) are
- * likewise account-only under Transfers V2.
+ * account-scoped. `checkoutClientSecret` is required: frame-ios 4.7 /
+ * frame-android 3.3 load the payer and saved cards only with a `chk_sess_` token.
  */
 export function presentCheckout(options: {
   accountId: string;
   amount: number;
   /**
-   * Optional `chk_sess_…` token from `POST /v1/checkout_sessions`. When set,
-   * checkout loads name, email, and saved cards with it. Omit to keep the
-   * secret-key account read (when a secret key is configured).
+   * `chk_sess_…` token from `POST /v1/checkout_sessions`. Required. Checkout
+   * loads name, email, and saved cards with it.
    */
-  checkoutClientSecret?: CheckoutClientSecret | null;
+  checkoutClientSecret: CheckoutClientSecret;
 }): Promise<string> {
   guardInitialized();
   if (!options?.accountId) {
@@ -251,17 +255,18 @@ export function presentCheckout(options: {
  * Presents the Frame cart UI; tapping checkout routes through the same flow
  * as `presentCheckout` and resolves with the created Transfer's id string.
  *
- * `accountId` is required for the same reason as `presentCheckout`.
+ * `accountId` and `checkoutClientSecret` are required for the same reason as
+ * `presentCheckout`.
  */
 export function presentCart(options: {
   accountId: string;
   items: FrameCartItem[];
   shippingAmountInCents: number;
   /**
-   * Optional `chk_sess_…` token forwarded to the embedded checkout. See
+   * `chk_sess_…` token forwarded to the embedded checkout. Required. See
    * {@link presentCheckout}.
    */
-  checkoutClientSecret?: CheckoutClientSecret | null;
+  checkoutClientSecret: CheckoutClientSecret;
 }): Promise<string> {
   guardInitialized();
   if (!options?.accountId) {

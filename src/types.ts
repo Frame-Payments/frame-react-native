@@ -12,9 +12,9 @@ export interface FrameCartItem {
 }
 
 /**
- * Short-lived `chk_sess_…` token from `POST /v1/checkout_sessions`. When passed to
- * `presentCheckout` / `presentCart`, checkout loads the account name, email, and saved
- * cards with it instead of a secret-key account read.
+ * Short-lived `chk_sess_…` token from `POST /v1/checkout_sessions`. Required by
+ * `presentCheckout` / `presentCart`. Checkout loads the account name, email, and saved
+ * cards with it.
  */
 export interface CheckoutClientSecret {
   /** The `chk_sess_…` bearer token. */

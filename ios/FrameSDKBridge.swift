@@ -52,7 +52,7 @@ public class FrameSDKBridge: NSObject {
       reject("INVALID_ACCOUNT", "Frame.presentCheckout requires a non-empty accountId", nil)
       return
     }
-    let parsedCheckoutSecret: FrameCheckoutClientSecret?
+    let parsedCheckoutSecret: FrameCheckoutClientSecret
     do {
       parsedCheckoutSecret = try parseCheckoutClientSecret(checkoutClientSecret)
     } catch {
@@ -72,7 +72,7 @@ public class FrameSDKBridge: NSObject {
       reject("INVALID_ACCOUNT", "Frame.presentCart requires a non-empty accountId", nil)
       return
     }
-    let parsedCheckoutSecret: FrameCheckoutClientSecret?
+    let parsedCheckoutSecret: FrameCheckoutClientSecret
     do {
       parsedCheckoutSecret = try parseCheckoutClientSecret(checkoutClientSecret)
     } catch {
@@ -223,9 +223,9 @@ public class FrameSDKBridge: NSObject {
     }
   }
 
-  /// Parses an optional JS `{ clientSecret, expiresAt }` map. `nil` / NSNull means omit.
-  private func parseCheckoutClientSecret(_ value: NSDictionary?) throws -> FrameCheckoutClientSecret? {
-    guard let value else { return nil }
+  /// Parses a required JS `{ clientSecret, expiresAt }` map.
+  private func parseCheckoutClientSecret(_ value: NSDictionary?) throws -> FrameCheckoutClientSecret {
+    guard let value else { throw BridgeParseError.invalidCheckoutClientSecret }
     guard let clientSecret = value["clientSecret"] as? String, !clientSecret.isEmpty,
           let expiresAtNumber = value["expiresAt"] as? NSNumber else {
       throw BridgeParseError.invalidCheckoutClientSecret

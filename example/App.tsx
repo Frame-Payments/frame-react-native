@@ -56,9 +56,6 @@ export default function App() {
   const googlePayButtonSource = colorScheme === 'dark'
     ? require('./assets/googlepay/button_buy_with_light.png')
     : require('./assets/googlepay/button_buy_with_dark.png');
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [initError, setInitError] = useState<string | null>(null);
   // Set from onboarding's result, then used by every other flow — mirrors FrameExample-iOS.
   const [accountId, setAccountId] = useState('');
@@ -98,13 +95,46 @@ export default function App() {
     return false;
   };
 
+  // frame-ios 4.7 / frame-android 3.3 load saved cards only with a chk_sess_ token.
+  // Production apps mint this on the server. The demo uses sk_.
+  const mintCheckoutClientSecret = async (forAccountId: string, amountCents: number) => {
+    if (!FRAME_SECRET_KEY) {
+      throw new Error('Set FRAME_SECRET_KEY to mint a checkout session.');
+    }
+    const response = await fetch('https://api.framepayments.com/v1/checkout_sessions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${FRAME_SECRET_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        account_id: forAccountId,
+        amount: { value: amountCents, currency: 'usd' },
+      }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || typeof body.client_secret !== 'string' || typeof body.expires_at !== 'number') {
+      const message = body?.error?.message ?? body?.message ?? `Checkout session failed (${response.status})`;
+      throw new Error(message);
+    }
+    return {
+      clientSecret: body.client_secret as string,
+      expiresAt: body.expires_at as number,
+      amountCents,
+      amountCurrency: 'usd',
+    };
+  };
+
   const handleCheckout = async () => {
     if (!requireAccount()) return;
     setLoading('checkout');
     try {
+      const amount = 15000;
+      const checkoutClientSecret = await mintCheckoutClientSecret(accountId, amount);
       const transferId = await Frame.presentCheckout({
         accountId,
-        amount: 15000,
+        amount,
+        checkoutClientSecret,
       });
       Alert.alert('Success', `Transfer: ${transferId}`);
     } catch (e: any) {
@@ -119,10 +149,14 @@ export default function App() {
     if (!requireAccount()) return;
     setLoading('cart');
     try {
+      const shippingAmountInCents = 4000;
+      const amount = sampleCartItems.reduce((sum, item) => sum + item.amountInCents, shippingAmountInCents);
+      const checkoutClientSecret = await mintCheckoutClientSecret(accountId, amount);
       const transferId = await Frame.presentCart({
         accountId,
         items: sampleCartItems,
-        shippingAmountInCents: 4000,
+        shippingAmountInCents,
+        checkoutClientSecret,
       });
       Alert.alert('Success', transferId ? `Transfer: ${transferId}` : 'Cart flow completed');
     } catch (e: any) {
@@ -283,45 +317,6 @@ export default function App() {
     }
   };
 
-  const handleListCustomers = async () => {
-    setLoading('customers');
-    try {
-      const response = await frameSDK.customers.list();
-      const list = (response as { data?: unknown[] })?.data ?? [];
-      setCustomers(Array.isArray(list) ? list : []);
-    } catch (e: any) {
-      Alert.alert('Error', e.message ?? String(e));
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const handleListAccounts = async () => {
-    setLoading('accounts');
-    try {
-      const response = await frameSDK.accounts.list();
-      const list = (response as { data?: unknown[] })?.data ?? [];
-      setAccounts(Array.isArray(list) ? list : []);
-    } catch (e: any) {
-      Alert.alert('Error', e.message ?? String(e));
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const handleListPaymentMethods = async () => {
-    setLoading('paymentMethods');
-    try {
-      const response = await frameSDK.paymentMethods.list();
-      const list = (response as { data?: unknown[] })?.data ?? [];
-      setPaymentMethods(Array.isArray(list) ? list : []);
-    } catch (e: any) {
-      Alert.alert('Error', e.message ?? String(e));
-    } finally {
-      setLoading(null);
-    }
-  };
-
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Frame RN SDK Example</Text>
@@ -445,68 +440,6 @@ export default function App() {
         )}
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[styles.button, styles.buttonSecondary, (loading === 'customers' || !!initError) && styles.buttonDisabled]}
-        onPress={handleListCustomers}
-        disabled={!!loading || !!initError}
-      >
-        {loading === 'customers' ? (
-          <ActivityIndicator color="#333" />
-        ) : (
-          <Text style={[styles.buttonText, styles.buttonTextSecondary]}>View customers</Text>
-        )}
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, styles.buttonSecondary, (loading === 'accounts' || !!initError) && styles.buttonDisabled]}
-        onPress={handleListAccounts}
-        disabled={!!loading || !!initError}
-      >
-        {loading === 'accounts' ? (
-          <ActivityIndicator color="#333" />
-        ) : (
-          <Text style={[styles.buttonText, styles.buttonTextSecondary]}>View accounts</Text>
-        )}
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, styles.buttonSecondary, (loading === 'paymentMethods' || !!initError) && styles.buttonDisabled]}
-        onPress={handleListPaymentMethods}
-        disabled={!!loading || !!initError}
-      >
-        {loading === 'paymentMethods' ? (
-          <ActivityIndicator color="#333" />
-        ) : (
-          <Text style={[styles.buttonText, styles.buttonTextSecondary]}>View payment methods</Text>
-        )}
-      </TouchableOpacity>
-
-      {customers.length > 0 && (
-        <View style={styles.list}>
-          <Text style={styles.listTitle}>Customers</Text>
-          {customers.slice(0, 5).map((c: any) => (
-            <Text key={c.id} style={styles.listItem}>{c.name ?? c.id}</Text>
-          ))}
-        </View>
-      )}
-
-      {accounts.length > 0 && (
-        <View style={styles.list}>
-          <Text style={styles.listTitle}>Accounts</Text>
-          {accounts.slice(0, 5).map((a: any) => (
-            <Text key={a.id} style={styles.listItem}>{a.name ?? a.id}</Text>
-          ))}
-        </View>
-      )}
-
-      {paymentMethods.length > 0 && (
-        <View style={styles.list}>
-          <Text style={styles.listTitle}>Payment Methods</Text>
-          {paymentMethods.slice(0, 5).map((pm: any) => (
-            <Text key={pm.id} style={styles.listItem}>{pm.type ?? pm.id}{pm.card ? ` •••• ${pm.card.lastFourDigits}` : ''}</Text>
-          ))}
-        </View>
-      )}
     </ScrollView>
   );
 }
@@ -535,11 +468,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  buttonSecondary: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ccc',
-  },
   buttonDisabled: {
     opacity: 0.7,
   },
@@ -547,24 +475,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
-  },
-  buttonTextSecondary: {
-    color: '#333',
-  },
-  list: {
-    marginTop: 24,
-    padding: 16,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-  },
-  listTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  listItem: {
-    fontSize: 14,
-    paddingVertical: 4,
   },
   errorBox: {
     marginBottom: 24,
