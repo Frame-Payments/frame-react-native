@@ -49,7 +49,7 @@ let presentCart: (opts: {
 }) => Promise<string>;
 let presentApplePay: (opts: { amount: number; currency?: string; owner: { type: 'customer' | 'account'; id: string } }) => Promise<string>;
 let presentGooglePay: (opts: { amountCents: number; owner: { type: 'customer' | 'account'; id: string }; currencyCode?: string }) => Promise<string>;
-let presentOnboarding: (opts: { accountId?: string | null; capabilities?: string[]; showIntroScreen?: boolean; showCompletionScreen?: boolean; clientSecret: string }) => Promise<unknown>;
+let presentOnboarding: (opts: { accountId?: string | null; capabilities?: string[]; showIntroScreen?: boolean; showCompletionScreen?: boolean; accountType?: 'individual' | 'business'; clientSecret: string }) => Promise<unknown>;
 let presentAddPaymentMethod: (opts: { accountId: string; clientSecret: string }) => Promise<unknown>;
 let presentAddPayoutMethod: (opts: { accountId: string; clientSecret: string }) => Promise<unknown>;
 let presentSelectPayoutMethod: (opts: { accountId: string; clientSecret: string }) => Promise<unknown>;
@@ -457,7 +457,8 @@ describe('presentOnboarding', () => {
       ['kyc', 'bank_account_verification'],
       false,
       true,
-      'onb_sess_123'
+      'onb_sess_123',
+      'individual'
     );
     expect(result).toEqual({ status: 'completed', accountId: 'acct_1' });
   });
@@ -465,7 +466,7 @@ describe('presentOnboarding', () => {
   it('passes null accountId and empty capabilities when those options are omitted', async () => {
     await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
     await presentOnboarding({ clientSecret: 'onb_sess_123' });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith(null, [], false, true, 'onb_sess_123');
+    expect(mockPresentOnboarding).toHaveBeenCalledWith(null, [], false, true, 'onb_sess_123', 'individual');
   });
 
   it('passes showIntroScreen=true when explicitly set', async () => {
@@ -476,7 +477,7 @@ describe('presentOnboarding', () => {
       clientSecret: 'onb_sess_123',
       showIntroScreen: true,
     });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], true, true, 'onb_sess_123');
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], true, true, 'onb_sess_123', 'individual');
   });
 
   it('passes showCompletionScreen=false when explicitly set', async () => {
@@ -487,14 +488,47 @@ describe('presentOnboarding', () => {
       clientSecret: 'onb_sess_123',
       showCompletionScreen: false,
     });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], false, false, 'onb_sess_123');
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], false, false, 'onb_sess_123', 'individual');
+  });
+
+  it('passes accountType business through to native', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    await presentOnboarding({
+      accountId: 'acct_biz',
+      capabilities: ['kyc_prefill'],
+      clientSecret: 'onb_sess_123',
+      accountType: 'business',
+    });
+    expect(mockPresentOnboarding).toHaveBeenCalledWith(
+      'acct_biz',
+      ['kyc_prefill'],
+      false,
+      true,
+      'onb_sess_123',
+      'business'
+    );
+  });
+
+  it('throws INVALID_ACCOUNT_TYPE when accountType is not individual or business', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    try {
+      await presentOnboarding({
+        accountId: 'acct_1',
+        clientSecret: 'onb_sess_123',
+        accountType: 'llc' as any,
+      });
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_ACCOUNT_TYPE');
+    }
+    expect(mockPresentOnboarding).not.toHaveBeenCalled();
   });
 
   it('passes clientSecret through on Android', async () => {
     mockPlatform.OS = 'android';
     await initialize({ publishableKey: 'pk_xxx' });
     await presentOnboarding({ accountId: 'acct_1', capabilities: ['kyc'], clientSecret: 'onb_sess_123' });
-    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], false, true, 'onb_sess_123');
+    expect(mockPresentOnboarding).toHaveBeenCalledWith('acct_1', ['kyc'], false, true, 'onb_sess_123', 'individual');
   });
 });
 

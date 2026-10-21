@@ -225,6 +225,7 @@ export default function App() {
       });
       const result = await Frame.presentOnboarding({
         accountId: onboardingAccountId,
+        accountType: 'individual',
         clientSecret: session.client_secret,
         capabilities: ['kyc', 'kyc_prefill', 'age_verification', 'phone_verification', 'card_verification', 'bank_account_verification'],
       });
@@ -238,7 +239,61 @@ export default function App() {
           ? 'Onboarding complete'
           : result.status === 'unverified'
             ? `Onboarding unverified (${result.outcome})`
-            : 'Onboarding cancelled';
+            : result.status === 'failed'
+              ? 'Onboarding failed'
+              : 'Onboarding cancelled';
+      Alert.alert(title, detail);
+    } catch (e: any) {
+      if (e.code === 'USER_CANCELED') return;
+      Alert.alert('Error', e.message ?? String(e));
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // Demo only: creates a business account with sk_, then mints onb_sess_ for that account.
+  // The native flow does not create a business account. Production apps do both on the server.
+  const handleBusinessOnboarding = async () => {
+    if (!FRAME_SECRET_KEY) {
+      Alert.alert('Secret key required', 'Set FRAME_SECRET_KEY to create a business account and onboarding session.');
+      return;
+    }
+    setLoading('businessOnboarding');
+    try {
+      const suffix = Math.random().toString(16).slice(2, 10);
+      const account = await frameSDK.accounts.create({
+        type: 'business',
+        profile: {
+          business: {
+            legal_business_name: 'Example Business',
+            business_type: 'private_corporation',
+            email: `business-${suffix}@example.com`,
+          },
+        },
+      });
+      setAccountId(account.id);
+      const session = await frameSDK.onboardingSessions.create({
+        account_id: account.id,
+        steps: ['id_verification', 'geo_compliance', 'payment_method'],
+      });
+      const result = await Frame.presentOnboarding({
+        accountId: account.id,
+        accountType: 'business',
+        clientSecret: session.client_secret,
+        capabilities: ['kyc_prefill', 'age_verification', 'phone_verification'],
+      });
+      if (result.status !== 'cancelled' && result.accountId) {
+        setAccountId(result.accountId);
+      }
+      const detail = result.accountId ? `Account: ${result.accountId}` : result.message;
+      const title =
+        result.status === 'completed'
+          ? 'Business onboarding complete'
+          : result.status === 'unverified'
+            ? `Business onboarding unverified (${result.outcome})`
+            : result.status === 'failed'
+              ? 'Business onboarding failed'
+              : 'Business onboarding cancelled';
       Alert.alert(title, detail);
     } catch (e: any) {
       if (e.code === 'USER_CANCELED') return;
@@ -401,6 +456,18 @@ export default function App() {
           <ActivityIndicator color="#fff" />
         ) : (
           <Text style={styles.buttonText}>Onboarding (KYC + bank)</Text>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, (loading === 'businessOnboarding' || !!initError) && styles.buttonDisabled]}
+        onPress={handleBusinessOnboarding}
+        disabled={!!loading || !!initError}
+      >
+        {loading === 'businessOnboarding' ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Business onboarding</Text>
         )}
       </TouchableOpacity>
 

@@ -95,7 +95,10 @@ export type OnboardingCapability =
   /** Requires government-issued photo ID verification via Persona. */
   | 'idv';
 
-export type OnboardingResultStatus = 'completed' | 'cancelled' | 'unverified';
+/** Which native onboarding flow to present. Defaults to `'individual'`. */
+export type OnboardingAccountType = 'individual' | 'business';
+
+export type OnboardingResultStatus = 'completed' | 'cancelled' | 'unverified' | 'failed';
 
 export type OnboardingOutcome = 'approved' | 'pendingReview' | 'declined' | 'actionRequired';
 
@@ -107,6 +110,7 @@ export interface OnboardingResult {
   /** Android only: the payment method added during the flow. */
   paymentMethodId?: string;
   outcome?: OnboardingOutcome;
+  /** Set for `unverified` (`declined` / `actionRequired`) and for `failed` (mismatch, missing business account). */
   message?: string;
 }
 

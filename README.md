@@ -210,6 +210,7 @@ Opens the native onboarding flow for KYC, identity verification, and payment met
 ```ts
 const result = await Frame.presentOnboarding({
   accountId: 'acct_xxx',
+  accountType: 'individual', // or 'business' — requires an existing business account
   clientSecret: onboardingSessionSecret, // 'onb_sess_…' from POST /v1/onboarding_sessions
   capabilities: ['kyc', 'bank_account_verification'],
 });
@@ -224,7 +225,8 @@ if (result.status === 'completed') {
 
 | Option | Type | Required | Description |
 |---|---|---|---|
-| `accountId` | `string` | No | The Frame account to onboard |
+| `accountId` | `string` | No | The Frame account to onboard. Required for `accountType: 'business'`. |
+| `accountType` | `'individual' \| 'business'` | No | Which native flow to present. Default `'individual'`. `'business'` adds email/role on personal info, then Business details and Owners and controllers. The SDK does not infer the flow from the loaded account; a type mismatch stops and returns `status: 'failed'`. |
 | `capabilities` | `OnboardingCapability[]` | No | Which onboarding steps to include (see below) |
 | `showIntroScreen` | `boolean` | No | Show the "Verify Your Identity" welcome screen before the first step. Default `false` (matches frame-ios 4.6 / frame-android 3.2). Set to `true` to show the splash. |
 | `showCompletionScreen` | `boolean` | No | Show the "Verification Submitted" confirmation screen after the last step. Default `true`. Set to `false` to complete the flow immediately without the final screen. |
@@ -268,7 +270,7 @@ const result = await Frame.presentOnboarding({
 
 | Field | Type | Description |
 |---|---|---|
-| `status` | `'completed' \| 'unverified' \| 'cancelled'` | `completed`: finished and approved. `unverified`: finished, but the applicant isn't approved. `cancelled`: dismissed, or the flow failed. |
+| `status` | `'completed' \| 'unverified' \| 'cancelled' \| 'failed'` | `completed`: finished and approved. `unverified`: finished, but the applicant isn't approved. `cancelled`: dismissed. `failed`: the flow stopped (account-type mismatch, missing business account). |
 | `accountId` | `string \| undefined` | The onboarded account's id — whether it pre-existed or was created during the flow. Set for `completed` and `unverified`. Use it to scope follow-up calls (checkout loads payment methods per account). |
 | `outcome` | `'approved' \| 'pendingReview' \| 'declined' \| 'actionRequired' \| undefined` | Set for `unverified`: the applicant's verification status. |
 | `message` | `string \| undefined` | Set for `unverified` when the outcome is `declined` or `actionRequired`: the reason from the verification provider. |
@@ -610,6 +612,7 @@ try {
 | `NO_ACTIVITY` | Android: no host activity available |
 | `INVALID_ITEMS` | Cart items could not be parsed |
 | `INVALID_ACCOUNT` | `accountId` was missing or empty (presentCheckout, presentCart) |
+| `INVALID_ACCOUNT_TYPE` | `presentOnboarding` `accountType` was not `'individual'` or `'business'` |
 | `INVALID_CLIENT_SECRET` | Onboarding/add-method `clientSecret` missing, or `checkoutClientSecret` missing or malformed |
 | `INVALID_OWNER` | Apple Pay / Google Pay `owner` was missing, malformed, a customer, or had an empty `id` |
 | `INVALID_MERCHANT_ID` | Apple Pay `merchantId` was missing or empty |

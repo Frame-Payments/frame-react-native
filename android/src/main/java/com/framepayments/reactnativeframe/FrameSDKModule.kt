@@ -188,6 +188,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     showIntroScreen: Boolean,
     showCompletionScreen: Boolean,
     clientSecret: String?,
+    accountType: String?,
     promise: Promise
   ) {
     if (clientSecret.isNullOrBlank()) {
@@ -211,6 +212,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
         putExtra(FrameOnboardingActivity.EXTRA_SHOW_INTRO_SCREEN, showIntroScreen)
         putExtra(FrameOnboardingActivity.EXTRA_SHOW_COMPLETION_SCREEN, showCompletionScreen)
         putExtra(FrameOnboardingActivity.EXTRA_CLIENT_SECRET, clientSecret)
+        putExtra(FrameOnboardingActivity.EXTRA_ACCOUNT_TYPE, accountType)
       }
       activity.startActivityForResult(intent, FrameOnboardingActivity.REQUEST_CODE)
     }
@@ -439,6 +441,12 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
         map.putString("status", "unverified")
         data?.getStringExtra(FrameOnboardingActivity.EXTRA_OUTCOME)?.let { map.putString("outcome", it) }
         data?.getStringExtra(FrameOnboardingActivity.EXTRA_MESSAGE)?.let { map.putString("message", it) }
+      }
+      FrameOnboardingActivity.RESULT_FAILED -> {
+        map.putString("status", "failed")
+        data?.getStringExtra(FrameOnboardingActivity.EXTRA_MESSAGE)?.let { map.putString("message", it) }
+        promise.resolve(map)
+        return
       }
       else -> {
         map.putString("status", "cancelled")

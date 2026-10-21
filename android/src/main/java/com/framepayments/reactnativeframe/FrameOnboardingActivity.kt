@@ -9,6 +9,7 @@ import com.framepayments.frameonboarding.classes.OnboardingConfig
 import com.framepayments.frameonboarding.classes.OnboardingOutcome
 import com.framepayments.frameonboarding.classes.OnboardingResult
 import com.framepayments.frameonboarding.views.OnboardingContainerView
+import com.framepayments.framesdk.accounts.AccountObjects
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
@@ -27,6 +28,10 @@ class FrameOnboardingActivity : ComponentActivity() {
       finish()
       return
     }
+    val accountType = when (intent.getStringExtra(EXTRA_ACCOUNT_TYPE)) {
+      "business" -> AccountObjects.AccountType.BUSINESS
+      else -> AccountObjects.AccountType.INDIVIDUAL
+    }
 
     // OnboardingContainerView begins/ends the onboarding session itself from
     // config.clientSecret, so passing it through here is all that's required.
@@ -35,6 +40,7 @@ class FrameOnboardingActivity : ComponentActivity() {
       accountId = accountId,
       clientSecret = clientSecret,
       requiredCapabilities = capabilities,
+      accountType = accountType,
       theme = FrameRNTheme.current,
       showIntroScreen = showIntroScreen,
       showCompletionScreen = showCompletionScreen
@@ -60,8 +66,11 @@ class FrameOnboardingActivity : ComponentActivity() {
             }
             setResult(RESULT_UNVERIFIED, data)
           }
-          // Failed is reported as cancelled, matching iOS.
-          is OnboardingResult.Cancelled, is OnboardingResult.Failed -> setResult(RESULT_CANCELED)
+          is OnboardingResult.Failed -> {
+            val data = Intent().apply { putExtra(EXTRA_MESSAGE, result.message) }
+            setResult(RESULT_FAILED, data)
+          }
+          is OnboardingResult.Cancelled -> setResult(RESULT_CANCELED)
         }
         finish()
       }
@@ -99,10 +108,12 @@ class FrameOnboardingActivity : ComponentActivity() {
     const val EXTRA_SHOW_INTRO_SCREEN = "show_intro_screen"
     const val EXTRA_SHOW_COMPLETION_SCREEN = "show_completion_screen"
     const val EXTRA_CLIENT_SECRET = "client_secret"
+    const val EXTRA_ACCOUNT_TYPE = "account_type"
     const val EXTRA_PAYMENT_METHOD_ID = "payment_method_id"
     const val EXTRA_OUTCOME = "outcome"
     const val EXTRA_MESSAGE = "message"
     const val REQUEST_CODE = 9003
     const val RESULT_UNVERIFIED = android.app.Activity.RESULT_FIRST_USER
+    const val RESULT_FAILED = android.app.Activity.RESULT_FIRST_USER + 1
   }
 }
