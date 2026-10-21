@@ -59,6 +59,7 @@ export default function App() {
   const [initError, setInitError] = useState<string | null>(null);
   // Set from onboarding's result, then used by every other flow — mirrors FrameExample-iOS.
   const [accountId, setAccountId] = useState('');
+  const [accountType, setAccountType] = useState<'individual' | 'business'>('individual');
 
   React.useEffect(() => {
     Frame.initialize({
@@ -214,11 +215,14 @@ export default function App() {
     }
     setLoading('onboarding');
     try {
-      const onboardingAccountId = accountId || (await frameSDK.accounts.create({
-        type: 'individual',
-        profile: { individual: { name: { first_name: '', last_name: '' }, email: 'newaccount@example.com' } },
-      })).id;
+      const onboardingAccountId = (accountId && accountType === 'individual')
+        ? accountId
+        : (await frameSDK.accounts.create({
+          type: 'individual',
+          profile: { individual: { name: { first_name: '', last_name: '' }, email: 'newaccount@example.com' } },
+        })).id;
       setAccountId(onboardingAccountId);
+      setAccountType('individual');
       const session = await frameSDK.onboardingSessions.create({
         account_id: onboardingAccountId,
         steps: ['id_verification', 'geo_compliance', 'payment_method'],
@@ -232,6 +236,7 @@ export default function App() {
       // Unverified still keeps the account: it's needed to scope follow-up calls.
       if (result.status !== 'cancelled' && result.accountId) {
         setAccountId(result.accountId);
+        setAccountType('individual');
       }
       const detail = result.accountId ? `Account: ${result.accountId}` : result.message;
       const title =
@@ -272,6 +277,7 @@ export default function App() {
         },
       });
       setAccountId(account.id);
+      setAccountType('business');
       const session = await frameSDK.onboardingSessions.create({
         account_id: account.id,
         steps: ['id_verification', 'geo_compliance', 'payment_method'],
@@ -284,6 +290,7 @@ export default function App() {
       });
       if (result.status !== 'cancelled' && result.accountId) {
         setAccountId(result.accountId);
+        setAccountType('business');
       }
       const detail = result.accountId ? `Account: ${result.accountId}` : result.message;
       const title =

@@ -220,6 +220,9 @@ if (result.status === 'completed') {
 } else if (result.status === 'unverified') {
   // The flow finished but the applicant isn't approved yet (declined, pending review, or needs action).
   console.log('Outcome:', result.outcome, result.message);
+} else if (result.status === 'failed') {
+  // Type mismatch or business onboarding without a business account.
+  console.log('Onboarding stopped:', result.message);
 }
 ```
 
@@ -273,7 +276,7 @@ const result = await Frame.presentOnboarding({
 | `status` | `'completed' \| 'unverified' \| 'cancelled' \| 'failed'` | `completed`: finished and approved. `unverified`: finished, but the applicant isn't approved. `cancelled`: dismissed. `failed`: the flow stopped (account-type mismatch, missing business account). |
 | `accountId` | `string \| undefined` | The onboarded account's id — whether it pre-existed or was created during the flow. Set for `completed` and `unverified`. Use it to scope follow-up calls (checkout loads payment methods per account). |
 | `outcome` | `'approved' \| 'pendingReview' \| 'declined' \| 'actionRequired' \| undefined` | Set for `unverified`: the applicant's verification status. |
-| `message` | `string \| undefined` | Set for `unverified` when the outcome is `declined` or `actionRequired`: the reason from the verification provider. |
+| `message` | `string \| undefined` | Set for `unverified` (`declined` / `actionRequired`) and for `failed` (type mismatch, missing business account). |
 | `paymentMethodId` | `string \| undefined` | **Android only.** Set when a payment method was created or verified during the flow. iOS stopped returning this in frame-ios 4.3.6. |
 
 ---
