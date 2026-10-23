@@ -632,8 +632,8 @@ private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationC
     guard presentationController.presentedViewController === hostingController else { return }
     // Native onDisappear reports .failed when the mismatch screen is up.
     // Let that onResult win; this is only the fallback for a true user cancel.
-    DispatchQueue.main.async { [weak self] in
-      self?.finish(.cancelled)
+    DispatchQueue.main.async { [self] in
+      self.finish(.cancelled)
     }
   }
 }
