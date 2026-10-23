@@ -8,6 +8,7 @@ import type {
   CheckoutClientSecret,
   FrameCartItem,
   FrameTheme,
+  OnboardingAccountType,
   OnboardingCapability,
   OnboardingResult,
   PresentApplePayOptions,
@@ -300,11 +301,26 @@ export function presentCart(options: {
   );
 }
 
+function requireAccountType(value: unknown, method: string): OnboardingAccountType {
+  if (value == null) return 'individual';
+  if (value === 'individual' || value === 'business') return value;
+  throwCoded(
+    ErrorCodes.INVALID_ACCOUNT_TYPE,
+    `Frame.${method} accountType must be "individual" or "business"`
+  );
+}
+
 export function presentOnboarding(options: {
   accountId?: string | null;
   capabilities?: OnboardingCapability[];
   showIntroScreen?: boolean;
   showCompletionScreen?: boolean;
+  /**
+   * Which native flow to present. `'business'` requires an existing business
+   * `accountId` — the SDK does not create a business account. Defaults to
+   * `'individual'` so existing callers keep today's flow.
+   */
+  accountType?: OnboardingAccountType;
   /**
    * Onboarding session client secret (`onb_sess_…`) minted server-side via
    * `POST /v1/onboarding_sessions`. Required — the native SDKs no longer mint
@@ -314,13 +330,15 @@ export function presentOnboarding(options: {
 }): Promise<OnboardingResult> {
   guardInitialized();
   const clientSecret = requireClientSecret(options?.clientSecret, 'presentOnboarding');
+  const accountType = requireAccountType(options?.accountType, 'presentOnboarding');
   return wrapPromise(
     FrameSDK.presentOnboarding(
       options.accountId ?? null,
       options.capabilities ?? [],
       options.showIntroScreen ?? false,
       options.showCompletionScreen ?? true,
-      clientSecret
+      clientSecret,
+      accountType
     )
   );
 }

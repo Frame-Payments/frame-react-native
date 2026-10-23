@@ -45,6 +45,7 @@ export type {
   PaymentCard,
   BankAccount,
   PaymentMethod,
+  OnboardingAccountType,
   OnboardingCapability,
   OnboardingOutcome,
   OnboardingResult,

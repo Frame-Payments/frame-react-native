@@ -83,14 +83,15 @@ public class FrameSDKBridge: NSObject {
   }
 
   @objc public
-  func presentOnboarding(from viewController: UIViewController, accountId: NSObject?, capabilities: NSArray, showIntroScreen: Bool, showCompletionScreen: Bool, clientSecret: NSObject?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+  func presentOnboarding(from viewController: UIViewController, accountId: NSObject?, capabilities: NSArray, showIntroScreen: Bool, showCompletionScreen: Bool, clientSecret: NSObject?, accountType: NSObject?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     guard let clientSecretString = clientSecret as? String, !clientSecretString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       reject("INVALID_CLIENT_SECRET", "Frame.presentOnboarding requires a non-empty clientSecret (onb_sess_… from POST /v1/onboarding_sessions)", nil)
       return
     }
     let parsedCapabilities = parseCapabilities(capabilities)
     let accountIdString = accountId as? String
-    presentOnboardingOnMain(from: viewController, accountId: accountIdString, capabilities: parsedCapabilities, showIntroScreen: showIntroScreen, showCompletionScreen: showCompletionScreen, clientSecret: clientSecretString, resolve: resolve, reject: reject)
+    let parsedAccountType = parseAccountType(accountType)
+    presentOnboardingOnMain(from: viewController, accountId: accountIdString, capabilities: parsedCapabilities, showIntroScreen: showIntroScreen, showCompletionScreen: showCompletionScreen, clientSecret: clientSecretString, accountType: parsedAccountType, resolve: resolve, reject: reject)
   }
 
   @objc public
@@ -323,6 +324,13 @@ public class FrameSDKBridge: NSObject {
     return result
   }
 
+  private func parseAccountType(_ value: NSObject?) -> FrameObjects.AccountType {
+    guard let raw = value as? String, raw.lowercased() == "business" else {
+      return .individual
+    }
+    return .business
+  }
+
   private func presentCartOnMain(from top: UIViewController, accountId: String, cartItems: [RNFrameCartItem], shippingAmountInCents: Int, checkoutClientSecret: FrameCheckoutClientSecret?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     // Single dismiss delegate guards against double-resolve. The native FrameCartView's own
     // .onDisappear emits `.cancelled`, and the bridge's `presentationControllerDidDismiss`
@@ -358,14 +366,18 @@ public class FrameSDKBridge: NSObject {
     }
   }
 
-  private func presentOnboardingOnMain(from top: UIViewController, accountId: String?, capabilities: [FrameObjects.Capabilities], showIntroScreen: Bool, showCompletionScreen: Bool, clientSecret: String, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+  private func presentOnboardingOnMain(from top: UIViewController, accountId: String?, capabilities: [FrameObjects.Capabilities], showIntroScreen: Bool, showCompletionScreen: Bool, clientSecret: String, accountType: FrameObjects.AccountType, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     // Build the dismiss delegate up-front so onResult captures a non-nil instance directly.
     let delegate = OnboardingDismissDelegate(resolve: resolve)
+    if accountType == .business && (accountId == nil || accountId?.isEmpty == true) {
+      delegate.pendingStopMessage = "Business onboarding needs an existing business account."
+    }
 
     let hosting = OnboardingHostingController(
       rootView: OnboardingContainerView(
         clientSecret: clientSecret,
         accountId: accountId,
+        accountType: accountType,
         requiredCapabilities: capabilities,
         showIntroScreen: showIntroScreen,
         showCompletionScreen: showCompletionScreen,
@@ -378,8 +390,8 @@ public class FrameSDKBridge: NSObject {
             delegate.finish(.unverified(accountId: id.isEmpty ? nil : id, outcome: outcome))
           case .cancelled:
             delegate.finish(.cancelled)
-          case .failed:
-            delegate.finish(.cancelled)
+          case .failed(let error):
+            delegate.finish(.failed(message: error.localizedDescription))
           }
           top?.dismiss(animated: true)
         }
@@ -552,12 +564,14 @@ private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationC
   enum Outcome {
     case completed(accountId: String?)
     case unverified(accountId: String?, outcome: OnboardingOutcome)
+    case failed(message: String)
     case cancelled
   }
 
   let resolve: RCTPromiseResolveBlock
   weak var hostingController: UIViewController?
   var didFinish = false
+  var pendingStopMessage: String?
 
   init(resolve: @escaping RCTPromiseResolveBlock) {
     self.resolve = resolve
@@ -566,6 +580,7 @@ private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationC
   func finish(_ outcome: Outcome) {
     guard !didFinish else { return }
     didFinish = true
+    let stopMessage = pendingStopMessage
     DispatchQueue.main.async { [resolve] in
       switch outcome {
       case .completed(let accountId):
@@ -580,8 +595,14 @@ private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationC
           payload["message"] = message
         }
         resolve(payload)
+      case .failed(let message):
+        resolve(["status": "failed", "message": message])
       case .cancelled:
-        resolve(["status": "cancelled"])
+        if let message = stopMessage {
+          resolve(["status": "failed", "message": message])
+        } else {
+          resolve(["status": "cancelled"])
+        }
       }
     }
   }
@@ -609,7 +630,11 @@ private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationC
     // callback to the Onboarding host's delegate. Only treat dismissal of the
     // Onboarding hosting controller itself as a cancellation.
     guard presentationController.presentedViewController === hostingController else { return }
-    finish(.cancelled)
+    // Native onDisappear reports .failed when the mismatch screen is up.
+    // Let that onResult win; this is only the fallback for a true user cancel.
+    DispatchQueue.main.async { [self] in
+      self.finish(.cancelled)
+    }
   }
 }
 

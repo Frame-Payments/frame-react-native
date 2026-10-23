@@ -54,6 +54,7 @@ RCT_EXTERN_METHOD(presentOnboarding:(id)accountId
                   showIntroScreen:(BOOL)showIntroScreen
                   showCompletionScreen:(BOOL)showCompletionScreen
                   clientSecret:(id)clientSecret
+                  accountType:(id)accountType
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
@@ -122,14 +123,14 @@ RCT_EXTERN_METHOD(presentSelectPayoutMethod:(NSString *)accountId
   });
 }
 
-- (void)presentOnboarding:(id)accountId capabilities:(NSArray *)capabilities showIntroScreen:(BOOL)showIntroScreen showCompletionScreen:(BOOL)showCompletionScreen clientSecret:(id)clientSecret resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+- (void)presentOnboarding:(id)accountId capabilities:(NSArray *)capabilities showIntroScreen:(BOOL)showIntroScreen showCompletionScreen:(BOOL)showCompletionScreen clientSecret:(id)clientSecret accountType:(id)accountType resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
   dispatch_async(dispatch_get_main_queue(), ^{
     UIViewController *topVC = FrameGetTopViewController();
     if (!topVC) {
       reject(@"NO_ROOT_VC", @"Could not find root view controller to present onboarding", nil);
       return;
     }
-    [[[ObjCFrameSDKBridge alloc] init] presentOnboardingFrom:topVC accountId:accountId capabilities:capabilities showIntroScreen:showIntroScreen showCompletionScreen:showCompletionScreen clientSecret:clientSecret resolver:resolve rejecter:reject];
+    [[[ObjCFrameSDKBridge alloc] init] presentOnboardingFrom:topVC accountId:accountId capabilities:capabilities showIntroScreen:showIntroScreen showCompletionScreen:showCompletionScreen clientSecret:clientSecret accountType:accountType resolver:resolve rejecter:reject];
   });
 }
 

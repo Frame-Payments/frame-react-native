@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`presentOnboarding({ accountType })`** (`'individual' | 'business'`, default
+  `'individual'`). `'business'` presents the native business flow from frame-ios
+  4.8.1 / frame-android 3.4.1 (email + role on personal info, Business details,
+  Owners and controllers). The host must pass an existing business `accountId`.
+  A type mismatch or missing business account resolves `status: 'failed'` with
+  `message`.
+- **`OnboardingAccountType` is now exported** from the package entry point.
+- **`INVALID_ACCOUNT_TYPE` error code** when `accountType` is not
+  `'individual'` or `'business'`.
 - **`presentCheckout` / `presentCart` take `checkoutClientSecret`**
   (`{ clientSecret: 'chk_sess_…', expiresAt, amountCents?, amountCurrency? }`) from
   `POST /v1/checkout_sessions`. Checkout loads name, email, and saved cards with that
@@ -33,6 +42,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **frame-ios: `4.8.0` → `4.8.1`.** Swipe on the account-type stop screen
+  reports `.failed` with the same message as Close.
+- **frame-android: `3.4.0` → `3.4.1`.** System back / disposal on that screen
+  reports `Failed` the same way.
+- **frame-ios: `4.7.0` → `4.8.0`.** Business onboarding on
+  `OnboardingContainerView` via `accountType` ([FRA-7717](https://linear.app/framepayments/issue/FRA-7717)).
+- **frame-android: `3.3.0` → `3.4.0`.** Same `OnboardingConfig.accountType` contract.
+- **`OnboardingResult.status` can now be `'failed'`** when the native flow
+  stops (account-type mismatch, business onboarding without an account).
+  Previously those cases resolved as `'cancelled'`.
 - **frame-ios: `4.5.3` → `4.7.0`.** Includes the 4.6.0 session-secret contract, plus
   Transfers V2 (checkout/wallet charges create V2 Transfers; `TransfersV2API` /
   `TransferV2Requests` replace the ChargeIntent wallet path).
@@ -65,6 +84,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Swipe-down (iOS) and system back (Android) on the account-type stop screen
+  now resolve `status: 'failed'`** with the same `message` as Close (missing
+  business account, or a type mismatch once the native SDKs report it).
 - **Android onboarding now applies the `Frame.initialize({ theme })` theme.** It was
   ignored because the onboarding container applied its default theme over it.
 - **Android cart → checkout waits for card encryption to be configured** before showing
