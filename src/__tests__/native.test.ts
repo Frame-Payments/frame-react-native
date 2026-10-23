@@ -524,6 +524,53 @@ describe('presentOnboarding', () => {
     expect(mockPresentOnboarding).not.toHaveBeenCalled();
   });
 
+  it('throws INVALID_ACCOUNT_TYPE for a near-miss value like Business', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    try {
+      await presentOnboarding({
+        accountId: 'acct_1',
+        clientSecret: 'onb_sess_123',
+        accountType: 'Business' as any,
+      });
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_ACCOUNT_TYPE');
+    }
+    expect(mockPresentOnboarding).not.toHaveBeenCalled();
+  });
+
+  it('defaults a null accountType to individual', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    await presentOnboarding({
+      accountId: 'acct_1',
+      clientSecret: 'onb_sess_123',
+      accountType: null as any,
+    });
+    expect(mockPresentOnboarding).toHaveBeenCalledWith(
+      'acct_1',
+      [],
+      false,
+      true,
+      'onb_sess_123',
+      'individual'
+    );
+  });
+
+  it('returns a native failed result unchanged', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    const failed = {
+      status: 'failed',
+      message: 'This onboarding is for a business account. The account on this session is an individual account.',
+    };
+    mockPresentOnboarding.mockResolvedValueOnce(failed as any);
+    const result = await presentOnboarding({
+      accountId: 'acct_1',
+      clientSecret: 'onb_sess_123',
+      accountType: 'business',
+    });
+    expect(result).toEqual(failed);
+  });
+
   it('passes clientSecret through on Android', async () => {
     mockPlatform.OS = 'android';
     await initialize({ publishableKey: 'pk_xxx' });

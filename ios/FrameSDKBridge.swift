@@ -369,6 +369,9 @@ public class FrameSDKBridge: NSObject {
   private func presentOnboardingOnMain(from top: UIViewController, accountId: String?, capabilities: [FrameObjects.Capabilities], showIntroScreen: Bool, showCompletionScreen: Bool, clientSecret: String, accountType: FrameObjects.AccountType, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     // Build the dismiss delegate up-front so onResult captures a non-nil instance directly.
     let delegate = OnboardingDismissDelegate(resolve: resolve)
+    if accountType == .business && (accountId == nil || accountId?.isEmpty == true) {
+      delegate.pendingStopMessage = "Business onboarding needs an existing business account."
+    }
 
     let hosting = OnboardingHostingController(
       rootView: OnboardingContainerView(
@@ -568,6 +571,7 @@ private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationC
   let resolve: RCTPromiseResolveBlock
   weak var hostingController: UIViewController?
   var didFinish = false
+  var pendingStopMessage: String?
 
   init(resolve: @escaping RCTPromiseResolveBlock) {
     self.resolve = resolve
@@ -576,6 +580,7 @@ private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationC
   func finish(_ outcome: Outcome) {
     guard !didFinish else { return }
     didFinish = true
+    let stopMessage = pendingStopMessage
     DispatchQueue.main.async { [resolve] in
       switch outcome {
       case .completed(let accountId):
@@ -593,7 +598,11 @@ private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationC
       case .failed(let message):
         resolve(["status": "failed", "message": message])
       case .cancelled:
-        resolve(["status": "cancelled"])
+        if let message = stopMessage {
+          resolve(["status": "failed", "message": message])
+        } else {
+          resolve(["status": "cancelled"])
+        }
       }
     }
   }
@@ -621,7 +630,11 @@ private final class OnboardingDismissDelegate: NSObject, UIAdaptivePresentationC
     // callback to the Onboarding host's delegate. Only treat dismissal of the
     // Onboarding hosting controller itself as a cancellation.
     guard presentationController.presentedViewController === hostingController else { return }
-    finish(.cancelled)
+    // Native onDisappear reports .failed when the mismatch screen is up.
+    // Let that onResult win; this is only the fallback for a true user cancel.
+    DispatchQueue.main.async { [weak self] in
+      self?.finish(.cancelled)
+    }
   }
 }
 

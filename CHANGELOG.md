@@ -80,6 +80,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Swipe-down (iOS) and system back (Android) on the account-type stop screen
+  now resolve `status: 'failed'`** with the same `message` as Close (missing
+  business account, or a type mismatch once the native SDKs report it).
 - **Android onboarding now applies the `Frame.initialize({ theme })` theme.** It was
   ignored because the onboarding container applied its default theme over it.
 - **Android cart → checkout waits for card encryption to be configured** before showing

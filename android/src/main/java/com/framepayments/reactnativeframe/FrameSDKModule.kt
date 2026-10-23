@@ -24,6 +24,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
   private var checkoutPromise: Promise? = null
   private var cartPromise: Promise? = null
   private var onboardingPromise: Promise? = null
+  private var onboardingStopMessage: String? = null
   private var googlePayPromise: Promise? = null
   private var addMethodPromise: Promise? = null
 
@@ -205,6 +206,12 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     }
     val capabilitiesJson = readableArrayToJsonArray(capabilities)
     onboardingPromise = promise
+    onboardingStopMessage =
+      if (accountType == "business" && accountId.isNullOrBlank()) {
+        "Business onboarding needs an existing business account."
+      } else {
+        null
+      }
     activity.runOnUiThread {
       val intent = Intent(activity, FrameOnboardingActivity::class.java).apply {
         putExtra(FrameOnboardingActivity.EXTRA_ACCOUNT_ID, accountId)
@@ -434,6 +441,8 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
   private fun handleOnboardingResult(resultCode: Int, data: Intent?) {
     val promise = onboardingPromise ?: return
     onboardingPromise = null
+    val stopMessage = onboardingStopMessage
+    onboardingStopMessage = null
     val map = WritableNativeMap()
     when (resultCode) {
       Activity.RESULT_OK -> map.putString("status", "completed")
@@ -449,7 +458,12 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
         return
       }
       else -> {
-        map.putString("status", "cancelled")
+        if (stopMessage != null) {
+          map.putString("status", "failed")
+          map.putString("message", stopMessage)
+        } else {
+          map.putString("status", "cancelled")
+        }
         promise.resolve(map)
         return
       }
