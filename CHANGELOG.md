@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`presentOnboarding({ accountType })`** (`'individual' | 'business'`, default
   `'individual'`). `'business'` presents the native business flow from frame-ios
-  4.8.0 / frame-android 3.4.0 (email + role on personal info, Business details,
+  4.8.1 / frame-android 3.4.1 (email + role on personal info, Business details,
   Owners and controllers). The host must pass an existing business `accountId`.
   A type mismatch or missing business account resolves `status: 'failed'` with
   `message`.
@@ -42,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **frame-ios: `4.8.0` → `4.8.1`.** Swipe on the account-type stop screen
+  reports `.failed` with the same message as Close.
+- **frame-android: `3.4.0` → `3.4.1`.** System back / disposal on that screen
+  reports `Failed` the same way.
 - **frame-ios: `4.7.0` → `4.8.0`.** Business onboarding on
   `OnboardingContainerView` via `accountType` ([FRA-7717](https://linear.app/framepayments/issue/FRA-7717)).
 - **frame-android: `3.3.0` → `3.4.0`.** Same `OnboardingConfig.accountType` contract.
