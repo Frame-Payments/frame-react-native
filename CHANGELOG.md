@@ -42,6 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **frame-ios: `4.8.1` → `4.8.2`.** Customer-present V2 creates fail if
+  `ensureSession` cannot attach a Sonar session ([FRA-7812](https://linear.app/framepayments/issue/FRA-7812)).
+- **frame-android: `3.4.1` → `3.4.2`.** Same fail-closed attach.
 - **frame-ios: `4.8.0` → `4.8.1`.** Swipe on the account-type stop screen
   reports `.failed` with the same message as Close.
 - **frame-android: `3.4.0` → `3.4.1`.** System back / disposal on that screen
