@@ -436,17 +436,25 @@ public class FrameSDKBridge: NSObject {
         await FrameSDKBridge.requestDepositMint(amountCents: amountCents)
       },
       onResult: { [weak top, delegate] result in
+        let outcome: DepositDismissDelegate.Outcome
         switch result {
         case .completed(let id):
-          delegate.finish(.success(id))
+          outcome = .success(id)
         case .cancelled:
-          delegate.finish(.cancel)
-        case .failed:
-          delegate.finish(.failure)
-        case .finishedUnverified:
-          delegate.finish(.failure)
+          outcome = .cancel
+        case .failed, .finishedUnverified:
+          outcome = .failure
         }
-        top?.dismiss(animated: true)
+        // Cancel pending mints now; keep depositPresentationInFlight until dismiss completes
+        // so a follow-up presentDeposit cannot overlap the outgoing sheet.
+        delegate.beginFinish(outcome)
+        guard let top else {
+          delegate.settle()
+          return
+        }
+        top.dismiss(animated: true) {
+          delegate.settle()
+        }
       }
     )
     let hosting = UIHostingController(rootView: depositView)
@@ -726,7 +734,8 @@ private final class CheckoutDismissDelegate: NSObject, UIAdaptivePresentationCon
   }
 }
 
-/// Same settle rules as checkout, plus clearing any in-flight deposit mint continuations on finish/dismiss.
+/// Cancels mint waits immediately; settles the RN promise and clears `depositPresentationInFlight`
+/// only after the sheet has finished dismissing (or on interactive swipe dismiss).
 private final class DepositDismissDelegate: NSObject, UIAdaptivePresentationControllerDelegate {
   enum Outcome {
     case success(String)
@@ -736,17 +745,25 @@ private final class DepositDismissDelegate: NSObject, UIAdaptivePresentationCont
 
   private let resolve: RCTPromiseResolveBlock
   private let reject: RCTPromiseRejectBlock
-  private var didFinish = false
+  private var pendingOutcome: Outcome?
+  private var didSettle = false
 
   init(resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     self.resolve = resolve
     self.reject = reject
   }
 
-  func finish(_ outcome: Outcome) {
-    guard !didFinish else { return }
-    didFinish = true
+  /// Records the terminal outcome and cancels mint waits. Does not clear the in-flight guard yet.
+  func beginFinish(_ outcome: Outcome) {
+    guard pendingOutcome == nil, !didSettle else { return }
+    pendingOutcome = outcome
     FrameSDKBridge.cancelAllPendingDepositMints()
+  }
+
+  /// Exactly-once promise settlement after the sheet is gone.
+  func settle() {
+    guard !didSettle, let outcome = pendingOutcome else { return }
+    didSettle = true
     FrameSDKBridge.depositPresentationInFlight = false
     DispatchQueue.main.async { [resolve, reject] in
       switch outcome {
@@ -758,7 +775,11 @@ private final class DepositDismissDelegate: NSObject, UIAdaptivePresentationCont
   }
 
   func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
-    finish(.cancel)
+    // Interactive swipe: sheet is already gone; settle now.
+    if pendingOutcome == nil {
+      beginFinish(.cancel)
+    }
+    settle()
   }
 }
 
