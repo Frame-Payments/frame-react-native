@@ -321,6 +321,17 @@ public class FrameSDKBridge: NSObject {
     return true
   }
 
+  /// Resumes every pending mint with `nil` so a dismissed deposit sheet cannot leave a suspended continuation.
+  fileprivate static func cancelAllPendingDepositMints() {
+    depositMintLock.lock()
+    let pending = depositMintContinuations
+    depositMintContinuations.removeAll()
+    depositMintLock.unlock()
+    for (_, continuation) in pending {
+      continuation.resume(returning: nil)
+    }
+  }
+
   private static func optionalInt(_ value: NSObject?) -> Int? {
     guard let number = value as? NSNumber else { return nil }
     return number.intValue
@@ -409,7 +420,7 @@ public class FrameSDKBridge: NSObject {
   }
 
   private func presentDepositOnMain(from top: UIViewController, accountId: String, minAmount: Int?, maxAmount: Int?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    let delegate = CheckoutDismissDelegate(resolve: resolve, reject: reject)
+    let delegate = DepositDismissDelegate(resolve: resolve, reject: reject)
     let depositView = FrameDepositView(
       accountId: accountId,
       minAmount: minAmount,
@@ -699,6 +710,41 @@ private final class CheckoutDismissDelegate: NSObject, UIAdaptivePresentationCon
       case .success(let transferId): resolve(transferId)
       case .failure: reject("PAYMENT_FAILED", "Checkout did not produce a transfer id", nil)
       case .cancel: reject("USER_CANCELED", "User dismissed checkout without completing payment", nil)
+      }
+    }
+  }
+
+  func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+    finish(.cancel)
+  }
+}
+
+/// Same settle rules as checkout, plus clearing any in-flight deposit mint continuations on finish/dismiss.
+private final class DepositDismissDelegate: NSObject, UIAdaptivePresentationControllerDelegate {
+  enum Outcome {
+    case success(String)
+    case failure
+    case cancel
+  }
+
+  private let resolve: RCTPromiseResolveBlock
+  private let reject: RCTPromiseRejectBlock
+  private var didFinish = false
+
+  init(resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+    self.resolve = resolve
+    self.reject = reject
+  }
+
+  func finish(_ outcome: Outcome) {
+    guard !didFinish else { return }
+    didFinish = true
+    FrameSDKBridge.cancelAllPendingDepositMints()
+    DispatchQueue.main.async { [resolve, reject] in
+      switch outcome {
+      case .success(let transferId): resolve(transferId)
+      case .failure: reject("PAYMENT_FAILED", "Deposit did not produce a transfer id", nil)
+      case .cancel: reject("USER_CANCELED", "User dismissed deposit without completing payment", nil)
       }
     }
   }

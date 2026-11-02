@@ -57,6 +57,15 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       val module = activeModule ?: return null
       return module.requestDepositMintInternal(amountCents)
     }
+
+    /** Completes any in-flight mint waits with null so a dismissed deposit cannot hang JS. */
+    @JvmStatic
+    fun cancelPendingDepositMints() {
+      val pending = pendingDepositMints.keys.toList()
+      for (requestId in pending) {
+        pendingDepositMints.remove(requestId)?.complete(null)
+      }
+    }
   }
 
   @ReactMethod
@@ -174,6 +183,10 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
       promise.reject("INVALID_CLIENT_SECRET", e.message, null)
       return
     }
+    if (payoutPromise != null) {
+      promise.reject("ALREADY_PRESENTING", "Frame.presentPayout is already in progress", null)
+      return
+    }
     payoutPromise = promise
     activity.runOnUiThread {
       val intent = Intent(activity, FramePayoutActivity::class.java).apply {
@@ -195,6 +208,10 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     }
     if (accountId.isNullOrEmpty()) {
       promise.reject("INVALID_ACCOUNT", "Frame.presentDeposit requires a non-empty accountId", null)
+      return
+    }
+    if (depositPromise != null) {
+      promise.reject("ALREADY_PRESENTING", "Frame.presentDeposit is already in progress", null)
       return
     }
     depositPromise = promise
@@ -594,6 +611,7 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
   private fun handleDepositResult(resultCode: Int, data: Intent?) {
     val promise = depositPromise ?: return
     depositPromise = null
+    cancelPendingDepositMints()
     settleCheckoutResult(promise, resultCode, data, "User cancelled deposit")
   }
 
