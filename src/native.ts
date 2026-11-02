@@ -19,6 +19,9 @@ import { ErrorCodes } from './errors';
 
 const DEPOSIT_MINT_EVENT = 'FrameDepositMintRequest';
 
+/** Guards overlapping presentDeposit so only one mint listener is registered. */
+let depositInFlight = false;
+
 // Tags the native SDKs' account events as this wrapper's; resolves from both src/ and lib/.
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- package.json is outside rootDir, so it can't be imported
 const PACKAGE_VERSION: string = require('../package.json').version;
@@ -460,7 +463,11 @@ export function presentDeposit(options: {
   ) {
     throwCoded(ErrorCodes.INVALID_AMOUNT, 'Frame.presentDeposit: maxAmount must be an integer when set');
   }
+  if (depositInFlight) {
+    throwCoded(ErrorCodes.ALREADY_PRESENTING, 'Frame.presentDeposit is already presenting');
+  }
 
+  depositInFlight = true;
   const emitter = new NativeEventEmitter(FrameSDK);
   const subscription = emitter.addListener(
     DEPOSIT_MINT_EVENT,
@@ -497,6 +504,7 @@ export function presentDeposit(options: {
     FrameSDK.presentDeposit(options.accountId, options.minAmount ?? null, options.maxAmount ?? null)
   ).finally(() => {
     subscription.remove();
+    depositInFlight = false;
   });
 }
 

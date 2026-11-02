@@ -295,6 +295,8 @@ public class FrameSDKBridge: NSObject {
 
   private static let depositMintLock = NSLock()
   private static var depositMintContinuations: [String: CheckedContinuation<FrameCheckoutClientSecret?, Never>] = [:]
+  /// Rejects a second presentDeposit while a sheet is already open (pairs with JS depositInFlight).
+  fileprivate static var depositPresentationInFlight = false
 
   /// Emits `FrameDepositMintRequest` for JS to mint a chk_sess_, then awaits `provideDepositCheckoutSecret`.
   private static func requestDepositMint(amountCents: Int) async -> FrameCheckoutClientSecret? {
@@ -420,6 +422,11 @@ public class FrameSDKBridge: NSObject {
   }
 
   private func presentDepositOnMain(from top: UIViewController, accountId: String, minAmount: Int?, maxAmount: Int?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+    if Self.depositPresentationInFlight {
+      reject("ALREADY_PRESENTING", "Frame.presentDeposit is already in progress", nil)
+      return
+    }
+    Self.depositPresentationInFlight = true
     let delegate = DepositDismissDelegate(resolve: resolve, reject: reject)
     let depositView = FrameDepositView(
       accountId: accountId,
@@ -740,6 +747,7 @@ private final class DepositDismissDelegate: NSObject, UIAdaptivePresentationCont
     guard !didFinish else { return }
     didFinish = true
     FrameSDKBridge.cancelAllPendingDepositMints()
+    FrameSDKBridge.depositPresentationInFlight = false
     DispatchQueue.main.async { [resolve, reject] in
       switch outcome {
       case .success(let transferId): resolve(transferId)

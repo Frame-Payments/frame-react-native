@@ -460,6 +460,38 @@ describe('presentDeposit', () => {
     expect(mockProvideDepositCheckoutSecret).toHaveBeenCalledWith('req_fail', null);
     expect(mockRemoveSubscription).toHaveBeenCalled();
   });
+
+  it('rejects a second presentDeposit while one is in flight', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    let releaseFirst!: () => void;
+    const firstHeld = new Promise<string>((resolve) => {
+      releaseFirst = () => resolve('tr_deposit_1');
+    });
+    mockPresentDeposit.mockImplementationOnce(() => firstHeld);
+
+    const first = presentDeposit({
+      accountId: 'acct_1',
+      mintCheckoutSession: async () => ({ clientSecret: 'chk_sess_1', expiresAt: 1 }),
+    });
+
+    await waitFor(() => mockPresentDeposit.mock.calls.length === 1);
+
+    try {
+      await presentDeposit({
+        accountId: 'acct_1',
+        mintCheckoutSession: async () => ({ clientSecret: 'chk_sess_2', expiresAt: 1 }),
+      });
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('ALREADY_PRESENTING');
+    }
+    expect(mockPresentDeposit).toHaveBeenCalledTimes(1);
+    expect(mockDepositMintBridge.listeners).toHaveLength(1);
+
+    releaseFirst();
+    await first;
+    expect(mockRemoveSubscription).toHaveBeenCalled();
+  });
 });
 
 async function waitFor(predicate: () => boolean, maxTicks = 20): Promise<void> {

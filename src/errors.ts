@@ -25,6 +25,7 @@ export const ErrorCodes = {
   PAYMENT_METHOD_FAILED: 'PAYMENT_METHOD_FAILED',
   PAYMENT_FAILED: 'PAYMENT_FAILED',
   ACCOUNT_UNVERIFIED: 'ACCOUNT_UNVERIFIED',
+  ALREADY_PRESENTING: 'ALREADY_PRESENTING',
 } as const;
 
 export type FrameErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
