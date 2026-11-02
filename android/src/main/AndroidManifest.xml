@@ -18,6 +18,14 @@
       android:theme="@style/Theme.Frame.NoActionBar"
       android:exported="false" />
     <activity
+      android:name="com.framepayments.reactnativeframe.FramePayoutActivity"
+      android:theme="@style/Theme.Frame.NoActionBar"
+      android:exported="false" />
+    <activity
+      android:name="com.framepayments.reactnativeframe.FrameDepositActivity"
+      android:theme="@style/Theme.Frame.NoActionBar"
+      android:exported="false" />
+    <activity
       android:name="com.framepayments.reactnativeframe.FrameGooglePayActivity"
       android:theme="@style/Theme.Frame.GooglePay.Translucent"
       android:exported="false" />

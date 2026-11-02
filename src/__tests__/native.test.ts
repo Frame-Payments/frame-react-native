@@ -1,12 +1,16 @@
 /**
  * Unit tests for the native module bridge (initialize, presentCheckout, presentCart,
- * presentApplePay, presentGooglePay, presentOnboarding, presentAddPaymentMethod,
- * presentAddPayoutMethod, presentSelectPayoutMethod). NativeModules.FrameSDK is mocked.
+ * presentPayout, presentDeposit, presentApplePay, presentGooglePay, presentOnboarding,
+ * presentAddPaymentMethod, presentAddPayoutMethod, presentSelectPayoutMethod).
+ * NativeModules.FrameSDK is mocked.
  */
 
 const mockInitialize = jest.fn((_secretKey: string | null, _publishableKey: string, _debugMode: boolean, _applePayMerchantId: string | null, _googlePayMerchantId: string | null, _theme: unknown, _accountId: string | null, _hostSDKVersion: string) => Promise.resolve());
 const mockPresentCheckout = jest.fn((_accountId: unknown, _amount: number, _checkoutClientSecret: unknown) => Promise.resolve('tr_1'));
 const mockPresentCart = jest.fn((_accountId: unknown, _items: unknown[], _shipping: number, _checkoutClientSecret: unknown) => Promise.resolve('tr_2'));
+const mockPresentPayout = jest.fn((_accountId: unknown, _payoutClientSecret: unknown) => Promise.resolve('tr_payout'));
+const mockPresentDeposit = jest.fn((_accountId: unknown, _minAmount: number | null, _maxAmount: number | null) => Promise.resolve('tr_deposit'));
+const mockProvideDepositCheckoutSecret = jest.fn((_requestId: string, _secret: unknown) => Promise.resolve());
 const mockPresentApplePay = jest.fn((_ownerType: string, _ownerId: string, _amount: number, _currency: string) => Promise.resolve('tr_3'));
 const mockPresentGooglePay = jest.fn((_amountCents: number, _ownerType: string, _ownerId: string, _currencyCode: string) => Promise.resolve('tr_4'));
 // Mirrors the iOS shape: onboarding resolves accountId as of frame-ios 4.3.6.
@@ -17,6 +21,11 @@ const mockPresentAddPayoutMethod = jest.fn((_accountId: string, _clientSecret: s
 const mockPresentSelectPayoutMethod = jest.fn((_accountId: string, _clientSecret: string) => Promise.resolve({ status: 'completed', methodId: 'ba_2' }));
 const mockResetDeviceAttestation = jest.fn(() => Promise.resolve());
 
+type DepositMintListener = (event: { requestId: string; amountCents: number }) => void;
+const mockRemoveSubscription = jest.fn();
+// mock* prefix so the hoisted jest.mock factory can see this (babel-jest rule).
+const mockDepositMintBridge: { listeners: DepositMintListener[] } = { listeners: [] };
+
 const PKG_VERSION: string = require('../../package.json').version;
 const mockPlatform = { OS: 'ios' as 'ios' | 'android' };
 
@@ -26,6 +35,9 @@ jest.mock('react-native', () => ({
       initialize: mockInitialize,
       presentCheckout: mockPresentCheckout,
       presentCart: mockPresentCart,
+      presentPayout: mockPresentPayout,
+      presentDeposit: mockPresentDeposit,
+      provideDepositCheckoutSecret: mockProvideDepositCheckoutSecret,
       presentApplePay: mockPresentApplePay,
       presentGooglePay: mockPresentGooglePay,
       presentOnboarding: mockPresentOnboarding,
@@ -36,6 +48,12 @@ jest.mock('react-native', () => ({
     },
   },
   Platform: mockPlatform,
+  NativeEventEmitter: jest.fn().mockImplementation(() => ({
+    addListener: (_event: string, listener: DepositMintListener) => {
+      mockDepositMintBridge.listeners.push(listener);
+      return { remove: mockRemoveSubscription };
+    },
+  })),
 }));
 
 // Re-import after mock so we get the mocked NativeModules
@@ -46,6 +64,16 @@ let presentCart: (opts: {
   items: Array<{ id: string; title: string; amountInCents: number; imageUrl: string }>;
   shippingAmountInCents: number;
   checkoutClientSecret?: { clientSecret: string; expiresAt: number } | null;
+}) => Promise<string>;
+let presentPayout: (opts: {
+  accountId: string;
+  payoutClientSecret: { clientSecret: string; expiresAt: number; amountCents: number; amountCurrency?: string };
+}) => Promise<string>;
+let presentDeposit: (opts: {
+  accountId: string;
+  minAmount?: number;
+  maxAmount?: number;
+  mintCheckoutSession: (amountCents: number) => Promise<{ clientSecret: string; expiresAt: number; amountCents?: number; amountCurrency?: string }>;
 }) => Promise<string>;
 let presentApplePay: (opts: { amount: number; currency?: string; owner: { type: 'customer' | 'account'; id: string } }) => Promise<string>;
 let presentGooglePay: (opts: { amountCents: number; owner: { type: 'customer' | 'account'; id: string }; currencyCode?: string }) => Promise<string>;
@@ -60,6 +88,9 @@ beforeEach(() => {
   mockInitialize.mockClear();
   mockPresentCheckout.mockClear();
   mockPresentCart.mockClear();
+  mockPresentPayout.mockClear();
+  mockPresentDeposit.mockClear();
+  mockProvideDepositCheckoutSecret.mockClear();
   mockPresentApplePay.mockClear();
   mockPresentGooglePay.mockClear();
   mockPresentOnboarding.mockClear();
@@ -67,11 +98,15 @@ beforeEach(() => {
   mockPresentAddPayoutMethod.mockClear();
   mockPresentSelectPayoutMethod.mockClear();
   mockResetDeviceAttestation.mockClear();
+  mockRemoveSubscription.mockClear();
+  mockDepositMintBridge.listeners.length = 0;
   mockPlatform.OS = 'ios';
   const native = require('../native');
   initialize = native.initialize;
   presentCheckout = native.presentCheckout;
   presentCart = native.presentCart;
+  presentPayout = native.presentPayout;
+  presentDeposit = native.presentDeposit;
   presentApplePay = native.presentApplePay;
   presentGooglePay = native.presentGooglePay;
   presentOnboarding = native.presentOnboarding;
@@ -284,6 +319,158 @@ describe('presentCart', () => {
     expect(mockPresentCart).toHaveBeenCalledWith('acct_2', items, 500, checkoutClientSecret);
   });
 });
+
+describe('presentPayout', () => {
+  const payoutClientSecret = {
+    clientSecret: 'pyt_sess_1',
+    expiresAt: 1_700_000_000,
+    amountCents: 5_000,
+  };
+
+  it('throws NOT_INITIALIZED if initialize was not called', async () => {
+    try {
+      await presentPayout({ accountId: 'acct_1', payoutClientSecret });
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('NOT_INITIALIZED');
+    }
+    expect(mockPresentPayout).not.toHaveBeenCalled();
+  });
+
+  it('throws INVALID_ACCOUNT when accountId is missing', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    try {
+      await presentPayout({ payoutClientSecret } as any);
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_ACCOUNT');
+    }
+    expect(mockPresentPayout).not.toHaveBeenCalled();
+  });
+
+  it('throws INVALID_CLIENT_SECRET when payoutClientSecret is missing', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    try {
+      await presentPayout({ accountId: 'acct_1' } as any);
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_CLIENT_SECRET');
+    }
+    expect(mockPresentPayout).not.toHaveBeenCalled();
+  });
+
+  it('throws INVALID_CLIENT_SECRET when amountCents is missing', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    try {
+      await presentPayout({
+        accountId: 'acct_1',
+        payoutClientSecret: { clientSecret: 'pyt_sess_1', expiresAt: 1_700_000_000 } as any,
+      });
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_CLIENT_SECRET');
+    }
+    expect(mockPresentPayout).not.toHaveBeenCalled();
+  });
+
+  it('passes payoutClientSecret through when provided', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    const result = await presentPayout({ accountId: 'acct_1', payoutClientSecret });
+    expect(mockPresentPayout).toHaveBeenCalledWith('acct_1', payoutClientSecret);
+    expect(result).toBe('tr_payout');
+  });
+});
+
+describe('presentDeposit', () => {
+  it('throws NOT_INITIALIZED if initialize was not called', async () => {
+    try {
+      await presentDeposit({
+        accountId: 'acct_1',
+        mintCheckoutSession: async () => ({ clientSecret: 'chk_sess_1', expiresAt: 1 }),
+      });
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('NOT_INITIALIZED');
+    }
+    expect(mockPresentDeposit).not.toHaveBeenCalled();
+  });
+
+  it('throws INVALID_ACCOUNT when accountId is missing', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    try {
+      await presentDeposit({
+        mintCheckoutSession: async () => ({ clientSecret: 'chk_sess_1', expiresAt: 1 }),
+      } as any);
+      expect(true).toBe(false);
+    } catch (e: any) {
+      expect(e.code).toBe('INVALID_ACCOUNT');
+    }
+    expect(mockPresentDeposit).not.toHaveBeenCalled();
+  });
+
+  it('mints via NativeEventEmitter and resolves with transfer id', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    const mintCheckoutSession = jest.fn(async (amountCents: number) => ({
+      clientSecret: 'chk_sess_deposit',
+      expiresAt: 1_700_000_000,
+      amountCents,
+    }));
+
+    mockPresentDeposit.mockImplementationOnce(async () => {
+      const listener = mockDepositMintBridge.listeners[mockDepositMintBridge.listeners.length - 1];
+      listener({ requestId: 'req_1', amountCents: 2500 });
+      await waitFor(() => mockProvideDepositCheckoutSecret.mock.calls.length > 0);
+      return 'tr_deposit';
+    });
+
+    const result = await presentDeposit({
+      accountId: 'acct_1',
+      minAmount: 1000,
+      maxAmount: 10_000,
+      mintCheckoutSession,
+    });
+
+    expect(mockPresentDeposit).toHaveBeenCalledWith('acct_1', 1000, 10_000);
+    expect(mintCheckoutSession).toHaveBeenCalledWith(2500);
+    expect(mockProvideDepositCheckoutSecret).toHaveBeenCalledWith('req_1', {
+      clientSecret: 'chk_sess_deposit',
+      expiresAt: 1_700_000_000,
+      amountCents: 2500,
+    });
+    expect(result).toBe('tr_deposit');
+    expect(mockRemoveSubscription).toHaveBeenCalled();
+  });
+
+  it('provides null when mintCheckoutSession throws', async () => {
+    await initialize({ secretKey: 'sk_xxx', publishableKey: 'pk_xxx' });
+    mockPresentDeposit.mockImplementationOnce(async () => {
+      const listener = mockDepositMintBridge.listeners[mockDepositMintBridge.listeners.length - 1];
+      listener({ requestId: 'req_fail', amountCents: 1000 });
+      await waitFor(() => mockProvideDepositCheckoutSecret.mock.calls.length > 0);
+      return 'tr_deposit';
+    });
+
+    await presentDeposit({
+      accountId: 'acct_1',
+      mintCheckoutSession: async () => {
+        throw new Error('mint failed');
+      },
+    });
+
+    expect(mockProvideDepositCheckoutSecret).toHaveBeenCalledWith('req_fail', null);
+    expect(mockRemoveSubscription).toHaveBeenCalled();
+  });
+});
+
+async function waitFor(predicate: () => boolean, maxTicks = 20): Promise<void> {
+  for (let i = 0; i < maxTicks; i++) {
+    if (predicate()) return;
+    await Promise.resolve();
+  }
+  if (!predicate()) {
+    throw new Error('waitFor timed out');
+  }
+}
 
 describe('presentApplePay', () => {
   it('throws NOT_INITIALIZED if initialize was not called', async () => {

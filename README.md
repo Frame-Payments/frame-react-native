@@ -163,6 +163,57 @@ const transferId = await Frame.presentCheckout({
 
 ---
 
+### `Frame.presentPayout(options)`
+
+Opens the native payout amount + bank sheet. Host mints a `pyt_sess_…` upfront with the withdrawable balance as `amountCents` (keypad cap). Resolves with the created Transfer's id string. Rejects with `USER_CANCELED` / `PAYMENT_FAILED` like checkout.
+
+```ts
+const transferId = await Frame.presentPayout({
+  accountId: 'acct_xxx',
+  payoutClientSecret: {
+    clientSecret: 'pyt_sess_…',
+    expiresAt: 1700000000,
+    amountCents: 50000, // withdrawable balance cap
+  },
+});
+```
+
+| Option | Type | Required | Description |
+|---|---|---|---|
+| `accountId` | `string` | Yes | Frame account the payout is drawn from |
+| `payoutClientSecret` | `{ clientSecret: string; expiresAt: number; amountCents: number; amountCurrency?: string }` | Yes | `pyt_sess_…` from `POST /v1/payout_sessions`. `amountCents` is required (keypad cap). |
+
+**Returns:** `Promise<string>` — the created Transfer's `id`.
+
+---
+
+### `Frame.presentDeposit(options)`
+
+Opens the native deposit amount sheet, then checkout. Unlike checkout/payout, the host mints `chk_sess_…` *after* the user confirms an amount — that session locks the cents. Pass `mintCheckoutSession`; the bridge emits `FrameDepositMintRequest` and resumes when you return a `CheckoutClientSecret`.
+
+```ts
+const transferId = await Frame.presentDeposit({
+  accountId: 'acct_xxx',
+  minAmount: 1000,
+  maxAmount: 100000,
+  mintCheckoutSession: async (amountCents) => {
+    // POST /v1/checkout_sessions with amountCents locked on the session
+    return { clientSecret: 'chk_sess_…', expiresAt: 1700000000, amountCents };
+  },
+});
+```
+
+| Option | Type | Required | Description |
+|---|---|---|---|
+| `accountId` | `string` | Yes | Frame account that receives the deposit |
+| `minAmount` | `number` | No | Minimum in cents; Continue stays disabled below it |
+| `maxAmount` | `number` | No | Maximum in cents; keypad ignores digits that would exceed it |
+| `mintCheckoutSession` | `(amountCents: number) => Promise<CheckoutClientSecret>` | Yes | Mint `chk_sess_…` for the typed cents. Secret `amountCents` must match. |
+
+**Returns:** `Promise<string>` — the created Transfer's `id`.
+
+---
+
 ### `Frame.presentCart(options)`
 
 Opens a cart review screen followed by the checkout flow. Routes through the same checkout path as `presentCheckout`, so it requires the same `accountId` and resolves with the created Transfer's id string.

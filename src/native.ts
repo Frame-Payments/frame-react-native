@@ -2,7 +2,7 @@
  * Native module bridge. Uses NativeModules for classic React Native bridge.
  */
 
-import { NativeModules, Platform } from 'react-native';
+import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 import type {
   AddMethodResult,
   CheckoutClientSecret,
@@ -11,10 +11,13 @@ import type {
   OnboardingAccountType,
   OnboardingCapability,
   OnboardingResult,
+  PayoutClientSecret,
   PresentApplePayOptions,
   PresentGooglePayOptions,
 } from './types';
 import { ErrorCodes } from './errors';
+
+const DEPOSIT_MINT_EVENT = 'FrameDepositMintRequest';
 
 // Tags the native SDKs' account events as this wrapper's; resolves from both src/ and lib/.
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- package.json is outside rootDir, so it can't be imported
@@ -124,6 +127,51 @@ function normalizeCheckoutClientSecret(
   return normalized;
 }
 
+function normalizePayoutClientSecret(
+  payoutClientSecret: PayoutClientSecret | null | undefined,
+  method: string
+): PayoutClientSecret {
+  if (payoutClientSecret == null) {
+    throwCoded(
+      ErrorCodes.INVALID_CLIENT_SECRET,
+      `Frame.${method} requires payoutClientSecret (pyt_sess_… from POST /v1/payout_sessions)`
+    );
+  }
+  if (
+    typeof payoutClientSecret !== 'object' ||
+    Array.isArray(payoutClientSecret) ||
+    typeof payoutClientSecret.clientSecret !== 'string' ||
+    payoutClientSecret.clientSecret.trim() === '' ||
+    typeof payoutClientSecret.expiresAt !== 'number' ||
+    !isBridgeInt64(payoutClientSecret.expiresAt) ||
+    typeof payoutClientSecret.amountCents !== 'number' ||
+    !isBridgeInt32(payoutClientSecret.amountCents)
+  ) {
+    throwCoded(
+      ErrorCodes.INVALID_CLIENT_SECRET,
+      `Frame.${method}: payoutClientSecret requires { clientSecret: string, expiresAt: integer unix timestamp, amountCents: integer }`
+    );
+  }
+  if (
+    payoutClientSecret.amountCurrency !== undefined &&
+    typeof payoutClientSecret.amountCurrency !== 'string'
+  ) {
+    throwCoded(
+      ErrorCodes.INVALID_CLIENT_SECRET,
+      `Frame.${method}: payoutClientSecret.amountCurrency must be a string when set`
+    );
+  }
+  const normalized: PayoutClientSecret = {
+    clientSecret: payoutClientSecret.clientSecret,
+    expiresAt: payoutClientSecret.expiresAt,
+    amountCents: payoutClientSecret.amountCents,
+  };
+  if (payoutClientSecret.amountCurrency !== undefined) {
+    normalized.amountCurrency = payoutClientSecret.amountCurrency;
+  }
+  return normalized;
+}
+
 function requireAccountWalletOwner(
   owner: { type: string; id: string } | undefined,
   method: string
@@ -216,7 +264,7 @@ export function initialize(options: {
 function guardInitialized(): void {
   if (!isInitialized) {
     const message =
-      'Frame SDK must be initialized before calling presentCheckout, presentCart, or presentOnboarding. Call Frame.initialize({ publishableKey }) first.';
+      'Frame SDK must be initialized before calling presentCheckout, presentCart, presentPayout, presentDeposit, or presentOnboarding. Call Frame.initialize({ publishableKey }) first.';
     const err = new Error(message) as Error & { code: string };
     err.code = ErrorCodes.NOT_INITIALIZED;
     throw err;
@@ -341,6 +389,115 @@ export function presentOnboarding(options: {
       accountType
     )
   );
+}
+
+/**
+ * Presents the Frame payout sheet for the given account. Host must mint a
+ * `pyt_sess_…` upfront (same shape as checkout's session secret, with a required
+ * `amountCents` cap). Resolves with the created Transfer's id string on success,
+ * or rejects with `USER_CANCELED` / `PAYMENT_FAILED` like checkout.
+ */
+export function presentPayout(options: {
+  accountId: string;
+  /**
+   * `pyt_sess_…` token from `POST /v1/payout_sessions`. Required. `amountCents` is
+   * the withdrawable-balance keypad cap.
+   */
+  payoutClientSecret: PayoutClientSecret;
+}): Promise<string> {
+  guardInitialized();
+  if (!options?.accountId) {
+    throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentPayout requires accountId');
+  }
+  const payoutClientSecret = normalizePayoutClientSecret(
+    options.payoutClientSecret,
+    'presentPayout'
+  );
+  return wrapPromise(FrameSDK.presentPayout(options.accountId, payoutClientSecret));
+}
+
+/**
+ * Presents the Frame deposit amount sheet, then checkout. The host mints a
+ * `chk_sess_…` *after* the user picks an amount via `mintCheckoutSession`.
+ * Resolves with the created Transfer's id string on success.
+ *
+ * Across the bridge, native emits `FrameDepositMintRequest` with
+ * `{ requestId, amountCents }`; JS calls `mintCheckoutSession` and replies with
+ * `FrameSDK.provideDepositCheckoutSecret`. Subscribe before present; unsubscribe
+ * in `finally`.
+ */
+export function presentDeposit(options: {
+  accountId: string;
+  /** Optional minimum deposit in cents. Continue stays disabled below it. */
+  minAmount?: number;
+  /** Optional maximum deposit in cents. The keypad ignores digits that would exceed it. */
+  maxAmount?: number;
+  /**
+   * Mint `POST /v1/checkout_sessions` for the typed cents. The session must lock
+   * that exact `amountCents` — native deposit requires the secret amount to match.
+   */
+  mintCheckoutSession: (amountCents: number) => Promise<CheckoutClientSecret>;
+}): Promise<string> {
+  guardInitialized();
+  if (!options?.accountId) {
+    throwCoded(ErrorCodes.INVALID_ACCOUNT, 'Frame.presentDeposit requires accountId');
+  }
+  if (typeof options.mintCheckoutSession !== 'function') {
+    throwCoded(
+      ErrorCodes.INVALID_CLIENT_SECRET,
+      'Frame.presentDeposit requires mintCheckoutSession (amountCents) => Promise<CheckoutClientSecret>'
+    );
+  }
+  if (
+    options.minAmount !== undefined &&
+    (typeof options.minAmount !== 'number' || !isBridgeInt32(options.minAmount))
+  ) {
+    throwCoded(ErrorCodes.INVALID_AMOUNT, 'Frame.presentDeposit: minAmount must be an integer when set');
+  }
+  if (
+    options.maxAmount !== undefined &&
+    (typeof options.maxAmount !== 'number' || !isBridgeInt32(options.maxAmount))
+  ) {
+    throwCoded(ErrorCodes.INVALID_AMOUNT, 'Frame.presentDeposit: maxAmount must be an integer when set');
+  }
+
+  const emitter = new NativeEventEmitter(FrameSDK);
+  const subscription = emitter.addListener(
+    DEPOSIT_MINT_EVENT,
+    (event: { requestId?: string; amountCents?: number }) => {
+      void (async () => {
+        const requestId = event?.requestId;
+        if (typeof requestId !== 'string' || requestId.length === 0) return;
+        const amountCents = event?.amountCents;
+        let secret: CheckoutClientSecret | null = null;
+        try {
+          if (typeof amountCents !== 'number' || !isBridgeInt32(amountCents)) {
+            throw new Error('invalid amountCents');
+          }
+          const minted = await options.mintCheckoutSession(amountCents);
+          const normalized = normalizeCheckoutClientSecret(minted, 'presentDeposit');
+          // Deposit requires the session amount to match the keypad cents.
+          secret = {
+            ...normalized,
+            amountCents: normalized.amountCents ?? amountCents,
+          };
+        } catch {
+          secret = null;
+        }
+        try {
+          await FrameSDK.provideDepositCheckoutSecret(requestId, secret);
+        } catch {
+          // Native may have already timed out or cancelled; ignore reply failures.
+        }
+      })();
+    }
+  );
+
+  return wrapPromise<string>(
+    FrameSDK.presentDeposit(options.accountId, options.minAmount ?? null, options.maxAmount ?? null)
+  ).finally(() => {
+    subscription.remove();
+  });
 }
 
 /**

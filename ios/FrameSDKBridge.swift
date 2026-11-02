@@ -143,6 +143,60 @@ public class FrameSDKBridge: NSObject {
   }
 
   @objc public
+  func presentPayout(from viewController: UIViewController, accountId: String?, payoutClientSecret: NSDictionary?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    guard let accountId, !accountId.isEmpty else {
+      reject("INVALID_ACCOUNT", "Frame.presentPayout requires a non-empty accountId", nil)
+      return
+    }
+    let parsedPayoutSecret: FramePayoutClientSecret
+    do {
+      parsedPayoutSecret = try parsePayoutClientSecret(payoutClientSecret)
+    } catch {
+      reject("INVALID_CLIENT_SECRET", error.localizedDescription, nil)
+      return
+    }
+    presentPayoutOnMain(from: viewController, accountId: accountId, payoutClientSecret: parsedPayoutSecret, resolve: resolve, reject: reject)
+  }
+
+  @objc public
+  func presentDeposit(from viewController: UIViewController, accountId: String?, minAmount: NSObject?, maxAmount: NSObject?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    guard let accountId, !accountId.isEmpty else {
+      reject("INVALID_ACCOUNT", "Frame.presentDeposit requires a non-empty accountId", nil)
+      return
+    }
+    let minCents = Self.optionalInt(minAmount)
+    let maxCents = Self.optionalInt(maxAmount)
+    presentDepositOnMain(from: viewController, accountId: accountId, minAmount: minCents, maxAmount: maxCents, resolve: resolve, reject: reject)
+  }
+
+  /// Resumes a pending `mintCheckoutSession` continuation from `presentDeposit`.
+  @objc public
+  func provideDepositCheckoutSecret(_ requestId: String, checkoutClientSecret: NSDictionary?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    guard !requestId.isEmpty else {
+      reject("INVALID_CLIENT_SECRET", "Frame.provideDepositCheckoutSecret requires requestId", nil)
+      return
+    }
+    let secret: FrameCheckoutClientSecret?
+    if let checkoutClientSecret {
+      do {
+        secret = try parseCheckoutClientSecret(checkoutClientSecret)
+      } catch {
+        Self.resumeDepositMint(requestId: requestId, secret: nil)
+        reject("INVALID_CLIENT_SECRET", error.localizedDescription, nil)
+        return
+      }
+    } else {
+      secret = nil
+    }
+    let resumed = Self.resumeDepositMint(requestId: requestId, secret: secret)
+    if resumed {
+      resolve(nil)
+    } else {
+      reject("NO_RESULT", "No pending deposit mint for requestId", nil)
+    }
+  }
+
+  @objc public
   func presentAddPaymentMethod(from viewController: UIViewController, accountId: String, clientSecret: NSObject?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     guard !accountId.isEmpty else {
       reject("INVALID_ACCOUNT", "Frame.presentAddPaymentMethod requires a non-empty accountId", nil)
@@ -217,6 +271,9 @@ public class FrameSDKBridge: NSObject {
     case invalidCheckoutClientSecret
     case invalidCheckoutExpiresAt
     case invalidCheckoutAmountCents
+    case invalidPayoutClientSecret
+    case invalidPayoutExpiresAt
+    case invalidPayoutAmountCents
 
     var errorDescription: String? {
       switch self {
@@ -226,8 +283,47 @@ public class FrameSDKBridge: NSObject {
         return "checkoutClientSecret.expiresAt must be an integer unix timestamp"
       case .invalidCheckoutAmountCents:
         return "checkoutClientSecret.amountCents must be an integer when set"
+      case .invalidPayoutClientSecret:
+        return "payoutClientSecret requires { clientSecret: string, expiresAt: number, amountCents: number }"
+      case .invalidPayoutExpiresAt:
+        return "payoutClientSecret.expiresAt must be an integer unix timestamp"
+      case .invalidPayoutAmountCents:
+        return "payoutClientSecret.amountCents must be an integer"
       }
     }
+  }
+
+  private static let depositMintLock = NSLock()
+  private static var depositMintContinuations: [String: CheckedContinuation<FrameCheckoutClientSecret?, Never>] = [:]
+
+  /// Emits `FrameDepositMintRequest` for JS to mint a chk_sess_, then awaits `provideDepositCheckoutSecret`.
+  private static func requestDepositMint(amountCents: Int) async -> FrameCheckoutClientSecret? {
+    let requestId = UUID().uuidString
+    return await withCheckedContinuation { continuation in
+      depositMintLock.lock()
+      depositMintContinuations[requestId] = continuation
+      depositMintLock.unlock()
+      NotificationCenter.default.post(
+        name: FrameDepositMintRequestNotification,
+        object: nil,
+        userInfo: ["requestId": requestId, "amountCents": amountCents]
+      )
+    }
+  }
+
+  @discardableResult
+  private static func resumeDepositMint(requestId: String, secret: FrameCheckoutClientSecret?) -> Bool {
+    depositMintLock.lock()
+    let continuation = depositMintContinuations.removeValue(forKey: requestId)
+    depositMintLock.unlock()
+    guard let continuation else { return false }
+    continuation.resume(returning: secret)
+    return true
+  }
+
+  private static func optionalInt(_ value: NSObject?) -> Int? {
+    guard let number = value as? NSNumber else { return nil }
+    return number.intValue
   }
 
   /// Parses a required JS `{ clientSecret, expiresAt }` map.
@@ -257,6 +353,93 @@ public class FrameSDKBridge: NSObject {
       amountCents: amountCents.map { Int($0) },
       amountCurrency: amountCurrency
     )
+  }
+
+  /// Parses a required JS `{ clientSecret, expiresAt, amountCents }` payout session map.
+  private func parsePayoutClientSecret(_ value: NSDictionary?) throws -> FramePayoutClientSecret {
+    guard let value else { throw BridgeParseError.invalidPayoutClientSecret }
+    guard let clientSecret = value["clientSecret"] as? String, !clientSecret.isEmpty,
+          let expiresAtNumber = value["expiresAt"] as? NSNumber,
+          let amountNumber = value["amountCents"] as? NSNumber else {
+      throw BridgeParseError.invalidPayoutClientSecret
+    }
+    guard let expiresAt = Int64(exactly: expiresAtNumber.doubleValue) else {
+      throw BridgeParseError.invalidPayoutExpiresAt
+    }
+    guard let amountCents = Int32(exactly: amountNumber.doubleValue) else {
+      throw BridgeParseError.invalidPayoutAmountCents
+    }
+    let amountCurrency = (value["amountCurrency"] as? String) ?? "usd"
+    return FramePayoutClientSecret(
+      clientSecret: clientSecret,
+      expiresAt: Date(timeIntervalSince1970: TimeInterval(expiresAt)),
+      amountCents: Int(amountCents),
+      amountCurrency: amountCurrency
+    )
+  }
+
+  private func presentPayoutOnMain(from top: UIViewController, accountId: String, payoutClientSecret: FramePayoutClientSecret, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+    let delegate = CheckoutDismissDelegate(resolve: resolve, reject: reject)
+    let payoutView = FramePayoutView(
+      accountId: accountId,
+      clientSecret: payoutClientSecret,
+      onResult: { [weak top, delegate] result in
+        switch result {
+        case .completed(let id):
+          delegate.finish(.success(id))
+        case .cancelled:
+          delegate.finish(.cancel)
+        case .failed:
+          delegate.finish(.failure)
+        case .finishedUnverified:
+          delegate.finish(.failure)
+        }
+        top?.dismiss(animated: true)
+      }
+    )
+    let hosting = UIHostingController(rootView: payoutView)
+    hosting.modalPresentationStyle = UIModalPresentationStyle.pageSheet
+    if let sheet = hosting.sheetPresentationController {
+      sheet.detents = [UISheetPresentationController.Detent.large()]
+    }
+    objc_setAssociatedObject(hosting, &payoutDismissKey, delegate, .OBJC_ASSOCIATION_RETAIN)
+    top.present(hosting, animated: true) {
+      hosting.presentationController?.delegate = delegate
+    }
+  }
+
+  private func presentDepositOnMain(from top: UIViewController, accountId: String, minAmount: Int?, maxAmount: Int?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+    let delegate = CheckoutDismissDelegate(resolve: resolve, reject: reject)
+    let depositView = FrameDepositView(
+      accountId: accountId,
+      minAmount: minAmount,
+      maxAmount: maxAmount,
+      mintCheckoutSession: { amountCents in
+        await FrameSDKBridge.requestDepositMint(amountCents: amountCents)
+      },
+      onResult: { [weak top, delegate] result in
+        switch result {
+        case .completed(let id):
+          delegate.finish(.success(id))
+        case .cancelled:
+          delegate.finish(.cancel)
+        case .failed:
+          delegate.finish(.failure)
+        case .finishedUnverified:
+          delegate.finish(.failure)
+        }
+        top?.dismiss(animated: true)
+      }
+    )
+    let hosting = UIHostingController(rootView: depositView)
+    hosting.modalPresentationStyle = UIModalPresentationStyle.pageSheet
+    if let sheet = hosting.sheetPresentationController {
+      sheet.detents = [UISheetPresentationController.Detent.large()]
+    }
+    objc_setAssociatedObject(hosting, &depositDismissKey, delegate, .OBJC_ASSOCIATION_RETAIN)
+    top.present(hosting, animated: true) {
+      hosting.presentationController?.delegate = delegate
+    }
   }
 
   private func presentCheckoutOnMain(from top: UIViewController, accountId: String, amount: Int, checkoutClientSecret: FrameCheckoutClientSecret?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
@@ -679,3 +862,8 @@ private var checkoutDismissKey: UInt8 = 0
 private var cartDismissKey: UInt8 = 0
 private var onboardingDismissKey: UInt8 = 0
 private var addMethodDismissKey: UInt8 = 0
+private var payoutDismissKey: UInt8 = 0
+private var depositDismissKey: UInt8 = 0
+
+/// Posted by Swift when deposit needs JS to mint a checkout session; ObjC RCTEventEmitter re-emits to JS.
+let FrameDepositMintRequestNotification = Notification.Name("FrameDepositMintRequest")

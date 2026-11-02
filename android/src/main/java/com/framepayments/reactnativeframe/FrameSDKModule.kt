@@ -3,6 +3,7 @@ package com.framepayments.reactnativeframe
 import android.app.Activity
 import android.content.Intent
 import com.facebook.react.bridge.ActivityEventListener
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -11,18 +12,26 @@ import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.bridge.WritableNativeMap
+import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.framepayments.framesdk.FrameNetworking
 import com.framepayments.framesdk.checkoutsessions.FrameCheckoutClientSecret
+import com.framepayments.framesdk.payoutsessions.FramePayoutClientSecret
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CompletableDeferred
 
 class FrameSDKModule(reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext), ActivityEventListener {
 
   init {
     reactContext.addActivityEventListener(this)
+    activeModule = this
   }
 
   private var checkoutPromise: Promise? = null
   private var cartPromise: Promise? = null
+  private var payoutPromise: Promise? = null
+  private var depositPromise: Promise? = null
   private var onboardingPromise: Promise? = null
   private var onboardingStopMessage: String? = null
   private var googlePayPromise: Promise? = null
@@ -31,8 +40,23 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
   override fun getName(): String = "FrameSDK"
 
   companion object {
+    private const val DEPOSIT_MINT_EVENT = "FrameDepositMintRequest"
+
     @JvmStatic
     var pendingGooglePayCallback: ((Int, Intent?) -> Unit)? = null
+
+    @Volatile
+    private var activeModule: FrameSDKModule? = null
+
+    private val pendingDepositMints =
+      ConcurrentHashMap<String, CompletableDeferred<FrameCheckoutClientSecret?>>()
+
+    /** Called from [FrameDepositActivity] to ask JS to mint a chk_sess_ for [amountCents]. */
+    @JvmStatic
+    suspend fun requestDepositMint(amountCents: Int): FrameCheckoutClientSecret? {
+      val module = activeModule ?: return null
+      return module.requestDepositMintInternal(amountCents)
+    }
   }
 
   @ReactMethod
@@ -131,6 +155,107 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
         putCheckoutClientSecret(this, secret)
       }
       activity.startActivityForResult(intent, FrameFlowActivity.REQUEST_CODE)
+    }
+  }
+
+  @ReactMethod
+  fun presentPayout(accountId: String?, payoutClientSecret: ReadableMap?, promise: Promise) {
+    val activity = reactApplicationContext.currentActivity ?: run {
+      promise.reject("NO_ACTIVITY", "No current activity", null)
+      return
+    }
+    if (accountId.isNullOrEmpty()) {
+      promise.reject("INVALID_ACCOUNT", "Frame.presentPayout requires a non-empty accountId", null)
+      return
+    }
+    val secret = try {
+      parsePayoutClientSecret(payoutClientSecret)
+    } catch (e: IllegalArgumentException) {
+      promise.reject("INVALID_CLIENT_SECRET", e.message, null)
+      return
+    }
+    payoutPromise = promise
+    activity.runOnUiThread {
+      val intent = Intent(activity, FramePayoutActivity::class.java).apply {
+        putExtra(FramePayoutActivity.EXTRA_ACCOUNT_ID, accountId)
+        putExtra(FramePayoutActivity.EXTRA_PAYOUT_CLIENT_SECRET, secret.clientSecret)
+        putExtra(FramePayoutActivity.EXTRA_PAYOUT_EXPIRES_AT, secret.expiresAt)
+        putExtra(FramePayoutActivity.EXTRA_PAYOUT_AMOUNT_CENTS, secret.amountCents)
+        putExtra(FramePayoutActivity.EXTRA_PAYOUT_AMOUNT_CURRENCY, secret.amountCurrency)
+      }
+      activity.startActivityForResult(intent, FramePayoutActivity.REQUEST_CODE)
+    }
+  }
+
+  @ReactMethod
+  fun presentDeposit(accountId: String?, minAmount: Double?, maxAmount: Double?, promise: Promise) {
+    val activity = reactApplicationContext.currentActivity ?: run {
+      promise.reject("NO_ACTIVITY", "No current activity", null)
+      return
+    }
+    if (accountId.isNullOrEmpty()) {
+      promise.reject("INVALID_ACCOUNT", "Frame.presentDeposit requires a non-empty accountId", null)
+      return
+    }
+    depositPromise = promise
+    activity.runOnUiThread {
+      val intent = Intent(activity, FrameDepositActivity::class.java).apply {
+        putExtra(FrameDepositActivity.EXTRA_ACCOUNT_ID, accountId)
+        minAmount?.let { putExtra(FrameDepositActivity.EXTRA_MIN_AMOUNT, it.toInt()) }
+        maxAmount?.let { putExtra(FrameDepositActivity.EXTRA_MAX_AMOUNT, it.toInt()) }
+      }
+      activity.startActivityForResult(intent, FrameDepositActivity.REQUEST_CODE)
+    }
+  }
+
+  @ReactMethod
+  fun provideDepositCheckoutSecret(requestId: String, checkoutClientSecret: ReadableMap?, promise: Promise) {
+    if (requestId.isEmpty()) {
+      promise.reject("INVALID_CLIENT_SECRET", "Frame.provideDepositCheckoutSecret requires requestId", null)
+      return
+    }
+    val deferred = pendingDepositMints.remove(requestId)
+    if (deferred == null) {
+      promise.reject("NO_RESULT", "No pending deposit mint for requestId", null)
+      return
+    }
+    val secret = try {
+      if (checkoutClientSecret == null) null else parseCheckoutClientSecret(checkoutClientSecret)
+    } catch (e: IllegalArgumentException) {
+      deferred.complete(null)
+      promise.reject("INVALID_CLIENT_SECRET", e.message, null)
+      return
+    }
+    deferred.complete(secret)
+    promise.resolve(null)
+  }
+
+  /** Required by RN NativeEventEmitter when this module emits JS events. */
+  @ReactMethod
+  fun addListener(eventName: String) {
+    @Suppress("UNUSED_PARAMETER") val ignored = eventName
+  }
+
+  @ReactMethod
+  fun removeListeners(count: Int) {
+    @Suppress("UNUSED_PARAMETER") val ignored = count
+  }
+
+  private suspend fun requestDepositMintInternal(amountCents: Int): FrameCheckoutClientSecret? {
+    val requestId = UUID.randomUUID().toString()
+    val deferred = CompletableDeferred<FrameCheckoutClientSecret?>()
+    pendingDepositMints[requestId] = deferred
+    val params = Arguments.createMap().apply {
+      putString("requestId", requestId)
+      putInt("amountCents", amountCents)
+    }
+    reactApplicationContext
+      .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+      .emit(DEPOSIT_MINT_EVENT, params)
+    return try {
+      deferred.await()
+    } finally {
+      pendingDepositMints.remove(requestId)
     }
   }
 
@@ -328,6 +453,55 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     )
   }
 
+  private fun parsePayoutClientSecret(map: ReadableMap?): FramePayoutClientSecret {
+    if (map == null) {
+      throw IllegalArgumentException(
+        "payoutClientSecret requires { clientSecret: string, expiresAt: number, amountCents: number }"
+      )
+    }
+    if (!map.hasKey("clientSecret") || map.isNull("clientSecret") ||
+      map.getType("clientSecret") != com.facebook.react.bridge.ReadableType.String ||
+      !map.hasKey("expiresAt") || map.isNull("expiresAt") ||
+      map.getType("expiresAt") != com.facebook.react.bridge.ReadableType.Number ||
+      !map.hasKey("amountCents") || map.isNull("amountCents") ||
+      map.getType("amountCents") != com.facebook.react.bridge.ReadableType.Number
+    ) {
+      throw IllegalArgumentException(
+        "payoutClientSecret requires { clientSecret: string, expiresAt: number, amountCents: number }"
+      )
+    }
+    val clientSecret = map.getString("clientSecret")
+    if (clientSecret.isNullOrBlank()) {
+      throw IllegalArgumentException(
+        "payoutClientSecret requires { clientSecret: string, expiresAt: number, amountCents: number }"
+      )
+    }
+    val expiresAt = try {
+      requireBridgeLong(map.getDouble("expiresAt"))
+    } catch (e: IllegalArgumentException) {
+      throw IllegalArgumentException("payoutClientSecret.expiresAt must be an integer unix timestamp")
+    }
+    val amountCents = try {
+      requireBridgeInt(map.getDouble("amountCents"))
+    } catch (e: IllegalArgumentException) {
+      throw IllegalArgumentException("payoutClientSecret.amountCents must be an integer")
+    }
+    val amountCurrency =
+      if (map.hasKey("amountCurrency") && !map.isNull("amountCurrency") &&
+        map.getType("amountCurrency") == com.facebook.react.bridge.ReadableType.String
+      ) {
+        map.getString("amountCurrency") ?: "usd"
+      } else {
+        "usd"
+      }
+    return FramePayoutClientSecret(
+      clientSecret,
+      expiresAt,
+      amountCents,
+      amountCurrency,
+    )
+  }
+
   private fun putCheckoutClientSecret(intent: Intent, secret: FrameCheckoutClientSecret?) {
     if (secret == null) return
     intent.putExtra(FrameCheckoutActivity.EXTRA_CHECKOUT_CLIENT_SECRET, secret.clientSecret)
@@ -362,6 +536,8 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     when (requestCode) {
       FrameCheckoutActivity.REQUEST_CODE -> handleCheckoutResult(resultCode, data)
       FrameFlowActivity.REQUEST_CODE -> handleCartResult(resultCode, data)
+      FramePayoutActivity.REQUEST_CODE -> handlePayoutResult(resultCode, data)
+      FrameDepositActivity.REQUEST_CODE -> handleDepositResult(resultCode, data)
       FrameOnboardingActivity.REQUEST_CODE -> handleOnboardingResult(resultCode, data)
       FrameGooglePayActivity.REQUEST_CODE -> handleGooglePayResult(resultCode, data)
       FrameAddMethodActivity.REQUEST_CODE -> handleAddMethodResult(resultCode, data)
@@ -393,6 +569,32 @@ class FrameSDKModule(reactContext: ReactApplicationContext) :
     val promise = cartPromise ?: return
     cartPromise = null
     settleCheckoutResult(promise, resultCode, data, "User cancelled")
+  }
+
+  private fun handlePayoutResult(resultCode: Int, data: Intent?) {
+    val promise = payoutPromise ?: return
+    payoutPromise = null
+    when (resultCode) {
+      Activity.RESULT_OK -> {
+        val transferId = data?.getStringExtra(FramePayoutActivity.EXTRA_TRANSFER_ID)
+        if (!transferId.isNullOrEmpty()) {
+          promise.resolve(transferId)
+        } else {
+          promise.reject("NO_RESULT", "No transfer id in result", null)
+        }
+      }
+      FramePayoutActivity.RESULT_FAILED -> {
+        val message = data?.getStringExtra(FramePayoutActivity.EXTRA_FAILURE_MESSAGE) ?: "Payout failed"
+        promise.reject("PAYMENT_FAILED", message, null)
+      }
+      else -> promise.reject("USER_CANCELED", "User cancelled payout", null)
+    }
+  }
+
+  private fun handleDepositResult(resultCode: Int, data: Intent?) {
+    val promise = depositPromise ?: return
+    depositPromise = null
+    settleCheckoutResult(promise, resultCode, data, "User cancelled deposit")
   }
 
   private fun settleCheckoutResult(promise: Promise, resultCode: Int, data: Intent?, cancelMessage: String) {
