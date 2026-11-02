@@ -42,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **frame-ios: `4.8.2` → `4.8.4`.** Prefers account `sift_user_id` (identity id) for Sift `setUserId` so device data matches payments ([FRA-7897](https://linear.app/framepayments/issue/FRA-7897)). Also includes 4.8.3 (deposit amount + standalone payout).
+- **frame-android: `3.4.2` → `3.4.5`.** Same Sift attribution fix ([FRA-7897](https://linear.app/framepayments/issue/FRA-7897)). Also includes 3.4.3 (deposit amount + standalone payout).
 - **frame-ios: `4.8.1` → `4.8.2`.** Customer-present V2 creates fail if
   `ensureSession` cannot attach a Sonar session ([FRA-7812](https://linear.app/framepayments/issue/FRA-7812)).
 - **frame-android: `3.4.1` → `3.4.2`.** Same fail-closed attach.
