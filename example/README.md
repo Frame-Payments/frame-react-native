@@ -5,7 +5,9 @@ This example demonstrates:
 - **Initialize** – `Frame.initialize({ publishableKey })` on app load
 - **Checkout** – `Frame.presentCheckout({ accountId, amount, checkoutClientSecret })` to open the native checkout modal
 - **Cart** – `Frame.presentCart({ accountId, items, shippingAmountInCents, checkoutClientSecret })` for the cart → checkout flow
-- **Onboarding and checkout sessions** – the demo mints `onb_sess_` and `chk_sess_` tokens with the secret key. Saved cards on checkout require the checkout session.
+- **Deposit** – `Frame.presentDeposit({ accountId, mintCheckoutSession })` amount keypad, then mint `chk_sess_` for the typed cents
+- **Payout** – mint `pyt_sess_` then `Frame.presentPayout({ accountId, payoutClientSecret })`
+- **Onboarding / checkout / payout sessions** – the demo mints `onb_sess_`, `chk_sess_`, and `pyt_sess_` with the secret key. Saved cards on checkout require the checkout session.
 
 ## Prerequisites
 
@@ -24,7 +26,7 @@ This example demonstrates:
 
 2. **Set your API keys**
 
-   `App.tsx` reads `FRAME_PUBLISHABLE_KEY` (`pk_…`, passed to `Frame.initialize`) and `FRAME_SECRET_KEY` (`sk_…`, used to mint `onb_sess_` and `chk_sess_` tokens). Put them in `example/.env` (gitignored):
+   `App.tsx` reads `FRAME_PUBLISHABLE_KEY` (`pk_…`, passed to `Frame.initialize`) and `FRAME_SECRET_KEY` (`sk_…`, used to mint `onb_sess_`, `chk_sess_`, and `pyt_sess_` tokens). Put them in `example/.env` (gitignored):
 
    ```bash
    FRAME_PUBLISHABLE_KEY=pk_sandbox_...
