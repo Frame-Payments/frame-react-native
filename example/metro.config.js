@@ -27,10 +27,30 @@ if (fs.existsSync(envFile)) {
   }
 }
 
+const exampleReact = path.resolve(projectRoot, 'node_modules/react');
+const exampleReactNative = path.resolve(projectRoot, 'node_modules/react-native');
+const rootReact = path.resolve(monorepoRoot, 'node_modules/react');
+const rootReactNative = path.resolve(monorepoRoot, 'node_modules/react-native');
+
+function escapePathForRegExp(filePath) {
+  return filePath.replace(/[/\\]/g, '[/\\\\]');
+}
+
+// Root package.json pins react-native@0.82 for Jest; the example runs 0.83.
+// Hierarchical lookup from lib/ would pick the root copy and NativeEventEmitter
+// then fails with PlatformConstants (separate TurboModuleRegistry singleton).
 const config = {
   watchFolders: [monorepoRoot],
   resolver: {
     nodeModulesPaths: [path.resolve(projectRoot, 'node_modules')],
+    blockList: [
+      new RegExp(`^${escapePathForRegExp(rootReactNative)}[/\\\\].*`),
+      new RegExp(`^${escapePathForRegExp(rootReact)}[/\\\\].*`),
+    ],
+    extraNodeModules: {
+      react: exampleReact,
+      'react-native': exampleReactNative,
+    },
     // Use axios browser build (avoids Node.js crypto/http modules in RN)
     unstable_enablePackageExports: true,
     unstable_conditionNames: ['require', 'react-native', 'browser', 'default'],
