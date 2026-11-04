@@ -13,8 +13,8 @@ export interface FrameCartItem {
 
 /**
  * Short-lived `chk_sess_…` token from `POST /v1/checkout_sessions`. Required by
- * `presentCheckout` / `presentCart`. Checkout loads the account name, email, and saved
- * cards with it.
+ * `presentCheckout` / `presentCart` / `presentDeposit` (minted after amount). Checkout
+ * loads the account name, email, and saved cards with it.
  */
 export interface CheckoutClientSecret {
   /** The `chk_sess_…` bearer token. */
@@ -24,10 +24,29 @@ export interface CheckoutClientSecret {
   /**
    * Locked charge amount in the smallest currency unit. When the session can create a
    * V2 transfer, refresh replays this amount. Optional — checkout stamps it from the
-   * payment amount when omitted. Integer in signed 32-bit range when set.
+   * payment amount when omitted. Integer in signed 32-bit range when set. Required for
+   * deposit mint (must match the keypad amount).
    */
   amountCents?: number;
   /** ISO 4217 currency code for `amountCents` (e.g. `"usd"`). */
+  amountCurrency?: string;
+}
+
+/**
+ * Short-lived `pyt_sess_…` token from `POST /v1/payout_sessions`. Required by
+ * `presentPayout`. The session amount is the keypad cap for the payout.
+ */
+export interface PayoutClientSecret {
+  /** The `pyt_sess_…` bearer token. */
+  clientSecret: string;
+  /** Unix timestamp in seconds when the token stops being accepted. Integer in signed 64-bit range. */
+  expiresAt: number;
+  /**
+   * Withdrawable-balance cap in the smallest currency unit. Required — the keypad and
+   * create amount must stay in `(0, amountCents]`. Integer in signed 32-bit range.
+   */
+  amountCents: number;
+  /** ISO 4217 currency code for `amountCents` (e.g. `"usd"`). Defaults to `"usd"`. */
   amountCurrency?: string;
 }
 

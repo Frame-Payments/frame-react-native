@@ -47,6 +47,9 @@ const sampleCartItems = [
   },
 ];
 
+// Demo withdrawable-balance cap for presentPayout — mirrors FrameExample-iOS.
+const EXAMPLE_PAYOUT_AVAILABLE_CENTS = 5000;
+
 export default function App() {
   const [loading, setLoading] = useState<string | null>(null);
   const colorScheme = useColorScheme();
@@ -121,8 +124,43 @@ export default function App() {
     return {
       clientSecret: body.client_secret as string,
       expiresAt: body.expires_at as number,
-      amountCents,
-      amountCurrency: 'usd',
+      amountCents: typeof body.amount?.value === 'number' ? body.amount.value : amountCents,
+      amountCurrency:
+        typeof body.amount?.currency === 'string' ? body.amount.currency : 'usd',
+    };
+  };
+
+  // Demo only: mints pyt_sess_ with sk_. Production apps mint POST /v1/payout_sessions
+  // on the server and pass the client secret into presentPayout.
+  const mintPayoutClientSecret = async (forAccountId: string, amountCents: number) => {
+    if (!FRAME_SECRET_KEY) {
+      throw new Error('Set FRAME_SECRET_KEY to mint a payout session.');
+    }
+    if (amountCents <= 0) {
+      throw new Error('Payout session amount must be positive.');
+    }
+    const response = await fetch('https://api.framepayments.com/v1/payout_sessions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${FRAME_SECRET_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        account_id: forAccountId,
+        amount: { value: amountCents, currency: 'usd' },
+      }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || typeof body.client_secret !== 'string' || typeof body.expires_at !== 'number') {
+      const message = body?.error?.message ?? body?.message ?? `Payout session failed (${response.status})`;
+      throw new Error(message);
+    }
+    return {
+      clientSecret: body.client_secret as string,
+      expiresAt: body.expires_at as number,
+      amountCents: typeof body.amount?.value === 'number' ? body.amount.value : amountCents,
+      amountCurrency:
+        typeof body.amount?.currency === 'string' ? body.amount.currency : 'usd',
     };
   };
 
@@ -160,6 +198,48 @@ export default function App() {
         checkoutClientSecret,
       });
       Alert.alert('Success', transferId ? `Transfer: ${transferId}` : 'Cart flow completed');
+    } catch (e: any) {
+      if (e.code === 'USER_CANCELED') return;
+      Alert.alert('Error', e.message ?? String(e));
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // Amount is unknown until the keypad. presentDeposit asks the host to mint
+  // POST /v1/checkout_sessions for the typed cents (mirrors FrameExample-iOS).
+  const handleDeposit = async () => {
+    if (!requireAccount()) return;
+    setLoading('deposit');
+    try {
+      const transferId = await Frame.presentDeposit({
+        accountId,
+        mintCheckoutSession: (amountCents) => mintCheckoutClientSecret(accountId, amountCents),
+      });
+      Alert.alert('Deposit complete', `Transfer: ${transferId}`);
+    } catch (e: any) {
+      if (e.code === 'USER_CANCELED') return;
+      Alert.alert('Error', e.message ?? String(e));
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // Example app has no backend. Production apps mint POST /v1/payout_sessions
+  // on their server with sk_ and pass the client secret in.
+  const handlePayout = async () => {
+    if (!requireAccount()) return;
+    setLoading('payout');
+    try {
+      const payoutClientSecret = await mintPayoutClientSecret(
+        accountId,
+        EXAMPLE_PAYOUT_AVAILABLE_CENTS
+      );
+      const transferId = await Frame.presentPayout({
+        accountId,
+        payoutClientSecret,
+      });
+      Alert.alert('Payout complete', `Transfer: ${transferId}`);
     } catch (e: any) {
       if (e.code === 'USER_CANCELED') return;
       Alert.alert('Error', e.message ?? String(e));
@@ -451,6 +531,30 @@ export default function App() {
           <ActivityIndicator color="#fff" />
         ) : (
           <Text style={styles.buttonText}>Cart → Checkout</Text>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, (loading === 'deposit' || !!initError) && styles.buttonDisabled]}
+        onPress={handleDeposit}
+        disabled={!!loading || !!initError}
+      >
+        {loading === 'deposit' ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Deposit Funds</Text>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, (loading === 'payout' || !!initError) && styles.buttonDisabled]}
+        onPress={handlePayout}
+        disabled={!!loading || !!initError}
+      >
+        {loading === 'payout' ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Initiate Payout</Text>
         )}
       </TouchableOpacity>
 

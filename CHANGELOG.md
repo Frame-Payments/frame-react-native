@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`presentPayout({ accountId, payoutClientSecret })`** — standalone payout UI
+  from frame-ios 4.8.3 / frame-android 3.4.3 ([FRA-7881](https://linear.app/framepayments/issue/FRA-7881)).
+  Host mints `pyt_sess_…` upfront (`amountCents` required as the keypad cap).
+  Resolves with the Transfer id; rejects `USER_CANCELED` / `PAYMENT_FAILED` like checkout.
+- **`presentDeposit({ accountId, minAmount?, maxAmount?, mintCheckoutSession })`** —
+  deposit amount UI then checkout ([FRA-7880](https://linear.app/framepayments/issue/FRA-7880)).
+  Host mints `chk_sess_…` after the user picks an amount via `mintCheckoutSession`.
+  Across the bridge, native emits `FrameDepositMintRequest` and JS replies with
+  `provideDepositCheckoutSecret`. Resolves with the Transfer id.
+- **`PayoutClientSecret` is now exported** from the package entry point.
 - **`presentOnboarding({ accountType })`** (`'individual' | 'business'`, default
   `'individual'`). `'business'` presents the native business flow from frame-ios
   4.8.1 / frame-android 3.4.1 (email + role on personal info, Business details,
@@ -42,6 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **frame-ios: `4.8.2` → `4.8.4`.** Prefers account `sift_user_id` (identity id) for Sift `setUserId` so device data matches payments ([FRA-7897](https://linear.app/framepayments/issue/FRA-7897)). Also includes 4.8.3 (deposit amount + standalone payout).
+- **frame-android: `3.4.2` → `3.4.5`.** Same Sift attribution fix ([FRA-7897](https://linear.app/framepayments/issue/FRA-7897)). Also includes 3.4.3 (deposit amount + standalone payout).
 - **frame-ios: `4.8.1` → `4.8.2`.** Customer-present V2 creates fail if
   `ensureSession` cannot attach a Sonar session ([FRA-7812](https://linear.app/framepayments/issue/FRA-7812)).
 - **frame-android: `3.4.1` → `3.4.2`.** Same fail-closed attach.

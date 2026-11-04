@@ -6,6 +6,7 @@
 //
 
 #import <React/RCTBridgeModule.h>
+#import <React/RCTEventEmitter.h>
 #import "FrameVCHelper.h"
 
 // Import the FrameReactNative pod's auto-generated Swift header so this Obj-C
@@ -20,7 +21,9 @@
 #error "FrameReactNative-Swift.h not found. The Frame React Native pod's Swift code did not generate its module header — check that pod install ran cleanly."
 #endif
 
-@interface FrameSDKModule : NSObject <RCTBridgeModule>
+static NSString *const kFrameDepositMintRequest = @"FrameDepositMintRequest";
+
+@interface FrameSDKModule : RCTEventEmitter <RCTBridgeModule>
 @end
 
 @interface RCT_EXTERN_MODULE(FrameSDK, FrameSDKModule)
@@ -45,6 +48,22 @@ RCT_EXTERN_METHOD(presentCheckout:(id)accountId
 RCT_EXTERN_METHOD(presentCart:(id)accountId
                   items:(NSArray *)items
                   shippingAmountInCents:(nonnull NSNumber *)shippingAmountInCents
+                  checkoutClientSecret:(id)checkoutClientSecret
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(presentPayout:(id)accountId
+                  payoutClientSecret:(id)payoutClientSecret
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(presentDeposit:(id)accountId
+                  minAmount:(id)minAmount
+                  maxAmount:(id)maxAmount
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(provideDepositCheckoutSecret:(NSString *)requestId
                   checkoutClientSecret:(id)checkoutClientSecret
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
@@ -88,10 +107,46 @@ RCT_EXTERN_METHOD(presentSelectPayoutMethod:(NSString *)accountId
 @implementation FrameSDK
 @end
 
-@implementation FrameSDKModule
+@implementation FrameSDKModule {
+  BOOL _hasListeners;
+}
+
+static __weak FrameSDKModule *sFrameSDKModule = nil;
 
 + (BOOL)requiresMainQueueSetup {
   return YES;
+}
+
+- (instancetype)init {
+  if (self = [super init]) {
+    sFrameSDKModule = self;
+  }
+  return self;
+}
+
+- (NSArray<NSString *> *)supportedEvents {
+  return @[kFrameDepositMintRequest];
+}
+
+- (void)startObserving {
+  _hasListeners = YES;
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(onDepositMintRequest:)
+                                               name:kFrameDepositMintRequest
+                                             object:nil];
+}
+
+- (void)stopObserving {
+  _hasListeners = NO;
+  [[NSNotificationCenter defaultCenter] removeObserver:self name:kFrameDepositMintRequest object:nil];
+}
+
+- (void)onDepositMintRequest:(NSNotification *)note {
+  if (!_hasListeners) {
+    return;
+  }
+  NSDictionary *body = note.userInfo ?: @{};
+  [self sendEventWithName:kFrameDepositMintRequest body:body];
 }
 
 - (void)initialize:(id)secretKey publishableKey:(NSString *)publishableKey debugMode:(BOOL)debugMode applePayMerchantId:(id)applePayMerchantId googlePayMerchantId:(id)googlePayMerchantId theme:(NSDictionary *)theme accountId:(id)accountId hostSDKVersion:(NSString *)hostSDKVersion resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
@@ -121,6 +176,36 @@ RCT_EXTERN_METHOD(presentSelectPayoutMethod:(NSString *)accountId
     NSDictionary *secret = [checkoutClientSecret isKindOfClass:[NSDictionary class]] ? (NSDictionary *)checkoutClientSecret : nil;
     [[[ObjCFrameSDKBridge alloc] init] presentCartFrom:topVC accountId:accountId items:items shippingAmountInCents:shippingAmountInCents.integerValue checkoutClientSecret:secret resolver:resolve rejecter:reject];
   });
+}
+
+- (void)presentPayout:(id)accountId payoutClientSecret:(id)payoutClientSecret resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    UIViewController *topVC = FrameGetTopViewController();
+    if (!topVC) {
+      reject(@"NO_ROOT_VC", @"Could not find root view controller to present payout", nil);
+      return;
+    }
+    NSString *aId = [accountId isKindOfClass:[NSString class]] ? (NSString *)accountId : nil;
+    NSDictionary *secret = [payoutClientSecret isKindOfClass:[NSDictionary class]] ? (NSDictionary *)payoutClientSecret : nil;
+    [[[ObjCFrameSDKBridge alloc] init] presentPayoutFrom:topVC accountId:aId payoutClientSecret:secret resolver:resolve rejecter:reject];
+  });
+}
+
+- (void)presentDeposit:(id)accountId minAmount:(id)minAmount maxAmount:(id)maxAmount resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    UIViewController *topVC = FrameGetTopViewController();
+    if (!topVC) {
+      reject(@"NO_ROOT_VC", @"Could not find root view controller to present deposit", nil);
+      return;
+    }
+    NSString *aId = [accountId isKindOfClass:[NSString class]] ? (NSString *)accountId : nil;
+    [[[ObjCFrameSDKBridge alloc] init] presentDepositFrom:topVC accountId:aId minAmount:minAmount maxAmount:maxAmount resolver:resolve rejecter:reject];
+  });
+}
+
+- (void)provideDepositCheckoutSecret:(NSString *)requestId checkoutClientSecret:(id)checkoutClientSecret resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+  NSDictionary *secret = [checkoutClientSecret isKindOfClass:[NSDictionary class]] ? (NSDictionary *)checkoutClientSecret : nil;
+  [[[ObjCFrameSDKBridge alloc] init] provideDepositCheckoutSecret:requestId checkoutClientSecret:secret resolver:resolve rejecter:reject];
 }
 
 - (void)presentOnboarding:(id)accountId capabilities:(NSArray *)capabilities showIntroScreen:(BOOL)showIntroScreen showCompletionScreen:(BOOL)showCompletionScreen clientSecret:(id)clientSecret accountType:(id)accountType resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
