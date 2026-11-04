@@ -36,8 +36,8 @@ The Frame iOS and Android SDK versions live in **one place**: the top-level
 
 ```json
 "frameNativeVersions": {
-  "ios": "4.8.4",
-  "android": "3.4.5"
+  "ios": "4.8.5",
+  "android": "3.4.6"
 }
 ```
 

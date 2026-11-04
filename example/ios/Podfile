@@ -37,7 +37,7 @@ target 'FrameExampleTemp' do
       :mac_catalyst_enabled => false
     )
 
-    # frame-ios pulls in dynamic frameworks (FingerprintPro, LinkKit, the Prove
+    # frame-ios pulls in dynamic frameworks (Fingerprint, LinkKit, the Prove
     # stack) through SPM. RN's spm_dependency hook attaches those products to the
     # Pods target, and this app target links only libPods-*.a with no embed phase
     # of its own, so nothing ever copies them into the bundle: they build into
@@ -49,7 +49,7 @@ target 'FrameExampleTemp' do
     # install_framework helper already resolves paths against BUILT_PRODUCTS_DIR
     # and handles the code-signing and slice-stripping.
     spm_frameworks = %w[
-      FingerprintPro
+      Fingerprint
       LinkKit
       Persona2
       ProveAuth

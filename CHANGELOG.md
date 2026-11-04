@@ -52,6 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **frame-ios: `4.8.4` → `4.8.5`.** Fingerprint Pro SDK v2 → v4.2.0 (`Fingerprint` / `fingerprint-ios`) ([FRA-8150](https://linear.app/framepayments/issue/FRA-8150)). iOS hosts embedding SPM products must use `Fingerprint` instead of `FingerprintPro`.
+- **frame-android: `3.4.5` → `3.4.6`.** Same Fingerprint v4.2.0 migration (`com.fingerprint.android:sdk`) ([FRA-8150](https://linear.app/framepayments/issue/FRA-8150)).
 - **frame-ios: `4.8.2` → `4.8.4`.** Prefers account `sift_user_id` (identity id) for Sift `setUserId` so device data matches payments ([FRA-7897](https://linear.app/framepayments/issue/FRA-7897)). Also includes 4.8.3 (deposit amount + standalone payout).
 - **frame-android: `3.4.2` → `3.4.5`.** Same Sift attribution fix ([FRA-7897](https://linear.app/framepayments/issue/FRA-7897)). Also includes 3.4.3 (deposit amount + standalone payout).
 - **frame-ios: `4.8.1` → `4.8.2`.** Customer-present V2 creates fail if
