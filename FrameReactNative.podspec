@@ -21,7 +21,7 @@ Pod::Spec.new do |s|
 
   s.dependency 'React-Core'
 
-  # frame-ios reaches Persona2, FingerprintPro, LinkKit and the Prove stack through
+  # frame-ios reaches Persona2, Fingerprint, LinkKit and the Prove stack through
   # SPM, and RN's spm_dependency hook attaches those to the Pods target. Nothing
   # embeds them into the host app, so consumers must copy them out of
   # BUILT_PRODUCTS_DIR in their Podfile — see example/ios/Podfile. Declaring them as
